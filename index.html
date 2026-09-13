@@ -14,23 +14,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-    <!-- Bloqueia indexação em buscadores (links temporários) -->
     <meta name="robots" content="noindex, nofollow">
 
     <!-- ═══════════════════════════════════════════════════════
-         CSP ESTRITA (sem unsafe-inline) — possível porque
-         NÃO existem mais handlers inline no HTML.
+         CSP CORRIGIDA:
+           • style-src agora tem 'unsafe-inline' porque o app.js
+             usa element.style.cssText em vários lugares.
+           • frame-ancestors foi REMOVIDO do meta (não funciona
+             em <meta>, só em cabeçalho HTTP — é inofensivo).
          ═══════════════════════════════════════════════════════ -->
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'self';
                    img-src 'self' data: https:;
-                   style-src 'self';
+                   style-src 'self' 'unsafe-inline';
                    script-src 'self';
                    connect-src 'self' https://script.google.com https://script.googleusercontent.com;
                    form-action 'self';
-                   base-uri 'self';
-                   frame-ancestors 'none';">
+                   base-uri 'self';">
 
     <title>Plataforma Comercial Segura</title>
     <link rel="stylesheet" href="style.css">
