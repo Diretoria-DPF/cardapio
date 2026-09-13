@@ -117,6 +117,21 @@
         chamarComSeguranca('copiarLinkGerado');
         break;
 
+// Alterna a exibição do campo de minutos personalizados no Painel ADM
+    document.addEventListener('change', function (e) {
+        if (e.target.matches('[data-action="mudar-duracao-link"]')) {
+            const inputPersonalizado = document.getElementById('input-duracao-personalizada');
+            if (inputPersonalizado) {
+                if (e.target.value === 'personalizado') {
+                    inputPersonalizado.classList.remove('hidden');
+                    inputPersonalizado.focus();
+                } else {
+                    inputPersonalizado.classList.add('hidden');
+                }
+            }
+        }
+    }, false);
+          
       /* Painel ADM ----------------------------------------------- */
       case 'carregar-painel-adm':
         e.preventDefault();
