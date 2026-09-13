@@ -681,3 +681,27 @@ input:focus, select:focus, textarea:focus {
     align-items: center;
     gap: 8px;
 }
+
+/* ==========================================================================
+   [NOVO v3] Classes utilitárias (substituem estilos inline)
+   ========================================================================== */
+
+/* Dica sob o botão de cadastro na tela de bloqueio */
+.lock-hint {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 10px;
+}
+
+/* Input que fica ao lado de um <select> na mesma linha (ADM) */
+.input-inline {
+    max-width: 140px;
+    margin-bottom: 0;
+}
+
+/* Divisor pontilhado no editor de FAQ (ADM) */
+.adm-editor-hr {
+    margin: 15px 0;
+    border: none;
+    border-top: 1px dashed #cbd5e1;
+}
