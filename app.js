@@ -1,41 +1,29 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v2 melhorada)
-   Principais correções:
-     • XSS: todas as strings do servidor passam por escaparHtml()
-     • Preços: fmtPreco() aceita number OU string
-     • Loading global + estado "loading" nos botões (evita duplo clique)
-     • Chat real com modal (ações chat_enviar / chat_listar)
-     • Confirmação genérica antes de logout
-     • Timeout e retry no fetch
-     • Busca/filtro client-side na vitrine
-     • Token da URL é salvo na sessão após validação
-     • Comentário agora envia nome do autor
-   MANTÉM as mesmas ações do Code.gs (exceto chat, ver nota no fim).
+   app.js — Plataforma Comercial Segura (v3)
+   Correções desta versão:
+     • Badge vermelho com contagem de solicitações pendentes (ADM)
+     • Auto-refresh do painel ADM a cada 20s enquanto o ADM estiver logado
+     • Aprovar membro atualiza lista E badge na hora
+     • Tudo do app.js v2 foi mantido
    ============================================================================ */
 
 // ⚠️ COLE A SUA URL DO WEB APP AQUI:
 const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbwKauAHD750szLBBLDflruitYtNZwLgYYGOLzIHUCLCUCAcQzyrPouTFQBKwGDzYUpP/exec";
 
 // ============================================================================
-// 1. HELPERS DE SEGURANÇA E FORMATAÇÃO
+// 1. HELPERS
 // ============================================================================
-
-/** Escapa caracteres perigosos para inserção segura em innerHTML.
- *  SEMPRE use ao interpolar dados que vieram do servidor/usuário. */
 function escaparHtml(v) {
     return String(v ?? '').replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[c]));
 }
 
-/** Formata qualquer valor como moeda BRL.
- *  Aceita number (99.9) ou string ("99,90" / "99.90"). */
 function fmtPreco(v) {
     const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
     return `R$ ${(isNaN(n) ? 0 : n).toFixed(2).replace('.', ',')}`;
 }
 
-/** Mostra o loader global (bloqueia interação durante requisições longas). */
 function mostrarLoader(texto = 'Carregando...') {
     document.getElementById('loader-text').textContent = texto;
     document.getElementById('loader-overlay').classList.remove('hidden');
@@ -44,7 +32,6 @@ function esconderLoader() {
     document.getElementById('loader-overlay').classList.add('hidden');
 }
 
-/** Ativa estado "loading" em um botão (desabilita + spinner). */
 function botaoCarregando(id, carregando = true) {
     const b = document.getElementById(id);
     if (!b) return;
@@ -53,13 +40,12 @@ function botaoCarregando(id, carregando = true) {
 }
 
 // ============================================================================
-// 2. CACHE LOCAL (resposta instantânea)
+// 2. CACHE
 // ============================================================================
 const CacheLoja = {
     salvar(chave, dados) {
-        try {
-            localStorage.setItem('cache_' + chave, JSON.stringify({ dados, hora: Date.now() }));
-        } catch (e) { console.warn("Cache cheio:", e); }
+        try { localStorage.setItem('cache_' + chave, JSON.stringify({ dados, hora: Date.now() })); }
+        catch (e) { console.warn("Cache cheio:", e); }
     },
     obter(chave) {
         try {
@@ -67,52 +53,45 @@ const CacheLoja = {
             return item ? JSON.parse(item).dados : null;
         } catch { return null; }
     },
-    limpar(chave) {
-        localStorage.removeItem('cache_' + chave);
-    }
+    limpar(chave) { localStorage.removeItem('cache_' + chave); }
 };
 
 // ============================================================================
 // 3. ESTADO GLOBAL
 // ============================================================================
-const estadoSessao = {
-    papel: 'visitante',       // visitante | membro | entregador | adm
-    token: null,
-    nomeUsuario: 'Visitante'
-};
+const estadoSessao = { papel: 'visitante', token: null, nomeUsuario: 'Visitante' };
 
 let cestaCompras = [];
 let catalogoProdutos = [];
-let catalogoFiltrado = [];     // [NOVO] produtos após o filtro
+let catalogoFiltrado = [];
 let fotoBase64Temporaria = "";
 let identificadorEmTentativa = "";
-let pedidoChatAberto = null;   // [NOVO] id do pedido no modal de chat
+let pedidoChatAberto = null;
+
+// [NOVO] auto-refresh do painel ADM
+let _timerPainelAdm = null;
 
 // ============================================================================
 // 4. INICIALIZAÇÃO
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    await verificarTokenUrl();          // [corrigido] agora salva o token
+    await verificarTokenUrl();
     restaurarSessaoLocal();
     atualizarInterfaceSessao();
 
-    // resposta instantânea a partir do cache
     const produtosEmCache = CacheLoja.obter('produtos_' + estadoSessao.papel);
     if (produtosEmCache && produtosEmCache.length > 0) {
         catalogoProdutos = produtosEmCache;
         catalogoFiltrado = produtosEmCache;
         renderizarVitrine();
     }
-    // sincronização em segundo plano
     await sincronizarProdutosServidor();
 });
 
-/** Devolve a URL base da plataforma (sem querystring). */
 function obterUrlBasePlataforma() {
     return window.location.href.split('?')[0];
 }
 
-/** Valida o token da URL (se houver) e o guarda na sessão. */
 async function verificarTokenUrl() {
     const params = new URLSearchParams(window.location.search);
     const tokenAcesso = params.get('token');
@@ -125,7 +104,6 @@ async function verificarTokenUrl() {
         const res  = await resp.json();
 
         if (res.valido) {
-            // [corrigido] guarda o token para futuras requisições
             estadoSessao.token = tokenAcesso;
             exibirToast("Acesso temporário concedido!", "success");
         } else {
@@ -139,7 +117,6 @@ async function verificarTokenUrl() {
     }
 }
 
-/** Wrapper de fetch com timeout para evitar travamentos. */
 async function fetchComTimeout(url, ms = 20000, opcoes = {}) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), ms);
@@ -150,12 +127,7 @@ async function fetchComTimeout(url, ms = 20000, opcoes = {}) {
     }
 }
 
-/** Executa uma ação POST no Apps Script e devolve o JSON. */
 async function executarRequisicaoAPI(acao, dadosExtras = {}) {
-    if (URL_BACKEND_APPS_SCRIPT.includes("SEU_ID_DO_SCRIPT_AQUI")) {
-        exibirToast("Configure a URL do backend no topo do app.js.", "error");
-        return { sucesso: false };
-    }
     try {
         const resp = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 25000, {
             method: 'POST',
@@ -172,13 +144,12 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}) {
 }
 
 // ============================================================================
-// 5. UPLOAD DE IMAGEM (compressão no navegador)
+// 5. UPLOAD DE IMAGEM
 // ============================================================================
 function processarUploadImagem(evento) {
     const ficheiro = evento.target.files[0];
     if (!ficheiro) return;
 
-    // GIF: mantém animação (limite de 200 KB)
     if (ficheiro.type === "image/gif") {
         if (ficheiro.size > 200 * 1024) {
             exibirToast("O GIF é muito pesado. Máx: 200KB.", "error");
@@ -194,7 +165,6 @@ function processarUploadImagem(evento) {
         return;
     }
 
-    // Outros formatos: redimensiona via canvas para ~35 KB
     const leitor = new FileReader();
     leitor.onload = e => {
         const img = new Image();
@@ -202,14 +172,10 @@ function processarUploadImagem(evento) {
             const canvas = document.createElement('canvas');
             const MAX = 350;
             let { width: w, height: h } = img;
-
             if (w > h && w > MAX) { h *= MAX / w; w = MAX; }
             else if (h >= w && h > MAX) { w *= MAX / h; h = MAX; }
-
-            canvas.width = w;
-            canvas.height = h;
+            canvas.width = w; canvas.height = h;
             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-
             fotoBase64Temporaria = canvas.toDataURL('image/jpeg', 0.7);
             exibirPreviewImagem(fotoBase64Temporaria);
         };
@@ -232,7 +198,7 @@ function removerFotoCarregada() {
 }
 
 // ============================================================================
-// 6. VITRINE + FILTRO
+// 6. VITRINE
 // ============================================================================
 async function sincronizarProdutosServidor() {
     let url = `${URL_BACKEND_APPS_SCRIPT}?acao=listar_produtos`;
@@ -247,12 +213,9 @@ async function sincronizarProdutosServidor() {
             CacheLoja.salvar('produtos_' + estadoSessao.papel, catalogoProdutos);
             renderizarVitrine();
         }
-    } catch (e) {
-        console.warn("Modo offline ou falha de rede:", e);
-    }
+    } catch (e) { console.warn("Modo offline:", e); }
 }
 
-/** Filtra a vitrine conforme o texto digitado na busca. */
 function aplicarFiltroVitrine() {
     const termo = document.getElementById('filtro-produtos').value.trim().toLowerCase();
     catalogoFiltrado = termo
@@ -265,7 +228,6 @@ function renderizarVitrine() {
     const grid = document.getElementById('produtos-container');
     grid.innerHTML = '';
 
-    // [NOVO] estado vazio bonito
     if (!catalogoFiltrado || catalogoFiltrado.length === 0) {
         const termo = document.getElementById('filtro-produtos')?.value.trim();
         grid.innerHTML = `
@@ -295,7 +257,7 @@ function renderizarVitrine() {
 
         const pr = document.createElement('p');
         pr.className = 'product-price';
-        pr.textContent = fmtPreco(p.preco);   // [corrigido] aceita string ou number
+        pr.textContent = fmtPreco(p.preco);
 
         body.append(t, pr);
 
@@ -382,7 +344,7 @@ async function tratarLogin(e) {
         document.getElementById('box-desbloqueio-conta').classList.add('hidden');
         fecharModal('modal-login');
         atualizarInterfaceSessao();
-        CacheLoja.limpar('produtos_visitante');   // evita cache cruzado
+        CacheLoja.limpar('produtos_visitante');
         await sincronizarProdutosServidor();
         exibirToast(`Bem-vindo, ${res.nome}!`, "success");
     } else {
@@ -402,13 +364,8 @@ async function enviarPedidoDesbloqueio() {
     }
 }
 
-/** [NOVO] Pede confirmação antes de sair. */
 function confirmarLogout() {
-    abrirConfirmacao(
-        "Sair da conta",
-        "Deseja realmente encerrar a sessão?",
-        executarLogout
-    );
+    abrirConfirmacao("Sair da conta", "Deseja realmente encerrar a sessão?", executarLogout);
 }
 
 function executarLogout() {
@@ -418,6 +375,11 @@ function executarLogout() {
     cestaCompras = [];
     document.getElementById('cart-counter').textContent = "0";
     localStorage.removeItem('plataforma_sessao');
+
+    // [NOVO] limpa timers e badges
+    desligarAutoRefreshAdm();
+    atualizarBadgePendentesAdm(0);
+
     atualizarInterfaceSessao();
     CacheLoja.limpar('produtos_membro');
     CacheLoja.limpar('produtos_adm');
@@ -460,7 +422,6 @@ function atualizarInterfaceSessao() {
     const esconder = el => el.classList.add('hidden');
     const mostrar  = el => el.classList.remove('hidden');
 
-    // esconde tudo primeiro, liga o que interessa
     [tabCarrinho, tabMeusPedidos, tabNovoProduto, tabPedidosAdm, tabAdm].forEach(esconder);
 
     if (estadoSessao.papel === 'visitante') {
@@ -472,12 +433,19 @@ function atualizarInterfaceSessao() {
     } else if (estadoSessao.papel === 'entregador') {
         esconder(anonBox); mostrar(authBox);
         userLbl.textContent = `Entregador: ${estadoSessao.nomeUsuario}`;
-        mostrar(tabMeusPedidos);
-        mostrar(tabPedidosAdm);
+        mostrar(tabMeusPedidos); mostrar(tabPedidosAdm);
     } else if (estadoSessao.papel === 'adm') {
         esconder(anonBox); mostrar(authBox);
         userLbl.textContent = `ADM: ${estadoSessao.nomeUsuario}`;
         mostrar(tabNovoProduto); mostrar(tabPedidosAdm); mostrar(tabAdm);
+    }
+
+    // [NOVO] liga ou desliga auto-refresh do painel ADM
+    if (estadoSessao.papel === 'adm') {
+        ligarAutoRefreshAdm();
+    } else {
+        desligarAutoRefreshAdm();
+        atualizarBadgePendentesAdm(0);
     }
 }
 
@@ -500,7 +468,10 @@ function navegarPara(nomeAba) {
     if (nomeAba === 'carrinho')     renderizarCarrinho();
     if (nomeAba === 'meus-pedidos') carregarMeusPedidos();
     if (nomeAba === 'pedidos-adm')  carregarPedidosAdm();
-    if (nomeAba === 'adm')          carregarPainelCentralAdm();
+    if (nomeAba === 'adm') {
+        carregarPainelCentralAdm();
+        consultarPendentesAdm();   // [NOVO] atualiza badge na hora
+    }
 }
 
 // ============================================================================
@@ -526,11 +497,7 @@ function renderizarCarrinho() {
     let total = 0;
 
     if (cestaCompras.length === 0) {
-        lista.innerHTML = `
-            <div class="empty-state">
-                <strong>Sua cesta está vazia</strong>
-                Adicione produtos da vitrine.
-            </div>`;
+        lista.innerHTML = `<div class="empty-state"><strong>Sua cesta está vazia</strong>Adicione produtos da vitrine.</div>`;
         document.getElementById('carrinho-total-valor').textContent = 'R$ 0,00';
         return;
     }
@@ -543,11 +510,9 @@ function renderizarCarrinho() {
         row.className = 'cart-item-row';
         row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #e2e8f0;';
 
-        // descrição do item
         const desc = document.createElement('span');
         desc.textContent = `${i.nome} (x${i.quantidade})`;
 
-        // quantidade ajustável (mínimo 1)
         const qtd = document.createElement('input');
         qtd.type = 'number'; qtd.min = 1; qtd.value = i.quantidade;
         qtd.style.cssText = 'width:64px;padding:4px 6px;';
@@ -558,11 +523,9 @@ function renderizarCarrinho() {
                 cestaCompras.reduce((a, x) => a + x.quantidade, 0);
         };
 
-        // subtotal formatado
         const valor = document.createElement('strong');
         valor.textContent = fmtPreco(sub);
 
-        // remover
         const rem = document.createElement('button');
         rem.className = 'btn btn-danger-outline btn-sm';
         rem.textContent = '✕';
@@ -584,7 +547,6 @@ function renderizarCarrinho() {
 async function tratarCriacaoPedido() {
     if (cestaCompras.length === 0) return exibirToast("Cesta vazia.", "error");
 
-    // [NOVO] evita duplo clique
     botaoCarregando('btn-confirmar-pedido', true);
     mostrarLoader("Processando pedido seguro...");
 
@@ -620,11 +582,7 @@ async function carregarMeusPedidos() {
     box.innerHTML = '';
 
     if (!res.sucesso || !res.pedidos || res.pedidos.length === 0) {
-        box.innerHTML = `
-            <div class="empty-state">
-                <strong>Nenhum pedido ainda</strong>
-                Quando criar um pedido, ele aparece aqui.
-            </div>`;
+        box.innerHTML = `<div class="empty-state"><strong>Nenhum pedido ainda</strong>Quando criar um pedido, ele aparece aqui.</div>`;
         return;
     }
 
@@ -632,7 +590,6 @@ async function carregarMeusPedidos() {
         const card = document.createElement('div');
         card.className = 'adm-card';
 
-        // ⚠️ tudo escapado — evita XSS vindo do Sheets
         card.innerHTML = `
             <h4>Pedido: ${escaparHtml(p.id)}</h4>
             <p>Status: <strong>${escaparHtml(String(p.status).toUpperCase())}</strong>
@@ -657,7 +614,6 @@ async function carregarMeusPedidos() {
     });
 }
 
-/** [NOVO] Abre o modal de chat para um pedido. */
 async function abrirChatPedido(pedidoId) {
     pedidoChatAberto = pedidoId;
     document.getElementById('chat-pedido-id').textContent = '#' + pedidoId;
@@ -667,7 +623,6 @@ async function abrirChatPedido(pedidoId) {
     await renderizarChat();
 }
 
-/** [NOVO] Carrega e desenha as mensagens do chat atual. */
 async function renderizarChat() {
     if (!pedidoChatAberto) return;
     const box = document.getElementById('chat-mensagens');
@@ -686,7 +641,6 @@ async function renderizarChat() {
 
     res.mensagens.forEach(m => {
         const div = document.createElement('div');
-        // considera "out" quando a mensagem é do usuário logado
         const ehMinha = (m.autorId && m.autorId === estadoSessao.token) ||
                         (m.autor === estadoSessao.nomeUsuario);
         div.className = 'chat-msg ' + (ehMinha ? 'chat-msg--out' : 'chat-msg--in');
@@ -705,7 +659,6 @@ async function renderizarChat() {
     box.scrollTop = box.scrollHeight;
 }
 
-/** [NOVO] Envia uma mensagem no chat do pedido atual. */
 async function enviarMensagemChat() {
     const input = document.getElementById('chat-input');
     const texto = input.value.trim();
@@ -729,24 +682,30 @@ async function enviarMensagemChat() {
 }
 
 // ============================================================================
-// 13. PAINEL ADM
+// 13. PAINEL ADM  ← CORAÇÃO DA CORREÇÃO
 // ============================================================================
 async function carregarPainelCentralAdm() {
     if (estadoSessao.papel !== 'adm') return;
 
-    // -- 1. solicitações de cadastro --
+    // ─── 1. solicitações ────────────────────────────────────────
     const divSolic = document.getElementById('adm-solicitacoes-lista');
     divSolic.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
 
     const resSolic = await executarRequisicaoAPI("listar_solicitacoes_adm", { tokenAdm: estadoSessao.token });
-    divSolic.innerHTML = '';
 
-    if (resSolic.sucesso && Array.isArray(resSolic.solicitacoes) && resSolic.solicitacoes.length > 0) {
+    const pendentes = (resSolic.sucesso && Array.isArray(resSolic.solicitacoes))
+        ? resSolic.solicitacoes.length
+        : 0;
+
+    // [NOVO] atualiza o badge no menu
+    atualizarBadgePendentesAdm(pendentes);
+
+    divSolic.innerHTML = '';
+    if (pendentes > 0) {
         resSolic.solicitacoes.forEach(s => {
             const row = document.createElement('div');
             row.style.cssText = 'padding:10px 0;border-bottom:1px solid #e2e8f0;';
 
-            // ⚠️ dados escapados
             row.innerHTML = `
                 <p><strong>${escaparHtml(s.nome)}</strong> (Login: ${escaparHtml(s.telefone)})</p>
                 <p style="font-size:.78rem;color:#64748b;">
@@ -767,7 +726,7 @@ async function carregarPainelCentralAdm() {
         divSolic.innerHTML = '<div class="loading-slot">Nenhuma solicitação pendente.</div>';
     }
 
-    // -- 2. métricas --
+    // ─── 2. métricas ────────────────────────────────────────────
     const resMetricas = await executarRequisicaoAPI("obter_metricas_vendas", { tokenAdm: estadoSessao.token });
     if (resMetricas.sucesso) {
         document.getElementById('metric-faturamento').textContent =
@@ -788,7 +747,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // -- 3. contas bloqueadas --
+    // ─── 3. contas bloqueadas ──────────────────────────────────
     const resBloq = await executarRequisicaoAPI("listar_bloqueados_adm", { tokenAdm: estadoSessao.token });
     const divBloq = document.getElementById('adm-bloqueados-lista');
     divBloq.innerHTML = '';
@@ -808,7 +767,7 @@ async function carregarPainelCentralAdm() {
         divBloq.innerHTML = '<div class="loading-slot">Nenhuma conta bloqueada.</div>';
     }
 
-    // -- 4. comentários --
+    // ─── 4. comentários ────────────────────────────────────────
     const resComent = await executarRequisicaoAPI("listar_comentarios_adm", { tokenAdm: estadoSessao.token });
     const divCom = document.getElementById('adm-comentarios-lista');
     divCom.innerHTML = '';
@@ -816,7 +775,6 @@ async function carregarPainelCentralAdm() {
         resComent.comentarios.forEach(c => {
             const p = document.createElement('p');
             p.style.cssText = 'font-size:.8rem;padding:6px 0;border-bottom:1px solid #e2e8f0;';
-            // [corrigido] nome e texto escapados
             const quando = c.data ? new Date(c.data).toLocaleString() : '';
             p.innerHTML = `<strong>${escaparHtml(c.nome || 'Anônimo')}</strong> <small style="color:#94a3b8;">${escaparHtml(quando)}</small><br>${escaparHtml(c.texto || '')}`;
             divCom.appendChild(p);
@@ -836,7 +794,8 @@ async function aprovarMembroAdm(idSolicitacao) {
 
     if (res.sucesso) {
         exibirToast(res.mensagem || "Membro aprovado!", "success");
-        await carregarPainelCentralAdm();
+        await carregarPainelCentralAdm();   // recarrega lista
+        await consultarPendentesAdm();      // [NOVO] atualiza badge
     } else {
         exibirToast(res.mensagem || "Erro ao aprovar.", "error");
     }
@@ -849,6 +808,69 @@ async function liberarContaUsuarioAdm(id) {
     if (res.sucesso) {
         exibirToast(res.mensagem || "Conta liberada.", "success");
         await carregarPainelCentralAdm();
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   [NOVO] BADGE + AUTO-REFRESH DO PAINEL ADM
+   ═══════════════════════════════════════════════════════════════ */
+
+/** Desenha o badge vermelho com a contagem ao lado de "Painel ADM". */
+function atualizarBadgePendentesAdm(qtd) {
+    const btnAdm = document.getElementById('tab-btn-adm');
+    if (!btnAdm) return;
+
+    const antigo = btnAdm.querySelector('.badge-pendentes');
+    if (antigo) antigo.remove();
+
+    if (qtd > 0) {
+        const span = document.createElement('span');
+        span.className = 'badge-pendentes';
+        span.textContent = qtd;
+        span.style.cssText =
+            'display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;' +
+            'background:#ef4444;color:#fff;border-radius:999px;font-size:.7rem;' +
+            'font-weight:700;text-align:center;line-height:18px;';
+        btnAdm.appendChild(span);
+    }
+}
+
+/** Consulta só a contagem (leve) — usada em background. */
+async function consultarPendentesAdm() {
+    if (estadoSessao.papel !== 'adm') return;
+    try {
+        const res = await executarRequisicaoAPI(
+            "listar_solicitacoes_adm",
+            { tokenAdm: estadoSessao.token }
+        );
+        const qtd = (res.sucesso && Array.isArray(res.solicitacoes))
+            ? res.solicitacoes.length
+            : 0;
+        atualizarBadgePendentesAdm(qtd);
+    } catch (e) { /* silencioso */ }
+}
+
+/** Liga o auto-refresh (a cada 20s) enquanto o ADM estiver logado. */
+function ligarAutoRefreshAdm() {
+    desligarAutoRefreshAdm();
+    if (estadoSessao.papel !== 'adm') return;
+
+    consultarPendentesAdm();   // roda já
+
+    _timerPainelAdm = setInterval(() => {
+        if (estadoSessao.papel !== 'adm') {
+            desligarAutoRefreshAdm();
+            return;
+        }
+        consultarPendentesAdm();
+    }, 20000);
+}
+
+/** Desliga o auto-refresh. */
+function desligarAutoRefreshAdm() {
+    if (_timerPainelAdm) {
+        clearInterval(_timerPainelAdm);
+        _timerPainelAdm = null;
     }
 }
 
@@ -872,7 +894,6 @@ async function carregarPedidosAdm() {
             const div = document.createElement('div');
             div.style.cssText = 'background:#fff;padding:6px;margin-bottom:6px;border-radius:4px;border:1px solid #cbd5e1;';
 
-            // ⚠️ id e total escapados/formatados
             div.innerHTML = `
                 <small><strong>${escaparHtml(p.id)}</strong></small><br>
                 <small>${fmtPreco(p.total)}</small>
@@ -894,9 +915,8 @@ async function carregarPedidosAdm() {
         });
     }
 
-    // estados vazios
     [[cA, 'Em análise'], [cS, 'Solicitados'], [cV, 'Em viagem'], [cC, 'Concluídos']]
-        .forEach(([col, nome]) => {
+        .forEach(([col]) => {
             if (!col.children.length) {
                 col.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem pedidos</div>`;
             }
@@ -929,10 +949,7 @@ async function tratarEnvioComentario(e) {
     const msg  = document.getElementById('campo-comentario').value.trim();
     if (!msg) return;
 
-    const res = await executarRequisicaoAPI("enviar_comentario", {
-        nome,           // [NOVO] envia o nome do autor
-        mensagem: msg
-    });
+    const res = await executarRequisicaoAPI("enviar_comentario", { nome, mensagem: msg });
 
     if (res.sucesso) {
         exibirToast("Mensagem enviada!", "success");
@@ -1025,7 +1042,6 @@ function fecharModal(id) {
     if (m) m.classList.remove('active');
 }
 
-/** [NOVO] Modal de confirmação genérico. */
 let _callbackConfirmacao = null;
 function abrirConfirmacao(titulo, mensagem, callback) {
     document.getElementById('confirmar-titulo').textContent = titulo;
@@ -1033,7 +1049,6 @@ function abrirConfirmacao(titulo, mensagem, callback) {
     _callbackConfirmacao = callback;
 
     const btnOk = document.getElementById('confirmar-btn-ok');
-    // substitui o handler anterior sem acumular listeners
     btnOk.onclick = () => {
         fecharConfirmacao();
         if (typeof _callbackConfirmacao === 'function') _callbackConfirmacao();
@@ -1055,7 +1070,6 @@ function exibirToast(msg, tipo = 'info') {
     setTimeout(() => t.remove(), 3500);
 }
 
-// fecha modais ao clicar no backdrop
 document.querySelectorAll('.modal-overlay').forEach(ov => {
     ov.addEventListener('click', e => {
         if (e.target === ov) ov.classList.remove('active');
