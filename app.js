@@ -718,28 +718,73 @@ function confirmarLogout() {
     abrirConfirmacao("Sair da conta", "Deseja realmente encerrar a sessão?", executarLogout);
 }
 
-function executarLogout() {
-    estadoSessao.papel = 'visitante';
-    estadoSessao.token = null;
-    estadoSessao.nomeUsuario = 'Visitante';
-    cestaCompras = [];
+/**
+ * LOGOUT COMPLETO:
+ *   1. Invalida o link temporário no servidor (se houver um na URL).
+ *   2. Limpa sessão, cookies, cache local e todos os timers.
+ *   3. Remove o ?token= da URL.
+ *   4. Recarrega a página → mostra a tela de bloqueio 🔒.
+ *      O usuário PRECISA de um novo link para voltar.
+ */
+async function executarLogout() {
+    // ─── 1. Captura o token do link ANTES de qualquer limpeza ──
+    const params = new URLSearchParams(window.location.search);
+    const tokenLink = params.get('token');
 
-    const contadorCesta = document.getElementById('cart-counter');
-    if (contadorCesta) contadorCesta.textContent = "0";
+    // ─── 2. Invalida no servidor + feedback visual ─────────────
+    if (tokenLink) {
+        mostrarLoader("Encerrando sessão e revogando link...");
+        try {
+            await executarRequisicaoAPI("invalidar_link", { tokenAcesso: tokenLink });
+        } catch (erro) {
+            console.warn("[Logout] Não foi possível invalidar o link:", erro);
+        }
+    } else {
+        mostrarLoader("Encerrando sessão...");
+    }
 
-    localStorage.removeItem('plataforma_sessao');
-    desligarAutoRefreshAdm();
-    atualizarBadgePendentesAdm(0);
-    pararAutoRefreshChat();
+    // ─── 3. Para TODOS os timers em segundo plano ──────────────
     pararTemporizadorSilencioso();
+    pararAutoRefreshChat();
+    desligarAutoRefreshAdm();
 
-    _linkAutorizadoValido = false;
+    // ─── 4. Limpa storages locais ──────────────────────────────
+    try {
+        localStorage.clear();
+        sessionStorage.clear();
+    } catch (erro) {
+        console.warn("[Logout] Erro ao limpar storage:", erro);
+    }
 
-    atualizarInterfaceSessao();
-    CacheLoja.limpar('produtos_membro');
-    CacheLoja.limpar('produtos_adm');
-    sincronizarProdutosServidor();
-    exibirToast("Sessão encerrada com sucesso.", "info");
+    // ─── 5. Elimina cookies do domínio ─────────────────────────
+    try {
+        document.cookie.split(";").forEach(c => {
+            document.cookie = c.replace(/^ +/, "")
+                .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+        });
+    } catch (erro) {
+        console.warn("[Logout] Erro ao limpar cookies:", erro);
+    }
+
+    // ─── 6. Reinicia variáveis de estado ───────────────────────
+    estadoSessao.papel       = 'visitante';
+    estadoSessao.token       = null;
+    estadoSessao.nomeUsuario = 'Visitante';
+    cestaCompras             = [];
+    catalogoProdutos         = [];
+    catalogoFiltrado         = [];
+    _linkAutorizadoValido    = false;
+
+    // ─── 7. Remove ?token=... da barra de endereços ────────────
+    const urlLimpa = window.location.origin + window.location.pathname;
+    window.history.replaceState({}, document.title, urlLimpa);
+
+    esconderLoader();
+
+    // ─── 8. Recarrega do zero → cai na tela de bloqueio ────────
+    //   Usa replace() para o usuário não conseguir voltar com "Back"
+    //   e reencontrar o token antigo.
+    window.location.replace(urlLimpa);
 }
 
 function restaurarSessaoLocal() {
