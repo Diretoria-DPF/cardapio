@@ -776,7 +776,6 @@ function atualizarInterfaceSessao() {
     const tabAdm         = document.getElementById('tab-btn-adm');
 
     const viewBloqueado  = document.getElementById('view-bloqueado');
-    const viewVitrine    = document.getElementById('view-vitrine');
 
     if (badge) {
         badge.textContent = estadoSessao.papel.toUpperCase();
@@ -791,20 +790,35 @@ function atualizarInterfaceSessao() {
     // ─── REGRA DE OURO: BLOQUEIA SE NÃO POSSUIR LINK E NÃO FOR ADM ───
     if (!_linkAutorizadoValido && estadoSessao.papel !== 'adm') {
         esconder(navBar);
-        document.querySelectorAll('.view-panel').forEach(esconder);
-        mostrar(viewBloqueado);
+
+        // Esconde TODOS os painéis (remove 'active' também, não só adiciona 'hidden')
+        document.querySelectorAll('.view-panel').forEach(painel => {
+            painel.classList.add('hidden');
+            painel.classList.remove('active');
+        });
+
+        // ⚠️ CORREÇÃO: a tela de bloqueio precisa ficar ATIVA também
+        if (viewBloqueado) {
+            viewBloqueado.classList.remove('hidden');
+            viewBloqueado.classList.add('active');
+        }
+
         mostrar(anonBox);
         esconder(authBox);
         return;
     }
 
-    // Se estiver autorizado com link ou logado como ADM:
+    // ─── ESTAMOS LIBERADOS (link válido ou ADM logado) ──────────────
     mostrar(navBar);
-    esconder(viewBloqueado);
+
+    // Esconde a tela de bloqueio por completo
+    if (viewBloqueado) {
+        viewBloqueado.classList.add('hidden');
+        viewBloqueado.classList.remove('active');
+    }
 
     if (estadoSessao.papel === 'visitante') {
         mostrar(anonBox); esconder(authBox);
-        navegarPara('vitrine');
     } else if (estadoSessao.papel === 'membro') {
         esconder(anonBox); mostrar(authBox);
         if (userLabel) userLabel.textContent = `Olá, ${estadoSessao.nomeUsuario}`;
@@ -819,6 +833,13 @@ function atualizarInterfaceSessao() {
         mostrar(tabNovoProduto); mostrar(tabPedidosAdm); mostrar(tabAdm);
     }
 
+    // ⚠️ CORREÇÃO CRÍTICA: garante que SEMPRE haja um painel visível
+    // (evita "tela em branco" mesmo se o painel atual ficou com .hidden)
+    const algumPainelVisivel = document.querySelector('.view-panel.active:not(.hidden)');
+    if (!algumPainelVisivel) {
+        navegarPara('vitrine');
+    }
+
     if (estadoSessao.papel === 'adm') {
         ligarAutoRefreshAdm();
     } else {
@@ -826,7 +847,6 @@ function atualizarInterfaceSessao() {
         atualizarBadgePendentesAdm(0);
     }
 }
-
 // ============================================================================
 // 11. NAVEGAÇÃO ENTRE TELAS
 // ============================================================================
@@ -839,6 +859,8 @@ function navegarPara(nomeAba) {
 
     if (botaoAtivo && painelAtivo) {
         botaoAtivo.classList.add('active');
+        // ⚠️ CORREÇÃO: remove 'hidden' ANTES de adicionar 'active'
+        painelAtivo.classList.remove('hidden');
         painelAtivo.classList.add('active');
     }
 
@@ -851,7 +873,6 @@ function navegarPara(nomeAba) {
         consultarPendentesAdm();
     }
 }
-
 // ============================================================================
 // 12. CESTA DE COMPRAS E CRIAÇÃO DE PEDIDOS
 // ============================================================================
