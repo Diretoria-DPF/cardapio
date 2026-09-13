@@ -123,6 +123,17 @@
         chamarComSeguranca('carregarPainelCentralAdm');
         break;
 
+/* Central de Dúvidas e Sugestões (Novo) ------------------- */
+   case 'abrir-central-duvidas':
+     e.preventDefault();
+     chamarComSeguranca('abrirCentralDuvidas');
+     break;
+
+   case 'toggle-faq':
+     e.preventDefault();
+     el.closest('.faq-item')?.classList.toggle('active');
+     break;
+          
       /* Chat de Entregas ----------------------------------------- */
       case 'enviar-chat':
         e.preventDefault();
@@ -172,6 +183,16 @@
         chamarComSeguranca('tratarCadastroProduto', e);
         break;
 
+case 'enviar-sugestao':
+     e.preventDefault();
+     chamarComSeguranca('tratarEnvioSugestao', e);
+     break;
+
+   case 'adicionar-faq':
+     e.preventDefault();
+     chamarComSeguranca('tratarAdicionarFaq', e);
+     break;
+          
       default:
         console.warn('[bindings] Ação de formulário não reconhecida:', acao);
     }
