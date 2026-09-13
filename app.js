@@ -11,7 +11,7 @@
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
-const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbwKauAHD750szLBBLDflruitYtNZwLgYYGOLzIHUCLCUCAcQzyrPouTFQBKwGDzYUpP/exec";
+const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbw3a-97OX8Vz35xJsaKqrpps6H9yXROTCIcWykpwVlAiJP2gqDTK7sa2CyoQ8D0TgaK/exec";
 
 // ============================================================================
 // 1. FUNÇÕES AUXILIARES (HELPERS)
@@ -575,8 +575,14 @@ function renderizarCarrinho() {
     document.getElementById('carrinho-total-valor').textContent = fmtPreco(total);
 }
 
+// ============================================================================
+// CRIAÇÃO DE PEDIDO COM GERAÇÃO AUTOMÁTICA E FALLBACK DE SUPORTE AO VIVO
+// ============================================================================
+
 async function tratarCriacaoPedido() {
-    if (cestaCompras.length === 0) return exibirToast("Sua cesta está vazia.", "error");
+    if (cestaCompras.length === 0) {
+        return exibirToast("A sua cesta está vazia.", "error");
+    }
 
     botaoCarregando('btn-confirmar-pedido', true);
     mostrarLoader("Processando pedido seguro...");
@@ -592,17 +598,75 @@ async function tratarCriacaoPedido() {
     esconderLoader();
     botaoCarregando('btn-confirmar-pedido', false);
 
+    // FLUXO PRINCIPAL: Sucesso na criação do pedido
     if (res.sucesso) {
-        exibirToast(`Pedido ${res.idPedido} gerado!`, "success");
+        exibirToast(`Pedido ${res.idPedido} gerado com sucesso!`, "success");
+        
+        // Guarda uma cópia do método antes de esvaziar
+        const metodoEscolhido = metodo;
         cestaCompras = [];
         const c = document.getElementById('cart-counter');
         if (c) c.textContent = "0";
+
+        // Redireciona para Meus Pedidos e abre imediatamente a cobrança automática
         navegarPara('meus-pedidos');
-        // Abre automaticamente a tela de pagamento do pedido gerado
-        abrirCobrancaPedido(res.idPedido, metodo);
-    } else {
-        exibirToast(res.mensagem || "Erro ao pedir.", "error");
+        abrirCobrancaPedido(res.idPedido, metodoEscolhido);
+    } 
+    // FLUXO DE CONTINGÊNCIA: Falha no servidor, instabilidade ou conta inativa
+    else {
+        exibirToast(res.mensagem || "Não foi possível gerar o pedido automaticamente.", "error");
+        
+        // Aciona o Fallback: Abre janela para o cliente falar com o Administrador
+        exibirContingenciaSuporteAdm(res.mensagem, metodo);
     }
+}
+
+/**
+ * MODAL DE CONTINGÊNCIA: Permite ao cliente solicitar auxílio manual ao Administrador
+ */
+function exibirContingenciaSuporteAdm(motivoErro, metodoEscolhido) {
+    const itensDescricao = cestaCompras.map(i => `${i.nome} (x${i.quantidade})`).join(', ');
+    const totalEstimado = document.getElementById('carrinho-total-valor')?.textContent || "R$ 0,00";
+
+    const corpoMensagem = `
+        <div style="text-align:left;font-size:0.9rem;color:#334155;">
+            <p style="color:#b91c1c;font-weight:600;margin-bottom:8px;">
+                ⚠️ Não foi possível concluir o pedido de forma automática:
+            </p>
+            <p style="background:#fef2f2;padding:8px;border-radius:6px;border:1px solid #fca5a5;font-size:0.8rem;margin-bottom:12px;">
+                ${escaparHtml(motivoErro || "Instabilidade temporária na ligação ao servidor.")}
+            </p>
+            <p style="margin-bottom:6px;">
+                <strong>O que deseja fazer?</strong> Pode acionar o Administrador agora mesmo para que ele regularize a sua conta ou envie a chave/link de pagamento de forma manual.
+            </p>
+            <p style="font-size:0.8rem;color:#64748b;margin-bottom:12px;">
+                <strong>Resumo da sua Cesta:</strong> ${escaparHtml(itensDescricao)}<br>
+                <strong>Total:</strong> ${escaparHtml(totalEstimado)} | <strong>Forma:</strong> ${escaparHtml(metodoEscolhido)}
+            </p>
+        </div>
+    `;
+
+    abrirConfirmacao(
+        "Suporte com o Administrador",
+        corpoMensagem,
+        async () => {
+            // Ao clicar em "Sim", envia uma mensagem direta para a aba de Comentários do ADM
+            mostrarLoader("A contactar o Administrador...");
+            const textoMensagem = `[SOLICITAÇÃO MANUAL DE PAGAMENTO] O utilizador ${estadoSessao.nomeUsuario} tentou comprar [${itensDescricao}] no valor de ${totalEstimado} via ${metodoEscolhido}, mas encontrou o erro: "${motivoErro}". Por favor, enviar link manual.`;
+            
+            await executarRequisicaoAPI("enviar_comentario", {
+                nome: estadoSessao.nomeUsuario,
+                mensagem: textoMensagem
+            });
+
+            esconderLoader();
+            exibirToast("O Administrador foi notificado! Ele entrará em contacto para fornecer o link.", "success");
+        }
+    );
+
+    // Ajusta o texto do botão de confirmação para ficar intuitivo
+    const btnSim = document.getElementById('confirmar-btn-ok');
+    if (btnSim) btnSim.textContent = "Chamar Administrador";
 }
 
 // ============================================================================
