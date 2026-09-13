@@ -821,6 +821,7 @@ function atualizarInterfaceSessao() {
     const tabAdm         = document.getElementById('tab-btn-adm');
 
     const viewBloqueado  = document.getElementById('view-bloqueado');
+    const containerDuvidas = document.getElementById('container-duvidas-discreto');
 
     if (badge) {
         badge.textContent = estadoSessao.papel.toUpperCase();
@@ -831,6 +832,7 @@ function atualizarInterfaceSessao() {
     const mostrar  = elemento => elemento && elemento.classList.remove('hidden');
 
     [tabCarrinho, tabMeusPedidos, tabNovoProduto, tabPedidosAdm, tabAdm].forEach(esconder);
+    esconder(containerDuvidas);
 
     // ─── REGRA DE OURO: BLOQUEIA SE NÃO POSSUIR LINK E NÃO FOR ADM ───
     if (!_linkAutorizadoValido && estadoSessao.papel !== 'adm') {
@@ -868,14 +870,17 @@ function atualizarInterfaceSessao() {
         esconder(anonBox); mostrar(authBox);
         if (userLabel) userLabel.textContent = `Olá, ${estadoSessao.nomeUsuario}`;
         mostrar(tabCarrinho); mostrar(tabMeusPedidos);
+       mostrar(containerDuvidas);
     } else if (estadoSessao.papel === 'entregador') {
         esconder(anonBox); mostrar(authBox);
         if (userLabel) userLabel.textContent = `Entregador: ${estadoSessao.nomeUsuario}`;
         mostrar(tabMeusPedidos); mostrar(tabPedidosAdm);
+       mostrar(containerDuvidas);
     } else if (estadoSessao.papel === 'adm') {
         esconder(anonBox); mostrar(authBox);
         if (userLabel) userLabel.textContent = `ADM: ${estadoSessao.nomeUsuario}`;
         mostrar(tabNovoProduto); mostrar(tabPedidosAdm); mostrar(tabAdm);
+        mostrar(containerDuvidas);
     }
 
     // ⚠️ CORREÇÃO CRÍTICA: garante que SEMPRE haja um painel visível
