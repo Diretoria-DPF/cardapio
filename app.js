@@ -9,7 +9,7 @@
    ============================================================================ */
 
 // URL OFICIAL DA API:
-const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbw3a-97OX8Vz35xJsaKqrpps6H9yXROTCIcWykpwVlAiJP2gqDTK7sa2CyoQ8D0TgaK/exec";
+const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbyXUcaPSpe5nXhicDVcZlq7Lm_KF7sp63y6VrPychDsfF7ffsrSVGaSBriV5DSWn6rQ/exec";
 
 /* ═══════════════════════════════════════════════════════════════
    FASE 1 — FINGERPRINT + SESSÃO SEGURA + HMAC + REFRESH
