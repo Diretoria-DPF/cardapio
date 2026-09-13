@@ -11,7 +11,7 @@
      • Pagamentos integrados (QR Code PIX dinâmico, Criptomoedas e Cartão).
      • Chat temporário por pedido com atualização a cada 5s.
      • Auto-refresh e badge no Painel ADM a cada 20s.
-     • Total conformidade com CSP e bindings.js.
+     • Total conformidade com CSP e bindings.js. 
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
