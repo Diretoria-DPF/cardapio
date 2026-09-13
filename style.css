@@ -391,4 +391,55 @@ input:focus, select:focus, textarea:focus {
 @keyframes slideUp {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
+} 
+/* ==========================================================================
+   MÉTRICAS CONSOLIDADAS E CARDS DE ESTATÍSTICA
+   ========================================================================== */
+.metrics-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 12px 0;
 }
+
+.metric-box {
+    background-color: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+}
+
+.metric-box span {
+    display: block;
+    font-size: 0.75rem;
+    color: #64748b;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.metric-box strong {
+    font-size: 1.25rem;
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.tabela-metricas {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    font-size: 0.85rem;
+}
+
+.tabela-metricas th, .tabela-metricas td {
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    text-align: left;
+}
+
+.tabela-metricas th {
+    background-color: #f8fafc;
+    font-weight: 600;
+    color: #475569;
+}
+
