@@ -1,0 +1,282 @@
+/* ==========================================================================
+   RESET BÁSICO E CONFIGURAÇÕES DE TIPOGRAFIA
+   ========================================================================== */
+* {
+    box-sizing: border-box; /* Garante cálculo correto de padding e bordas */
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    background-color: #f4f6f9; /* Tom neutro suave para leitura */
+    color: #333333;
+    line-height: 1.5;
+    padding-bottom: 60px;
+}
+
+/* ==========================================================================
+   CABEÇALHO DA PLATAFORMA
+   ========================================================================== */
+.app-header {
+    background-color: #1f2937; /* Azul escuro corporativo */
+    color: #ffffff;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.logo {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.user-status-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ==========================================================================
+   BADGES DE STATUS DO USUÁRIO
+   ========================================================================== */
+.badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.badge-visitor { background-color: #6b7280; color: #fff; }
+.badge-member { background-color: #10b981; color: #fff; }
+.badge-adm { background-color: #ef4444; color: #fff; }
+
+/* ==========================================================================
+   BARRA DE NAVEGAÇÃO MOBILE-FIRST
+   ========================================================================== */
+.app-nav {
+    display: flex;
+    background-color: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+    overflow-x: auto; /* Permite rolar horizontalmente em telas pequenas */
+}
+
+.nav-tab {
+    flex: 1;
+    min-width: 90px;
+    padding: 12px 10px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-weight: 600;
+    color: #4b5563;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.nav-tab.active {
+    color: #2563eb;
+    border-bottom-color: #2563eb;
+}
+
+/* ==========================================================================
+   CONTAINER PRINCIPAL E SEÇÕES DE CONTEÚDO
+   ========================================================================== */
+.app-container {
+    max-width: 960px;
+    margin: 20px auto;
+    padding: 0 15px;
+}
+
+.view-section {
+    display: none; /* Oculta todas por padrão; o JS exibe a ativa */
+}
+
+.view-section.active {
+    display: block;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.subtitle {
+    color: #6b7280;
+    margin-bottom: 15px;
+}
+
+/* ==========================================================================
+   GRID DE PRODUTOS RESPONSIVO
+   ========================================================================== */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.card-item {
+    background-color: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+}
+
+.card-img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    background-color: #e5e7eb;
+}
+
+.card-body {
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    justify-content: space-between;
+}
+
+.card-title {
+    font-size: 1.1rem;
+    margin-bottom: 5px;
+}
+
+.card-price {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #16a34a;
+    margin-bottom: 10px;
+}
+
+/* ==========================================================================
+   BOTÕES E CAMPOS DE FORMULÁRIO
+   ========================================================================== */
+button {
+    cursor: pointer;
+    border-radius: 6px;
+    font-weight: 600;
+    transition: background-color 0.2s ease;
+}
+
+.btn-primary {
+    background-color: #2563eb;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    width: 100%;
+}
+
+.btn-primary:hover { background-color: #1d4ed8; }
+
+.btn-secondary {
+    background-color: #4b5563;
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    font-size: 0.85rem;
+}
+
+.btn-success {
+    background-color: #16a34a;
+    color: white;
+    padding: 12px;
+    border: none;
+    width: 100%;
+    font-size: 1rem;
+}
+
+input, textarea, select {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.95rem;
+}
+
+/* ==========================================================================
+   PIPELINE ADMINISTRATIVO E TABELAS
+   ========================================================================== */
+.adm-block {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.pipeline-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.pipeline-col {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 10px;
+    min-height: 150px;
+}
+
+.pipeline-col h4 {
+    font-size: 0.9rem;
+    text-align: center;
+    margin-bottom: 10px;
+    color: #4b5563;
+}
+
+/* ==========================================================================
+   MODAL DE AUTENTICAÇÃO E TERMOS
+   ========================================================================== */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.active { display: flex; }
+
+.modal-content {
+    background: white;
+    padding: 25px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.close-btn {
+    position: absolute;
+    right: 15px;
+    top: 10px;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.termos-box {
+    display: flex;
+    gap: 10px;
+    font-size: 0.75rem;
+    color: #555;
+    margin-bottom: 12px;
+}
+.termos-box input { width: auto; }
