@@ -443,3 +443,37 @@ input:focus, select:focus, textarea:focus {
     color: #475569;
 }
 
+/* ==========================================================================
+   PRÉ-VISUALIZAÇÃO DE UPLOAD E CAIXA DE LINK
+   ========================================================================== */
+.preview-box {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f8fafc;
+    border: 1px dashed #94a3b8;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.preview-box img {
+    max-width: 90px;
+    max-height: 90px;
+    border-radius: 6px;
+    object-fit: cover;
+    border: 1px solid #cbd5e1;
+}
+
+.btn-sm {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+}
+
+.link-display-box {
+    margin-top: 12px;
+    padding: 12px;
+    background: #ecfdf5;
+    border: 1px solid #10b981;
+    border-radius: 6px;
+}
