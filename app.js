@@ -1,14 +1,17 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v5 Consolidada e Blindada)
+   app.js — Plataforma Comercial Segura (v6 Definitiva e Consolidada)
    ============================================================================
-   PRINCIPAIS RECURSOS E CORREÇÕES:
-     • Resolução definitiva de CORS com redirect: 'follow' e mode: 'cors'.
-     • Leitura segura de texto antes do parsing JSON para evitar quebras.
-     • Compatibilidade total com CSP estrita (sem onclick em elementos criados).
-     • Integração com Payments.gs (PIX dinâmico, QR Code, Criptomoedas e Cartão).
-     • Chat temporário com polling a cada 5s e alinhamento correto de bolhas.
-     • Painel ADM com auto-refresh a cada 20s e badge de pendências.
-     • Exportação global de funções para conexão perfeita com o bindings.js.
+   RECURSOS CONSOLIDADOS:
+     • Acesso restrito: vitrine só abre com link temporário do ADM ou login ADM.
+     • Temporizador 100% invisível em background (sem ansiedade para o cliente).
+     • Limpeza total (purge): apaga cookies, localStorage e tranca a tela ao expirar.
+     • Emissão de links com 10, 15, 30 min ou tempo personalizado (ADM).
+     • Vitrine limpa: visibilidade controlada exclusivamente pelo Administrador.
+     • Central de Dúvidas e Sugestões privada para membros e editável pelo ADM.
+     • Pagamentos integrados (QR Code PIX dinâmico, Criptomoedas e Cartão).
+     • Chat temporário por pedido com atualização a cada 5s.
+     • Auto-refresh e badge no Painel ADM a cada 20s.
+     • Total conformidade com CSP e bindings.js.
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
@@ -31,7 +34,7 @@ function fmtPreco(valor) {
     return `R$ ${(isNaN(numero) ? 0 : numero).toFixed(2).replace('.', ',')}`;
 }
 
-/** Exibe o indicador de carregamento global com mensagem personalizada. */
+/** Exibe o indicador de carregamento global. */
 function mostrarLoader(texto = 'Carregando...') {
     const elementoTexto = document.getElementById('loader-text');
     const elementoOverlay = document.getElementById('loader-overlay');
@@ -93,69 +96,159 @@ let fotoBase64Temporaria = "";
 let identificadorEmTentativa = "";
 let pedidoChatAberto = null;
 
-// Controladores de intervalo para sincronização em background
+// Controle de acesso exclusivo por link
+let _linkAutorizadoValido = false;
+
+// Timers de segundo plano
+let _timerSilencioso = null;
+let _segundosRestantesLink = 0;
 let _timerPainelAdm = null;
 let _timerChat = null;
 
 // ============================================================================
-// 4. INICIALIZAÇÃO DA PLATAFORMA E COMUNICAÇÃO (BLINDADA CONTRA CORS)
+// 4. INICIALIZAÇÃO, REDE BLINDADA E ACESSO EXCLUSIVO
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    await verificarTokenUrl();
     restaurarSessaoLocal();
+    await verificarTokenUrl();
     atualizarInterfaceSessao();
 
-    // 1. Carregamento instantâneo a partir da memória local (Cache-First)
-    const produtosEmCache = CacheLoja.obter('produtos_' + estadoSessao.papel);
-    if (produtosEmCache && produtosEmCache.length > 0) {
-        catalogoProdutos = produtosEmCache;
-        catalogoFiltrado = produtosEmCache;
-        renderizarVitrine();
+    // Se estiver liberado (via link ou login de ADM), carrega os produtos
+    if (_linkAutorizadoValido || estadoSessao.papel === 'adm') {
+        const produtosEmCache = CacheLoja.obter('produtos_' + estadoSessao.papel);
+        if (produtosEmCache && produtosEmCache.length > 0) {
+            catalogoProdutos = produtosEmCache;
+            catalogoFiltrado = produtosEmCache;
+            renderizarVitrine();
+        }
+        await sincronizarProdutosServidor();
     }
-
-    // 2. Atualização em segundo plano consultando o Google Apps Script
-    await sincronizarProdutosServidor();
 });
 
 function obterUrlBasePlataforma() {
     return window.location.href.split('?')[0];
 }
 
+/**
+ * Validação do Token na URL e controle de entrada restrita
+ */
 async function verificarTokenUrl() {
-    const parametros = new URLSearchParams(window.location.search);
-    const tokenAcesso = parametros.get('token');
-    if (!tokenAcesso) return;
+    const params = new URLSearchParams(window.location.search);
+    const tokenAcesso = params.get('token');
 
-    mostrarLoader('Validando link temporário...');
+    // Se não há token na URL:
+    if (!tokenAcesso) {
+        // Se for o ADM já logado, tem passe livre
+        if (estadoSessao.papel === 'adm') {
+            _linkAutorizadoValido = true;
+            return;
+        }
+        // Caso contrário, bloqueia a loja
+        _linkAutorizadoValido = false;
+        return;
+    }
+
+    mostrarLoader('Validando autorização de acesso...');
     try {
         const url = `${URL_BACKEND_APPS_SCRIPT}?acao=validar_link&tokenAcesso=${encodeURIComponent(tokenAcesso)}`;
-        const resposta = await fetchComTimeout(url, 15000);
-        const resultado = await resposta.json();
+        const resp = await fetchComTimeout(url, 15000);
+        const res  = await resp.json();
 
-        if (resultado.valido) {
+        if (res.valido) {
+            _linkAutorizadoValido = true;
             estadoSessao.token = tokenAcesso;
-            exibirToast("Acesso temporário concedido!", "success");
+
+            // Inicia a contagem regressiva 100% silenciosa nos bastidores
+            const segundos = res.segundosRestantes || (15 * 60);
+            iniciarTemporizadorSilencioso(segundos);
         } else {
-            exibirToast(resultado.mensagem || "Link temporário expirado.", "error");
+            _linkAutorizadoValido = false;
+            exibirToast(res.mensagem || "Este link de acesso expirou.", "error");
+            executarLimpezaTotalESaida(true);
         }
-    } catch (erro) {
-        console.error("[Token URL] Erro na validação:", erro);
-        exibirToast("Falha ao validar token temporário.", "error");
+    } catch (e) {
+        console.error("[Token] Erro ao validar:", e);
+        _linkAutorizadoValido = false;
     } finally {
         esconderLoader();
     }
 }
 
 /**
- * Realiza chamadas HTTP com timeout, seguimento estrito de redirects e modo CORS.
+ * Temporizador totalmente invisível (sem relógio na tela)
+ */
+function iniciarTemporizadorSilencioso(segundosTotais) {
+    pararTemporizadorSilencioso();
+    _segundosRestantesLink = segundosTotais;
+
+    _timerSilencioso = setInterval(() => {
+        _segundosRestantesLink--;
+
+        if (_segundosRestantesLink <= 0) {
+            pararTemporizadorSilencioso();
+            exibirToast("O seu período de acesso terminou. Solicite um novo link ao administrador.", "info");
+            executarLimpezaTotalESaida();
+        }
+    }, 1000);
+}
+
+function pararTemporizadorSilencioso() {
+    if (_timerSilencioso) {
+        clearInterval(_timerSilencioso);
+        _timerSilencioso = null;
+    }
+}
+
+/**
+ * Limpeza Completa (Purge): apaga cookies, storage e tranca a tela
+ */
+function executarLimpezaTotalESaida(silencioso = false) {
+    pararTemporizadorSilencioso();
+    pararAutoRefreshChat();
+    desligarAutoRefreshAdm();
+
+    // 1. Limpa todas as memórias locais
+    try {
+        localStorage.clear();
+        sessionStorage.clear();
+    } catch (e) {
+        console.warn("Storage limpo:", e);
+    }
+
+    // 2. Elimina todos os cookies do domínio
+    document.cookie.split(";").forEach(c => {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+
+    // 3. Reinicia variáveis de estado
+    estadoSessao.papel = 'visitante';
+    estadoSessao.token = null;
+    estadoSessao.nomeUsuario = 'Visitante';
+    cestaCompras = [];
+    _linkAutorizadoValido = false;
+
+    // 4. Remove o parâmetro ?token=... da barra de endereços
+    const urlLimpa = window.location.origin + window.location.pathname;
+    window.history.replaceState({}, document.title, urlLimpa);
+
+    if (!silencioso) {
+        exibirToast("Sessão finalizada. Todos os dados foram reiniciados.", "info");
+    }
+
+    // Atualiza a tela: tranca na tela de bloqueio
+    atualizarInterfaceSessao();
+}
+
+/**
+ * Comunicação fetch com timeout, redirects e modo CORS
  */
 async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
     const controladorAborto = new AbortController();
     const temporizador = setTimeout(() => controladorAborto.abort(), limiteTempoMs);
 
     const configuracao = {
-        mode: 'cors',               // Garante requisição cross-origin explícita
-        redirect: 'follow',         // Essencial para seguir o redirect 302 do Google Apps Script
+        mode: 'cors',
+        redirect: 'follow',
         cache: 'no-cache',
         ...opcoesExtras,
         signal: controladorAborto.signal
@@ -168,16 +261,12 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
     }
 }
 
-/**
- * Envia comandos ao Google Apps Script via POST seguro com corpo em texto simples.
- */
 async function executarRequisicaoAPI(acao, dadosExtras = {}) {
     try {
         const corpoEnvio = JSON.stringify({ acao, ...dadosExtras });
 
         const resposta = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 25000, {
             method: 'POST',
-            // text/plain evita que o navegador emita preflight OPTIONS antes do POST
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: corpoEnvio
         });
@@ -187,12 +276,11 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}) {
         try {
             return JSON.parse(textoResposta);
         } catch (erroParse) {
-            console.error("[API] A resposta do servidor não é um JSON válido:", textoResposta);
+            console.error("[API] Resposta não-JSON:", textoResposta);
             return { sucesso: false, mensagem: "Resposta inesperada do servidor." };
         }
-
     } catch (erroRede) {
-        console.error("[API] Erro de rede na comunicação:", erroRede);
+        console.error("[API] Falha de comunicação:", erroRede);
         const semInternet = !navigator.onLine;
         exibirToast(
             semInternet ? "Sem conexão à internet." : "Falha na comunicação com o servidor.",
@@ -203,13 +291,12 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}) {
 }
 
 // ============================================================================
-// 5. UPLOAD E COMPRESSÃO DE FOTOS/GIFS DO DISPOSITIVO
+// 5. UPLOAD DE FOTOS E GIFS DO DISPOSITIVO
 // ============================================================================
 function processarUploadImagem(evento) {
     const ficheiro = evento.target.files[0];
     if (!ficheiro) return;
 
-    // Preserva animações de GIF respeitando o limite de tamanho
     if (ficheiro.type === "image/gif") {
         if (ficheiro.size > 200 * 1024) {
             exibirToast("O GIF é muito pesado. Escolha um ficheiro de até 200KB.", "error");
@@ -225,7 +312,6 @@ function processarUploadImagem(evento) {
         return;
     }
 
-    // Para fotografias normais (JPG, PNG), comprime via Canvas para menos de 35KB
     const leitor = new FileReader();
     leitor.onload = e => {
         const imagem = new Image();
@@ -295,7 +381,7 @@ async function sincronizarProdutosServidor() {
             renderizarVitrine();
         }
     } catch (erro) {
-        console.warn("[Vitrine] Sincronização offline ou em espera:", erro);
+        console.warn("[Vitrine] Modo offline ou aguardando rede:", erro);
     }
 }
 
@@ -310,10 +396,6 @@ function aplicarFiltroVitrine(termoManual = null) {
     renderizarVitrine();
 }
 
-// ============================================================================
-// VITRINE LIMPA: VISIBILIDADE CONTROLADA APENAS PELO ADMINISTRADOR
-// ============================================================================
-
 function renderizarVitrine() {
     const grid = document.getElementById('produtos-container');
     if (!grid) return;
@@ -324,7 +406,7 @@ function renderizarVitrine() {
         grid.innerHTML = `
             <div class="empty-state">
                 <strong>${termo ? 'Nenhum produto encontrado' : 'Vitrine vazia'}</strong>
-                ${termo ? `Nada corresponde a "${escaparHtml(termo)}".` : 'Aguarde novos produtos.'}
+                ${termo ? `Nada corresponde a "${escaparHtml(termo)}".` : 'Aguarde novos produtos da administração.'}
             </div>`;
         return;
     }
@@ -352,7 +434,7 @@ function renderizarVitrine() {
 
         body.append(t, pr);
 
-        // 1. Membros e Entregadores têm acesso à compra (SEM NENHUM RÓTULO DE VISIBILIDADE)
+        // 1. Membros e Entregadores têm acesso à compra (SEM RÓTULOS DE PÚBLICO/MEMBRO)
         if (estadoSessao.papel === 'membro' || estadoSessao.papel === 'entregador') {
             const btn = document.createElement('button');
             btn.className = 'btn btn-primary btn-block';
@@ -360,7 +442,7 @@ function renderizarVitrine() {
             btn.onclick = () => adicionarAoCarrinho(p);
             body.appendChild(btn);
         }
-        // 2. Administrador: Vê o botão de teste e o CONTROLO DE VISIBILIDADE
+        // 2. Administrador: Vê o CONTROLE DE VISIBILIDADE dinâmico
         else if (estadoSessao.papel === 'adm') {
             const painelAdm = document.createElement('div');
             painelAdm.className = 'adm-visib-controls';
@@ -381,7 +463,7 @@ function renderizarVitrine() {
             painelAdm.append(tag, selectVisib);
             body.appendChild(painelAdm);
         }
-        // 3. Visitante: Vê apenas a nota discreta de convite (SEM rótulos de público/membro)
+        // 3. Visitante com link ativo: Vê nota discreta (SEM rótulos de público/membro)
         else {
             const aviso = document.createElement('small');
             aviso.className = 'visitor-note';
@@ -413,10 +495,9 @@ async function alterarVisibilidadeProdutoAdm(idProduto, novaVisib) {
 }
 
 // ============================================================================
-// CENTRAL DE DÚVIDAS RÁPIDAS (FAQ) E SUGESTÕES EXCLUSIVAS PARA MEMBROS
+// 7. CENTRAL DE DÚVIDAS RÁPIDAS (FAQ) E SUGESTÕES EXCLUSIVAS
 // ============================================================================
 
-// Base de dúvidas rápidas padrão (armazenada de forma leve no navegador)
 let listaDuvidasFaq = [
     {
         pergunta: "Como funciona a retirada e entrega do produto?",
@@ -440,9 +521,8 @@ function carregarFaqMemoria() {
 }
 carregarFaqMemoria();
 
-/** Abre a Central de Dúvidas com proteção de acesso */
 function abrirCentralDuvidas() {
-    // REGRA: Apenas Membros e ADM têm acesso às dúvidas e sugestões
+    // Apenas Membros e ADM têm acesso às dúvidas e sugestões
     if (estadoSessao.papel === 'visitante') {
         exibirToast("A Central de Dúvidas e Sugestões é exclusiva para membros.", "info");
         abrirModal('modal-login');
@@ -451,7 +531,6 @@ function abrirCentralDuvidas() {
 
     renderizarListaFaq();
 
-    // Se for Administrador, exibe o mini editor de FAQ
     const editorAdm = document.getElementById('adm-editor-faq-area');
     if (editorAdm) {
         if (estadoSessao.papel === 'adm') {
@@ -503,7 +582,6 @@ function renderizarListaFaq() {
     });
 }
 
-/** Envio de Sugestão Exclusivo para Membros (grava na aba Comentários do ADM) */
 async function tratarEnvioSugestao(e) {
     if (e && e.preventDefault) e.preventDefault();
 
@@ -527,34 +605,29 @@ async function tratarEnvioSugestao(e) {
     }
 }
 
-/** Adição de Nova Pergunta pelo Administrador */
 function tratarAdicionarFaq(e) {
     if (e && e.preventDefault) e.preventDefault();
 
     const inputP = document.getElementById('faq-nova-pergunta');
     const inputR = document.getElementById('faq-nova-resposta');
 
-    const pergunta = inputP.value.trim();
-    const resposta = inputR.value.trim();
+    const pergunta = inputP ? inputP.value.trim() : '';
+    const resposta = inputR ? inputR.value.trim() : '';
 
     if (!pergunta || !resposta) return;
 
     listaDuvidasFaq.push({ pergunta, resposta });
     localStorage.setItem('loja_faq_dados', JSON.stringify(listaDuvidasFaq));
 
-    inputP.value = '';
-    inputR.value = '';
+    if (inputP) inputP.value = '';
+    if (inputR) inputR.value = '';
 
     renderizarListaFaq();
     exibirToast("Nova dúvida adicionada ao FAQ!", "success");
 }
 
-// Exportações globais para comunicação com o bindings.js
-window.abrirCentralDuvidas = abrirCentralDuvidas;
-window.tratarEnvioSugestao = tratarEnvioSugestao;
-window.tratarAdicionarFaq = tratarAdicionarFaq;
 // ============================================================================
-// 7. SOLICITAÇÃO DE CADASTRO
+// 8. SOLICITAÇÃO DE CADASTRO
 // ============================================================================
 async function tratarSolicitacaoCadastro(evento) {
     if (evento && evento.preventDefault) evento.preventDefault();
@@ -588,7 +661,7 @@ async function tratarSolicitacaoCadastro(evento) {
 }
 
 // ============================================================================
-// 8. AUTENTICAÇÃO (LOGIN / LOGOUT / DESBLOQUEIO)
+// 9. AUTENTICAÇÃO (LOGIN / LOGOUT / DESBLOQUEIO)
 // ============================================================================
 async function tratarLogin(evento) {
     if (evento && evento.preventDefault) evento.preventDefault();
@@ -608,6 +681,11 @@ async function tratarLogin(evento) {
         estadoSessao.papel       = resposta.papel;
         estadoSessao.token       = resposta.token;
         estadoSessao.nomeUsuario = resposta.nome;
+
+        // Se for o Administrador, ele tem passe livre permanente
+        if (resposta.papel === 'adm') {
+            _linkAutorizadoValido = true;
+        }
 
         localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
         document.getElementById('form-login').reset();
@@ -653,12 +731,14 @@ function executarLogout() {
     desligarAutoRefreshAdm();
     atualizarBadgePendentesAdm(0);
     pararAutoRefreshChat();
+    pararTemporizadorSilencioso();
+
+    _linkAutorizadoValido = false;
 
     atualizarInterfaceSessao();
     CacheLoja.limpar('produtos_membro');
     CacheLoja.limpar('produtos_adm');
     sincronizarProdutosServidor();
-    navegarPara('vitrine');
     exibirToast("Sessão encerrada com sucesso.", "info");
 }
 
@@ -670,25 +750,33 @@ function restaurarSessaoLocal() {
         estadoSessao.papel       = sessao.papel || 'visitante';
         estadoSessao.token       = sessao.token || null;
         estadoSessao.nomeUsuario = sessao.nomeUsuario || 'Visitante';
+
+        if (estadoSessao.papel === 'adm') {
+            _linkAutorizadoValido = true;
+        }
     } catch {
         localStorage.removeItem('plataforma_sessao');
     }
 }
 
 // ============================================================================
-// 9. CONTROLO VISUAL POR PAPEL
+// 10. CONTROLO VISUAL: BLOQUEIO SEM LINK VS LOJA LIBERADA
 // ============================================================================
 function atualizarInterfaceSessao() {
-    const badge       = document.getElementById('role-badge');
-    const anonBox     = document.getElementById('anon-buttons');
-    const authBox     = document.getElementById('auth-buttons');
-    const userLabel   = document.getElementById('user-display-name');
+    const badge          = document.getElementById('role-badge');
+    const anonBox        = document.getElementById('anon-buttons');
+    const authBox        = document.getElementById('auth-buttons');
+    const userLabel      = document.getElementById('user-display-name');
+    const navBar         = document.getElementById('app-nav-bar');
 
     const tabCarrinho    = document.getElementById('tab-btn-carrinho');
     const tabMeusPedidos = document.getElementById('tab-btn-meus-pedidos');
     const tabNovoProduto = document.getElementById('tab-btn-novo-produto');
     const tabPedidosAdm  = document.getElementById('tab-btn-pedidos-adm');
     const tabAdm         = document.getElementById('tab-btn-adm');
+
+    const viewBloqueado  = document.getElementById('view-bloqueado');
+    const viewVitrine    = document.getElementById('view-vitrine');
 
     if (badge) {
         badge.textContent = estadoSessao.papel.toUpperCase();
@@ -700,8 +788,23 @@ function atualizarInterfaceSessao() {
 
     [tabCarrinho, tabMeusPedidos, tabNovoProduto, tabPedidosAdm, tabAdm].forEach(esconder);
 
+    // ─── REGRA DE OURO: BLOQUEIA SE NÃO POSSUIR LINK E NÃO FOR ADM ───
+    if (!_linkAutorizadoValido && estadoSessao.papel !== 'adm') {
+        esconder(navBar);
+        document.querySelectorAll('.view-panel').forEach(esconder);
+        mostrar(viewBloqueado);
+        mostrar(anonBox);
+        esconder(authBox);
+        return;
+    }
+
+    // Se estiver autorizado com link ou logado como ADM:
+    mostrar(navBar);
+    esconder(viewBloqueado);
+
     if (estadoSessao.papel === 'visitante') {
         mostrar(anonBox); esconder(authBox);
+        navegarPara('vitrine');
     } else if (estadoSessao.papel === 'membro') {
         esconder(anonBox); mostrar(authBox);
         if (userLabel) userLabel.textContent = `Olá, ${estadoSessao.nomeUsuario}`;
@@ -725,7 +828,7 @@ function atualizarInterfaceSessao() {
 }
 
 // ============================================================================
-// 10. NAVEGAÇÃO ENTRE TELAS
+// 11. NAVEGAÇÃO ENTRE TELAS
 // ============================================================================
 function navegarPara(nomeAba) {
     document.querySelectorAll('.nav-tab').forEach(botao => botao.classList.remove('active'));
@@ -750,7 +853,7 @@ function navegarPara(nomeAba) {
 }
 
 // ============================================================================
-// 11. CESTA DE COMPRAS E CRIAÇÃO DE PEDIDOS
+// 12. CESTA DE COMPRAS E CRIAÇÃO DE PEDIDOS
 // ============================================================================
 function adicionarAoCarrinho(produto) {
     const itemExistente = cestaCompras.find(item => item.id === produto.id);
@@ -846,7 +949,7 @@ async function tratarCriacaoPedido() {
     esconderLoader();
     botaoCarregando('btn-confirmar-pedido', false);
 
-    // FLUXO NORMAL: Pedido criado com sucesso
+    // FLUXO NORMAL: Pedido gerado
     if (resposta.sucesso) {
         exibirToast(`Pedido ${resposta.idPedido} gerado com sucesso!`, "success");
 
@@ -909,7 +1012,7 @@ function exibirContingenciaSuporteAdm(motivoErro, metodoEscolhido) {
 }
 
 // ============================================================================
-// 12. MEUS PEDIDOS, PAGAMENTO SEGURO E CHAT TEMPORÁRIO
+// 13. MEUS PEDIDOS, PAGAMENTO SEGURO E CHAT TEMPORÁRIO
 // ============================================================================
 async function carregarMeusPedidos() {
     const container = document.getElementById('meus-pedidos-container');
@@ -939,7 +1042,6 @@ async function carregarMeusPedidos() {
         const painelAcoes = document.createElement('div');
         painelAcoes.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;';
 
-        // Botão para ver instruções de pagamento se estiver em análise
         if (statusMinusculo === 'analise') {
             const botaoPagar = document.createElement('button');
             botaoPagar.className = 'btn btn-success btn-sm';
@@ -948,7 +1050,6 @@ async function carregarMeusPedidos() {
             painelAcoes.appendChild(botaoPagar);
         }
 
-        // Botão para abrir o chat temporário com a loja
         if (pedido.chatAtivo) {
             const botaoChat = document.createElement('button');
             botaoChat.className = 'btn btn-primary btn-sm';
@@ -967,7 +1068,6 @@ async function carregarMeusPedidos() {
     });
 }
 
-/** Consulta o Payments.gs e exibe os dados para pagamento sem violar a CSP */
 async function abrirCobrancaPedido(idPedido, metodo) {
     mostrarLoader("Gerando instruções de pagamento...");
     const resposta = await executarRequisicaoAPI("gerar_pagamento", {
@@ -986,8 +1086,6 @@ async function abrirCobrancaPedido(idPedido, metodo) {
     }
 
     const cobranca = resposta.cobranca;
-
-    // Constrói o DOM limpo para não violar a política estrita de scripts inline (CSP)
     const caixaConteudo = document.createElement('div');
     caixaConteudo.style.cssText = 'text-align:center;padding:10px;';
 
@@ -1091,7 +1189,7 @@ function iniciarAutoRefreshChat() {
     pararAutoRefreshChat();
     _timerChat = setInterval(async () => {
         if (!pedidoChatAberto) return pararAutoRefreshChat();
-        await renderizarChat(true); // Atualização silenciosa sem saltos de scroll
+        await renderizarChat(true);
     }, 5000);
 }
 
@@ -1122,7 +1220,6 @@ async function renderizarChat(silencioso = false) {
 
     resposta.mensagens.forEach(mensagem => {
         const bolha = document.createElement('div');
-        // Mensagem enviada pelo próprio usuário alinha à direita (chat-msg--out)
         const ehMinha = (mensagem.autorNome === estadoSessao.nomeUsuario) ||
                         (estadoSessao.papel === 'adm' && mensagem.autorNome === 'Administração');
 
@@ -1168,7 +1265,7 @@ async function enviarMensagemChat() {
 }
 
 // ============================================================================
-// 13. PAINEL CENTRAL ADMINISTRATIVO (APROVAÇÃO, MÉTRICAS E DESBLOQUEIOS)
+// 14. PAINEL CENTRAL ADMINISTRATIVO (APROVAÇÃO, MÉTRICAS E DESBLOQUEIOS)
 // ============================================================================
 async function carregarPainelCentralAdm() {
     if (estadoSessao.papel !== 'adm') return;
@@ -1331,7 +1428,7 @@ async function consultarPendentesAdm() {
         const total = (resposta.sucesso && Array.isArray(resposta.solicitacoes)) ? resposta.solicitacoes.length : 0;
         atualizarBadgePendentesAdm(total);
     } catch {
-        /* Silencioso para não incomodar em caso de oscilação momentânea */
+        /* Silencioso para não interromper navegação */
     }
 }
 
@@ -1357,7 +1454,7 @@ function desligarAutoRefreshAdm() {
 }
 
 // ============================================================================
-// 14. ESTEIRA DE PEDIDOS (ADM)
+// 15. ESTEIRA DE PEDIDOS (ADM)
 // ============================================================================
 async function carregarPedidosAdm() {
     const colunaAnalise     = document.getElementById('pipe-analise');
@@ -1440,43 +1537,40 @@ async function avancarStatusAdm(idPedido, statusAtual) {
 }
 
 // ============================================================================
-// 15. COMENTÁRIOS E DÚVIDAS
-// ============================================================================
-async function tratarEnvioComentario(evento) {
-    if (evento && evento.preventDefault) evento.preventDefault();
-
-    const nome      = document.getElementById('campo-comentario-nome').value.trim();
-    const mensagem  = document.getElementById('campo-comentario').value.trim();
-    if (!mensagem) return;
-
-    const resposta = await executarRequisicaoAPI("enviar_comentario", { nome, mensagem });
-
-    if (resposta.sucesso) {
-        exibirToast("Mensagem enviada com sucesso!", "success");
-        document.getElementById('campo-comentario').value = '';
-    } else {
-        exibirToast(resposta.mensagem || "Erro ao enviar mensagem.", "error");
-    }
-}
-
-// ============================================================================
-// 16. LINK TEMPORÁRIO COM TOKEN (ADM)
+// 16. LINK TEMPORÁRIO COM TEMPO FLEXÍVEL (10, 15, 30 OU PERSONALIZADO)
 // ============================================================================
 async function gerarLinkTemporarioAdm() {
-    const minutos = document.getElementById('select-duracao-link').value;
-    mostrarLoader("Gerando link com token...");
+    const selectDuracao = document.getElementById('select-duracao-link');
+    const inputPersonalizado = document.getElementById('input-duracao-personalizada');
+
+    let minutosFinais = 15;
+
+    if (selectDuracao && selectDuracao.value === 'personalizado') {
+        minutosFinais = parseInt(inputPersonalizado.value, 10);
+        if (isNaN(minutosFinais) || minutosFinais <= 0) {
+            return exibirToast("Digite um número de minutos válido maior que zero.", "error");
+        }
+    } else if (selectDuracao) {
+        minutosFinais = parseInt(selectDuracao.value, 10) || 15;
+    }
+
+    mostrarLoader(`Gerando link para ${minutosFinais} minutos...`);
 
     const resposta = await executarRequisicaoAPI("gerar_link_temporario", {
         tokenAdm: estadoSessao.token,
-        duracaoMinutos: minutos
+        duracaoMinutos: minutosFinais
     });
     esconderLoader();
 
     if (resposta.sucesso) {
         const linkCompleto = `${obterUrlBasePlataforma()}?token=${resposta.token}`;
-        document.getElementById('campo-link-gerado').value = linkCompleto;
-        document.getElementById('area-link-gerado').classList.remove('hidden');
-        exibirToast("Link temporário gerado com sucesso!", "success");
+        const campoLink = document.getElementById('campo-link-gerado');
+        const areaLink = document.getElementById('area-link-gerado');
+
+        if (campoLink) campoLink.value = linkCompleto;
+        if (areaLink) areaLink.classList.remove('hidden');
+
+        exibirToast(`Link exclusivo gerado (${minutosFinais} min)!`, "success");
     } else {
         exibirToast(resposta.mensagem || "Falha ao gerar o link.", "error");
     }
@@ -1531,7 +1625,7 @@ async function tratarCadastroProduto(evento) {
 }
 
 // ============================================================================
-// 18. MODAIS, DIÁLOGOS DE CONFIRMAÇÃO E INTEGRAÇÃO GLOBAL COM BINDINGS.JS
+// 18. MODAIS, DIÁLOGOS DE CONFIRMAÇÃO E NOTIFICAÇÕES
 // ============================================================================
 function abrirModal(idModal) {
     const modal = document.getElementById(idModal);
@@ -1572,7 +1666,6 @@ function abrirConfirmacao(titulo, mensagemTextoOuHtml, callbackAcao) {
     abrirModal('modal-confirmar');
 }
 
-/** Permite passar um nó HTML estruturado sem uso de innerHTML arriscado */
 function abrirConfirmacaoElemento(titulo, elementoDom, callbackAcao) {
     const elementoTitulo = document.getElementById('confirmar-titulo');
     const elementoMensagem = document.getElementById('confirmar-mensagem');
@@ -1622,7 +1715,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 });
 
 // ============================================================================
-// EXPORTAÇÃO GLOBAL DE ALIASES (GARANTE LIGAÇÃO COM O BINDINGS.JS)
+// 19. EXPORTAÇÃO GLOBAL DE ALIASES (LIGAÇÃO COM O BINDINGS.JS)
 // ============================================================================
 window.abrirModal                 = abrirModal;
 window.fecharModal                = fecharModal;
@@ -1641,7 +1734,6 @@ window.carregarPainelCentralAdm   = carregarPainelCentralAdm;
 window.enviarMensagemChat         = enviarMensagemChat;
 window.tratarEnvioMensagemChat    = enviarMensagemChat;
 window.abrirChatPedido            = abrirChatPedido;
-window.tratarEnvioComentario      = tratarEnvioComentario;
 window.tratarSolicitacaoCadastro  = tratarSolicitacaoCadastro;
 window.tratarLogin                = tratarLogin;
 window.tratarCadastroProduto      = tratarCadastroProduto;
@@ -1649,3 +1741,7 @@ window.aplicarFiltroVitrine       = aplicarFiltroVitrine;
 window.filtrarVitrineEmTempoReal  = aplicarFiltroVitrine;
 window.processarUploadImagem      = processarUploadImagem;
 window.copiarPixCopiaECola        = copiarPixCopiaECola;
+window.abrirCentralDuvidas        = abrirCentralDuvidas;
+window.tratarEnvioSugestao        = tratarEnvioSugestao;
+window.tratarAdicionarFaq         = tratarAdicionarFaq;
+window.executarLimpezaTotalESaida = executarLimpezaTotalESaida;
