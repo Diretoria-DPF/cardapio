@@ -1,37 +1,49 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v3)
-   Correções desta versão:
-     • Badge vermelho com contagem de solicitações pendentes (ADM)
-     • Auto-refresh do painel ADM a cada 20s enquanto o ADM estiver logado
-     • Aprovar membro atualiza lista E badge na hora
-     • Tudo do app.js v2 foi mantido
+   app.js — Plataforma Comercial Segura (v4 Consolidado)
+   ============================================================================
+   MELHORIAS DESTA VERSÃO:
+     • Integração com Payments.gs (botão para exibir QR Code PIX e Cripto).
+     • Correção do alinhamento das bolhas do chat temporário (esquerda vs. direita).
+     • Auto-refresh suave do chat aberto a cada 5 segundos.
+     • Compatibilidade total com bindings.js (alias exibirConfirmacao / abrirConfirmacao).
+     • Auto-refresh do painel ADM e badge vermelho de solicitações pendentes.
+     • Cache-first instantâneo e filtros de pesquisa em tempo real.
    ============================================================================ */
 
-// ⚠️ COLE A SUA URL DO WEB APP AQUI:
+// URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
 const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbwKauAHD750szLBBLDflruitYtNZwLgYYGOLzIHUCLCUCAcQzyrPouTFQBKwGDzYUpP/exec";
 
 // ============================================================================
-// 1. HELPERS
+// 1. FUNÇÕES AUXILIARES (HELPERS)
 // ============================================================================
+
+/** Higieniza valores para exibição segura no HTML. */
 function escaparHtml(v) {
     return String(v ?? '').replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[c]));
 }
 
+/** Formata valores numéricos no padrão monetário brasileiro (R$). */
 function fmtPreco(v) {
     const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
     return `R$ ${(isNaN(n) ? 0 : n).toFixed(2).replace('.', ',')}`;
 }
 
+/** Controla o overlay de carregamento global. */
 function mostrarLoader(texto = 'Carregando...') {
-    document.getElementById('loader-text').textContent = texto;
-    document.getElementById('loader-overlay').classList.remove('hidden');
-}
-function esconderLoader() {
-    document.getElementById('loader-overlay').classList.add('hidden');
+    const txt = document.getElementById('loader-text');
+    const overlay = document.getElementById('loader-overlay');
+    if (txt) txt.textContent = texto;
+    if (overlay) overlay.classList.remove('hidden');
 }
 
+function esconderLoader() {
+    const overlay = document.getElementById('loader-overlay');
+    if (overlay) overlay.classList.add('hidden');
+}
+
+/** Aplica estado de carregamento a botões de ação. */
 function botaoCarregando(id, carregando = true) {
     const b = document.getElementById(id);
     if (!b) return;
@@ -40,7 +52,7 @@ function botaoCarregando(id, carregando = true) {
 }
 
 // ============================================================================
-// 2. CACHE
+// 2. MEMÓRIA EM CACHE LOCAL (RESPOSTA INSTANTÂNEA)
 // ============================================================================
 const CacheLoja = {
     salvar(chave, dados) {
@@ -57,9 +69,13 @@ const CacheLoja = {
 };
 
 // ============================================================================
-// 3. ESTADO GLOBAL
+// 3. ESTADO GLOBAL DA APLICAÇÃO
 // ============================================================================
-const estadoSessao = { papel: 'visitante', token: null, nomeUsuario: 'Visitante' };
+const estadoSessao = {
+    papel: 'visitante',          // 'visitante' | 'membro' | 'entregador' | 'adm'
+    token: null,
+    nomeUsuario: 'Visitante'
+};
 
 let cestaCompras = [];
 let catalogoProdutos = [];
@@ -68,23 +84,27 @@ let fotoBase64Temporaria = "";
 let identificadorEmTentativa = "";
 let pedidoChatAberto = null;
 
-// [NOVO] auto-refresh do painel ADM
+// Timers para atualizações em segundo plano
 let _timerPainelAdm = null;
+let _timerChat = null;
 
 // ============================================================================
-// 4. INICIALIZAÇÃO
+// 4. INICIALIZAÇÃO DA PLATAFORMA
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     await verificarTokenUrl();
     restaurarSessaoLocal();
     atualizarInterfaceSessao();
 
+    // 1. Carregamento ultra-rápido via cache local
     const produtosEmCache = CacheLoja.obter('produtos_' + estadoSessao.papel);
     if (produtosEmCache && produtosEmCache.length > 0) {
         catalogoProdutos = produtosEmCache;
         catalogoFiltrado = produtosEmCache;
         renderizarVitrine();
     }
+
+    // 2. Sincronização em segundo plano com a planilha
     await sincronizarProdutosServidor();
 });
 
@@ -97,7 +117,7 @@ async function verificarTokenUrl() {
     const tokenAcesso = params.get('token');
     if (!tokenAcesso) return;
 
-    mostrarLoader('Validando token...');
+    mostrarLoader('Validando link temporário...');
     try {
         const url = `${URL_BACKEND_APPS_SCRIPT}?acao=validar_link&tokenAcesso=${encodeURIComponent(tokenAcesso)}`;
         const resp = await fetchComTimeout(url, 15000);
@@ -111,7 +131,7 @@ async function verificarTokenUrl() {
         }
     } catch (e) {
         console.error(e);
-        exibirToast("Falha ao validar token.", "error");
+        exibirToast("Falha ao validar token temporário.", "error");
     } finally {
         esconderLoader();
     }
@@ -144,15 +164,16 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}) {
 }
 
 // ============================================================================
-// 5. UPLOAD DE IMAGEM
+// 5. UPLOAD DE FOTOGRAFIA OU GIF LOCAL
 // ============================================================================
 function processarUploadImagem(evento) {
     const ficheiro = evento.target.files[0];
     if (!ficheiro) return;
 
+    // Se for GIF animado, preserva os frames com limite de tamanho
     if (ficheiro.type === "image/gif") {
         if (ficheiro.size > 200 * 1024) {
-            exibirToast("O GIF é muito pesado. Máx: 200KB.", "error");
+            exibirToast("O GIF é muito pesado. Escolha um ficheiro de até 200KB.", "error");
             evento.target.value = "";
             return;
         }
@@ -165,6 +186,7 @@ function processarUploadImagem(evento) {
         return;
     }
 
+    // Para fotos comuns (JPG, PNG), comprime via Canvas para <35KB
     const leitor = new FileReader();
     leitor.onload = e => {
         const img = new Image();
@@ -198,7 +220,7 @@ function removerFotoCarregada() {
 }
 
 // ============================================================================
-// 6. VITRINE
+// 6. VITRINE DE PRODUTOS E BUSCA COM DEBOUNCE
 // ============================================================================
 async function sincronizarProdutosServidor() {
     let url = `${URL_BACKEND_APPS_SCRIPT}?acao=listar_produtos`;
@@ -213,11 +235,13 @@ async function sincronizarProdutosServidor() {
             CacheLoja.salvar('produtos_' + estadoSessao.papel, catalogoProdutos);
             renderizarVitrine();
         }
-    } catch (e) { console.warn("Modo offline:", e); }
+    } catch (e) { console.warn("Modo offline ou falha temporária:", e); }
 }
 
-function aplicarFiltroVitrine() {
-    const termo = document.getElementById('filtro-produtos').value.trim().toLowerCase();
+function aplicarFiltroVitrine(termoManual = null) {
+    const input = document.getElementById('filtro-produtos');
+    const termo = (termoManual !== null ? termoManual : (input ? input.value : '')).trim().toLowerCase();
+
     catalogoFiltrado = termo
         ? catalogoProdutos.filter(p => String(p.nome || '').toLowerCase().includes(termo))
         : catalogoProdutos;
@@ -226,6 +250,7 @@ function aplicarFiltroVitrine() {
 
 function renderizarVitrine() {
     const grid = document.getElementById('produtos-container');
+    if (!grid) return;
     grid.innerHTML = '';
 
     if (!catalogoFiltrado || catalogoFiltrado.length === 0) {
@@ -233,18 +258,18 @@ function renderizarVitrine() {
         grid.innerHTML = `
             <div class="empty-state">
                 <strong>${termo ? 'Nenhum produto encontrado' : 'Vitrine vazia'}</strong>
-                ${termo ? `Nada corresponde a "${escaparHtml(termo)}".` : 'Aguarde novos produtos.'}
+                ${termo ? `Nada corresponde a "${escaparHtml(termo)}".` : 'Aguarde novos produtos da administração.'}
             </div>`;
         return;
     }
 
     catalogoFiltrado.forEach(p => {
-        const card  = document.createElement('div');
+        const card = document.createElement('div');
         card.className = 'product-card';
 
         const img = document.createElement('img');
         img.className = 'product-thumb';
-        img.src = p.foto || '';
+        img.src = p.foto || 'https://via.placeholder.com/300x200?text=Sem+Foto';
         img.alt = p.nome || 'Produto';
         img.loading = 'lazy';
 
@@ -285,20 +310,20 @@ function renderizarVitrine() {
 }
 
 // ============================================================================
-// 7. CADASTRO
+// 7. CADASTRO DE NOVO MEMBRO
 // ============================================================================
 async function tratarSolicitacaoCadastro(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
 
-    const nome     = document.getElementById('cad-nome').value.trim();
-    const telefone = document.getElementById('cad-telefone').value.trim();
-    const senha    = document.getElementById('cad-senha').value;
-    const senhaConf= document.getElementById('cad-senha-conf').value;
-    const twitter  = document.getElementById('cad-twitter').value.trim();
-    const telegram = document.getElementById('cad-telegram').value.trim();
+    const nome      = document.getElementById('cad-nome').value.trim();
+    const telefone  = document.getElementById('cad-telefone').value.trim();
+    const senha     = document.getElementById('cad-senha').value;
+    const senhaConf = document.getElementById('cad-senha-conf').value;
+    const twitter   = document.getElementById('cad-twitter').value.trim();
+    const telegram  = document.getElementById('cad-telegram').value.trim();
 
-    if (senha !== senhaConf) return exibirToast("As senhas não coincidem.", "error");
-    if (senha.length < 6)    return exibirToast("Senha muito curta.", "error");
+    if (senha !== senhaConf) return exibirToast("As senhas digitadas não coincidem.", "error");
+    if (senha.length < 6)    return exibirToast("A senha deve ter no mínimo 6 caracteres.", "error");
 
     botaoCarregando('btn-enviar-cadastro', true);
     exibirToast("A enviar solicitação...", "info");
@@ -310,19 +335,19 @@ async function tratarSolicitacaoCadastro(e) {
     botaoCarregando('btn-enviar-cadastro', false);
 
     if (res.sucesso) {
-        exibirToast(res.mensagem || "Solicitação enviada!", "success");
+        exibirToast(res.mensagem || "Solicitação enviada com sucesso!", "success");
         document.getElementById('form-registro').reset();
         fecharModal('modal-cadastro');
     } else {
-        exibirToast(res.mensagem || "Erro ao registrar.", "error");
+        exibirToast(res.mensagem || "Erro ao registrar solicitação.", "error");
     }
 }
 
 // ============================================================================
-// 8. LOGIN / LOGOUT
+// 8. AUTENTICAÇÃO (LOGIN / LOGOUT / DESBLOQUEIO)
 // ============================================================================
 async function tratarLogin(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const usuario = document.getElementById('login-usuario').value.trim();
     const senha   = document.getElementById('login-senha').value;
     identificadorEmTentativa = usuario;
@@ -348,7 +373,7 @@ async function tratarLogin(e) {
         await sincronizarProdutosServidor();
         exibirToast(`Bem-vindo, ${res.nome}!`, "success");
     } else {
-        exibirToast(res.mensagem || "Falha no login.", "error");
+        exibirToast(res.mensagem || "Credenciais inválidas.", "error");
         if (res.requerLiberacaoAdm) {
             document.getElementById('box-desbloqueio-conta').classList.remove('hidden');
         }
@@ -359,8 +384,9 @@ async function enviarPedidoDesbloqueio() {
     if (!identificadorEmTentativa) return;
     const res = await executarRequisicaoAPI("pedir_desbloqueio", { identificador: identificadorEmTentativa });
     if (res.sucesso) {
-        exibirToast(res.mensagem || "Pedido enviado.", "success");
-        document.getElementById('btn-solicitar-desbloqueio').disabled = true;
+        exibirToast(res.mensagem || "Pedido de liberação enviado.", "success");
+        const btn = document.getElementById('btn-solicitar-desbloqueio');
+        if (btn) btn.disabled = true;
     }
 }
 
@@ -373,19 +399,20 @@ function executarLogout() {
     estadoSessao.token = null;
     estadoSessao.nomeUsuario = 'Visitante';
     cestaCompras = [];
-    document.getElementById('cart-counter').textContent = "0";
-    localStorage.removeItem('plataforma_sessao');
+    const cartCont = document.getElementById('cart-counter');
+    if (cartCont) cartCont.textContent = "0";
 
-    // [NOVO] limpa timers e badges
+    localStorage.removeItem('plataforma_sessao');
     desligarAutoRefreshAdm();
     atualizarBadgePendentesAdm(0);
+    pararAutoRefreshChat();
 
     atualizarInterfaceSessao();
     CacheLoja.limpar('produtos_membro');
     CacheLoja.limpar('produtos_adm');
     sincronizarProdutosServidor();
     navegarPara('vitrine');
-    exibirToast("Sessão encerrada.", "info");
+    exibirToast("Sessão encerrada com sucesso.", "info");
 }
 
 function restaurarSessaoLocal() {
@@ -402,7 +429,7 @@ function restaurarSessaoLocal() {
 }
 
 // ============================================================================
-// 9. INTERFACE POR PAPEL
+// 9. CONTROLO VISUAL POR PAPEL
 // ============================================================================
 function atualizarInterfaceSessao() {
     const badge   = document.getElementById('role-badge');
@@ -416,11 +443,13 @@ function atualizarInterfaceSessao() {
     const tabPedidosAdm  = document.getElementById('tab-btn-pedidos-adm');
     const tabAdm         = document.getElementById('tab-btn-adm');
 
-    badge.textContent = estadoSessao.papel.toUpperCase();
-    badge.className   = `badge badge-${estadoSessao.papel}`;
+    if (badge) {
+        badge.textContent = estadoSessao.papel.toUpperCase();
+        badge.className   = `badge badge-${estadoSessao.papel}`;
+    }
 
-    const esconder = el => el.classList.add('hidden');
-    const mostrar  = el => el.classList.remove('hidden');
+    const esconder = el => el && el.classList.add('hidden');
+    const mostrar  = el => el && el.classList.remove('hidden');
 
     [tabCarrinho, tabMeusPedidos, tabNovoProduto, tabPedidosAdm, tabAdm].forEach(esconder);
 
@@ -428,19 +457,18 @@ function atualizarInterfaceSessao() {
         mostrar(anonBox); esconder(authBox);
     } else if (estadoSessao.papel === 'membro') {
         esconder(anonBox); mostrar(authBox);
-        userLbl.textContent = `Olá, ${estadoSessao.nomeUsuario}`;
+        if (userLbl) userLbl.textContent = `Olá, ${estadoSessao.nomeUsuario}`;
         mostrar(tabCarrinho); mostrar(tabMeusPedidos);
     } else if (estadoSessao.papel === 'entregador') {
         esconder(anonBox); mostrar(authBox);
-        userLbl.textContent = `Entregador: ${estadoSessao.nomeUsuario}`;
+        if (userLbl) userLbl.textContent = `Entregador: ${estadoSessao.nomeUsuario}`;
         mostrar(tabMeusPedidos); mostrar(tabPedidosAdm);
     } else if (estadoSessao.papel === 'adm') {
         esconder(anonBox); mostrar(authBox);
-        userLbl.textContent = `ADM: ${estadoSessao.nomeUsuario}`;
+        if (userLbl) userLbl.textContent = `ADM: ${estadoSessao.nomeUsuario}`;
         mostrar(tabNovoProduto); mostrar(tabPedidosAdm); mostrar(tabAdm);
     }
 
-    // [NOVO] liga ou desliga auto-refresh do painel ADM
     if (estadoSessao.papel === 'adm') {
         ligarAutoRefreshAdm();
     } else {
@@ -450,14 +478,14 @@ function atualizarInterfaceSessao() {
 }
 
 // ============================================================================
-// 10. NAVEGAÇÃO
+// 10. NAVEGAÇÃO ENTRE TELAS
 // ============================================================================
 function navegarPara(nomeAba) {
     document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.view-panel').forEach(v => v.classList.remove('active'));
 
-    const btn   = document.getElementById(`tab-btn-${nomeAba}`);
-    const painel= document.getElementById(`view-${nomeAba}`);
+    const btn    = document.getElementById(`tab-btn-${nomeAba}`);
+    const painel = document.getElementById(`view-${nomeAba}`);
 
     if (btn && painel) {
         btn.classList.add('active');
@@ -470,34 +498,37 @@ function navegarPara(nomeAba) {
     if (nomeAba === 'pedidos-adm')  carregarPedidosAdm();
     if (nomeAba === 'adm') {
         carregarPainelCentralAdm();
-        consultarPendentesAdm();   // [NOVO] atualiza badge na hora
+        consultarPendentesAdm();
     }
 }
 
 // ============================================================================
-// 11. CARRINHO
+// 11. CESTA DE COMPRAS E CRIAÇÃO DE PEDIDOS
 // ============================================================================
 function adicionarAoCarrinho(p) {
     const it = cestaCompras.find(i => i.id === p.id);
     if (it) it.quantidade += 1;
     else cestaCompras.push({
-        id: p.id, nome: p.nome,
+        id: p.id,
+        nome: p.nome,
         preco: typeof p.preco === 'number' ? p.preco : parseFloat(String(p.preco).replace(',', '.')),
         quantidade: 1
     });
 
     const total = cestaCompras.reduce((a, i) => a + i.quantidade, 0);
-    document.getElementById('cart-counter').textContent = total;
-    exibirToast(`${p.nome} adicionado à cesta.`, "info");
+    const cartCont = document.getElementById('cart-counter');
+    if (cartCont) cartCont.textContent = total;
+    exibirToast(`${p.nome} colocado na cesta.`, "info");
 }
 
 function renderizarCarrinho() {
     const lista = document.getElementById('carrinho-itens-lista');
+    if (!lista) return;
     lista.innerHTML = '';
     let total = 0;
 
     if (cestaCompras.length === 0) {
-        lista.innerHTML = `<div class="empty-state"><strong>Sua cesta está vazia</strong>Adicione produtos da vitrine.</div>`;
+        lista.innerHTML = `<div class="empty-state"><strong>Sua cesta está vazia</strong>Adicione itens da vitrine.</div>`;
         document.getElementById('carrinho-total-valor').textContent = 'R$ 0,00';
         return;
     }
@@ -519,8 +550,8 @@ function renderizarCarrinho() {
         qtd.onchange = () => {
             i.quantidade = Math.max(1, Number(qtd.value) || 1);
             renderizarCarrinho();
-            document.getElementById('cart-counter').textContent =
-                cestaCompras.reduce((a, x) => a + x.quantidade, 0);
+            const c = document.getElementById('cart-counter');
+            if (c) c.textContent = cestaCompras.reduce((a, x) => a + x.quantidade, 0);
         };
 
         const valor = document.createElement('strong');
@@ -533,8 +564,8 @@ function renderizarCarrinho() {
         rem.onclick = () => {
             cestaCompras = cestaCompras.filter(x => x.id !== i.id);
             renderizarCarrinho();
-            document.getElementById('cart-counter').textContent =
-                cestaCompras.reduce((a, x) => a + x.quantidade, 0);
+            const c = document.getElementById('cart-counter');
+            if (c) c.textContent = cestaCompras.reduce((a, x) => a + x.quantidade, 0);
         };
 
         row.append(desc, qtd, valor, rem);
@@ -545,7 +576,7 @@ function renderizarCarrinho() {
 }
 
 async function tratarCriacaoPedido() {
-    if (cestaCompras.length === 0) return exibirToast("Cesta vazia.", "error");
+    if (cestaCompras.length === 0) return exibirToast("Sua cesta está vazia.", "error");
 
     botaoCarregando('btn-confirmar-pedido', true);
     mostrarLoader("Processando pedido seguro...");
@@ -564,18 +595,22 @@ async function tratarCriacaoPedido() {
     if (res.sucesso) {
         exibirToast(`Pedido ${res.idPedido} gerado!`, "success");
         cestaCompras = [];
-        document.getElementById('cart-counter').textContent = "0";
+        const c = document.getElementById('cart-counter');
+        if (c) c.textContent = "0";
         navegarPara('meus-pedidos');
+        // Abre automaticamente a tela de pagamento do pedido gerado
+        abrirCobrancaPedido(res.idPedido, metodo);
     } else {
         exibirToast(res.mensagem || "Erro ao pedir.", "error");
     }
 }
 
 // ============================================================================
-// 12. MEUS PEDIDOS + CHAT
+// 12. MEUS PEDIDOS, PAGAMENTO E CHAT TEMPORÁRIO
 // ============================================================================
 async function carregarMeusPedidos() {
     const box = document.getElementById('meus-pedidos-container');
+    if (!box) return;
     box.innerHTML = '<div class="loading-slot">Carregando os seus pedidos...</div>';
 
     const res = await executarRequisicaoAPI("listar_meus_pedidos", { tokenMembro: estadoSessao.token });
@@ -589,60 +624,159 @@ async function carregarMeusPedidos() {
     res.pedidos.forEach(p => {
         const card = document.createElement('div');
         card.className = 'adm-card';
+        const st = String(p.status).toLowerCase();
 
         card.innerHTML = `
             <h4>Pedido: ${escaparHtml(p.id)}</h4>
-            <p>Status: <strong>${escaparHtml(String(p.status).toUpperCase())}</strong>
+            <p>Status: <strong class="status-tag status-${escaparHtml(st)}">${escaparHtml(st.toUpperCase())}</strong>
                | Total: <strong>${fmtPreco(p.total)}</strong></p>
-            <p>Forma: ${escaparHtml(p.metodo || '-')}</p>
+            <p>Forma de Pagamento: <strong>${escaparHtml(p.metodo || 'PIX')}</strong></p>
         `;
 
-        if (p.chatAtivo) {
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-primary btn-sm';
-            btn.textContent = '💬 Abrir chat';
-            btn.onclick = () => abrirChatPedido(p.id);
-            card.appendChild(btn);
-        } else {
-            const s = document.createElement('small');
-            s.style.color = '#94a3b8';
-            s.textContent = 'Chat temporário encerrado.';
-            card.appendChild(s);
+        const acoes = document.createElement('div');
+        acoes.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;';
+
+        // Botão de Pagamento se o pedido estiver em análise
+        if (st === 'analise') {
+            const btnPagar = document.createElement('button');
+            btnPagar.className = 'btn btn-success btn-sm';
+            btnPagar.textContent = '💳 Pagar / Ver Cobrança';
+            btnPagar.onclick = () => abrirCobrancaPedido(p.id, p.metodo);
+            acoes.appendChild(btnPagar);
         }
 
+        // Botão de Chat Temporário
+        if (p.chatAtivo) {
+            const btnChat = document.createElement('button');
+            btnChat.className = 'btn btn-primary btn-sm';
+            btnChat.textContent = '💬 Abrir Chat';
+            btnChat.onclick = () => abrirChatPedido(p.id);
+            acoes.appendChild(btnChat);
+        } else {
+            const aviso = document.createElement('small');
+            aviso.style.color = '#94a3b8';
+            aviso.textContent = 'Chat temporário encerrado.';
+            acoes.appendChild(aviso);
+        }
+
+        card.appendChild(acoes);
         box.appendChild(card);
     });
 }
 
-async function abrirChatPedido(pedidoId) {
-    pedidoChatAberto = pedidoId;
-    document.getElementById('chat-pedido-id').textContent = '#' + pedidoId;
-    document.getElementById('chat-mensagens').innerHTML =
-        '<div class="loading-slot">Carregando mensagens...</div>';
-    abrirModal('modal-chat');
-    await renderizarChat();
+/** Consulta o Payments.gs e exibe os dados para pagamento */
+async function abrirCobrancaPedido(idPedido, metodo) {
+    mostrarLoader("Gerando instruções de pagamento...");
+    const res = await executarRequisicaoAPI("gerar_pagamento", {
+        tokenMembro: estadoSessao.token,
+        idPedido: idPedido,
+        metodo: metodo || "PIX"
+    });
+    esconderLoader();
+
+    if (!res.sucesso) {
+        return exibirToast(res.mensagem || "Não foi possível gerar a cobrança.", "error");
+    }
+
+    if (res.jaPago) {
+        return exibirToast("Este pedido já foi pago e está em entrega!", "success");
+    }
+
+    const cob = res.cobranca;
+    let htmlCorpo = `<div style="text-align:center;padding:10px;">`;
+
+    if (cob.tipo === "PIX") {
+        htmlCorpo += `
+            <img src="${escaparHtml(cob.qrCodeUrl)}" alt="QR Code PIX" style="width:200px;height:200px;margin-bottom:12px;border:1px solid #cbd5e1;border-radius:8px;">
+            <p style="font-size:.85rem;color:#475569;margin-bottom:8px;">${escaparHtml(cob.instrucoes)}</p>
+            <input type="text" id="pix-copia-cola" value="${escaparHtml(cob.pixCopiaECola)}" readonly style="font-size:.75rem;margin-bottom:8px;text-align:center;" onclick="this.select()">
+            <button type="button" class="btn btn-primary btn-block" onclick="copiarPixCopiaECola()">📋 Copiar Código PIX</button>
+        `;
+    } else if (cob.tipo === "CRIPTO") {
+        htmlCorpo += `
+            <img src="${escaparHtml(cob.qrCodeUrl)}" alt="QR Code Cripto" style="width:180px;height:180px;margin-bottom:10px;border-radius:8px;">
+            <p><strong>Valor a transferir:</strong> ${escaparHtml(cob.quantidadeEstimada)} ${escaparHtml(cob.moeda)}</p>
+            <p style="font-size:.75rem;color:#64748b;word-break:break-all;margin:6px 0;"><strong>Carteira:</strong><br>${escaparHtml(cob.carteiraDestino)}</p>
+            <button type="button" class="btn btn-primary btn-block" onclick="navigator.clipboard.writeText('${escaparHtml(cob.carteiraDestino)}');exibirToast('Carteira copiada!','success');">📋 Copiar Endereço da Carteira</button>
+        `;
+    } else if (cob.tipo === "CARTAO") {
+        htmlCorpo += `
+            <p style="margin-bottom:12px;">${escaparHtml(cob.instrucoes)}</p>
+            <a href="${escaparHtml(cob.urlCheckout)}" target="_blank" class="btn btn-success btn-block" style="text-decoration:none;display:block;">🔒 Ir para Pagamento Seguro</a>
+        `;
+    }
+
+    htmlCorpo += `</div>`;
+
+    abrirConfirmacao(`Pagamento Pedido #${idPedido}`, htmlCorpo, () => {
+        carregarMeusPedidos();
+    });
 }
 
-async function renderizarChat() {
+function copiarPixCopiaECola() {
+    const input = document.getElementById('pix-copia-cola');
+    if (!input) return;
+    input.select();
+    navigator.clipboard.writeText(input.value)
+        .then(() => exibirToast("Código PIX copiado com sucesso!", "success"))
+        .catch(() => {
+            document.execCommand('copy');
+            exibirToast("Código PIX copiado!", "success");
+        });
+}
+
+// ─── CHAT TEMPORÁRIO COM POLLING A CADA 5s ──────────────────
+async function abrirChatPedido(pedidoId) {
+    pedidoChatAberto = pedidoId;
+    const tit = document.getElementById('chat-pedido-id');
+    const box = document.getElementById('chat-mensagens');
+    if (tit) tit.textContent = '#' + pedidoId;
+    if (box) box.innerHTML = '<div class="loading-slot">Carregando mensagens...</div>';
+
+    abrirModal('modal-chat');
+    await renderizarChat();
+    iniciarAutoRefreshChat();
+}
+
+function iniciarAutoRefreshChat() {
+    pararAutoRefreshChat();
+    _timerChat = setInterval(async () => {
+        if (!pedidoChatAberto) return pararAutoRefreshChat();
+        await renderizarChat(true); // renderiza silenciosamente sem scroll travado
+    }, 5000);
+}
+
+function pararAutoRefreshChat() {
+    if (_timerChat) {
+        clearInterval(_timerChat);
+        _timerChat = null;
+    }
+}
+
+async function renderizarChat(silencioso = false) {
     if (!pedidoChatAberto) return;
     const box = document.getElementById('chat-mensagens');
+    if (!box) return;
 
     const res = await executarRequisicaoAPI("chat_listar", {
         tokenMembro: estadoSessao.token,
         idPedido: pedidoChatAberto
     });
 
-    box.innerHTML = '';
-
     if (!res.sucesso || !res.mensagens || res.mensagens.length === 0) {
-        box.innerHTML = '<div class="loading-slot">Sem mensagens ainda.</div>';
+        if (!silencioso) box.innerHTML = '<div class="loading-slot">Sem mensagens ainda.</div>';
         return;
     }
 
+    const estavaNoFim = (box.scrollHeight - box.scrollTop) <= (box.clientHeight + 50);
+    box.innerHTML = '';
+
     res.mensagens.forEach(m => {
         const div = document.createElement('div');
-        const ehMinha = (m.autorId && m.autorId === estadoSessao.token) ||
-                        (m.autor === estadoSessao.nomeUsuario);
+        // Alinhamento correto: mensagem do próprio usuário à direita, de terceiros à esquerda
+        const ehMinha = (m.autorNome === estadoSessao.nomeUsuario) ||
+                        (estadoSessao.papel === 'adm' && m.autorNome === 'Administração');
+
         div.className = 'chat-msg ' + (ehMinha ? 'chat-msg--out' : 'chat-msg--in');
 
         const txt = document.createElement('span');
@@ -650,17 +784,20 @@ async function renderizarChat() {
 
         const meta = document.createElement('span');
         meta.className = 'meta';
-        meta.textContent = m.autorNome || (ehMinha ? 'Você' : 'ADM');
+        meta.textContent = m.autorNome || (ehMinha ? 'Você' : 'Atendimento');
 
         div.append(txt, meta);
         box.appendChild(div);
     });
 
-    box.scrollTop = box.scrollHeight;
+    if (estavaNoFim || !silencioso) {
+        box.scrollTop = box.scrollHeight;
+    }
 }
 
 async function enviarMensagemChat() {
     const input = document.getElementById('chat-input');
+    if (!input) return;
     const texto = input.value.trim();
     if (!texto) return;
 
@@ -682,105 +819,109 @@ async function enviarMensagemChat() {
 }
 
 // ============================================================================
-// 13. PAINEL ADM  ← CORAÇÃO DA CORREÇÃO
+// 13. PAINEL ADMINISTRATIVO (APROVAÇÃO, MÉTRICAS E DESBLOQUEIOS)
 // ============================================================================
 async function carregarPainelCentralAdm() {
     if (estadoSessao.papel !== 'adm') return;
 
-    // ─── 1. solicitações ────────────────────────────────────────
+    // 1. Lista de solicitações de novos membros
     const divSolic = document.getElementById('adm-solicitacoes-lista');
-    divSolic.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
+    if (divSolic) divSolic.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
 
     const resSolic = await executarRequisicaoAPI("listar_solicitacoes_adm", { tokenAdm: estadoSessao.token });
+    const pendentes = (resSolic.sucesso && Array.isArray(resSolic.solicitacoes)) ? resSolic.solicitacoes.length : 0;
 
-    const pendentes = (resSolic.sucesso && Array.isArray(resSolic.solicitacoes))
-        ? resSolic.solicitacoes.length
-        : 0;
-
-    // [NOVO] atualiza o badge no menu
     atualizarBadgePendentesAdm(pendentes);
 
-    divSolic.innerHTML = '';
-    if (pendentes > 0) {
-        resSolic.solicitacoes.forEach(s => {
-            const row = document.createElement('div');
-            row.style.cssText = 'padding:10px 0;border-bottom:1px solid #e2e8f0;';
+    if (divSolic) {
+        divSolic.innerHTML = '';
+        if (pendentes > 0) {
+            resSolic.solicitacoes.forEach(s => {
+                const row = document.createElement('div');
+                row.style.cssText = 'padding:10px 0;border-bottom:1px solid #e2e8f0;';
 
-            row.innerHTML = `
-                <p><strong>${escaparHtml(s.nome)}</strong> (Login: ${escaparHtml(s.telefone)})</p>
-                <p style="font-size:.78rem;color:#64748b;">
-                    Twitter: ${escaparHtml(s.twitter || '-')} | Telegram: ${escaparHtml(s.telegram || '-')}
-                </p>
-            `;
+                row.innerHTML = `
+                    <p><strong>${escaparHtml(s.nome)}</strong> (Login: ${escaparHtml(s.telefone)})</p>
+                    <p style="font-size:.78rem;color:#64748b;">
+                        Twitter: ${escaparHtml(s.twitter || '-')} | Telegram: ${escaparHtml(s.telegram || '-')}
+                    </p>
+                `;
 
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-success btn-sm';
-            btn.style.marginTop = '5px';
-            btn.textContent = 'Aprovar Membro';
-            btn.onclick = () => aprovarMembroAdm(s.id);
-            row.appendChild(btn);
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-success btn-sm';
+                btn.style.marginTop = '5px';
+                btn.textContent = 'Aprovar Membro';
+                btn.onclick = () => aprovarMembroAdm(s.id);
+                row.appendChild(btn);
 
-            divSolic.appendChild(row);
-        });
-    } else {
-        divSolic.innerHTML = '<div class="loading-slot">Nenhuma solicitação pendente.</div>';
-    }
-
-    // ─── 2. métricas ────────────────────────────────────────────
-    const resMetricas = await executarRequisicaoAPI("obter_metricas_vendas", { tokenAdm: estadoSessao.token });
-    if (resMetricas.sucesso) {
-        document.getElementById('metric-faturamento').textContent =
-            fmtPreco(resMetricas.faturamentoTotal || 0);
-        document.getElementById('metric-pedidos').textContent =
-            resMetricas.totalPedidos || 0;
-
-        const divTabela = document.getElementById('tabela-metricas-produtos');
-        if (!resMetricas.itensDetalhados || resMetricas.itensDetalhados.length === 0) {
-            divTabela.innerHTML = '<div class="loading-slot">Sem vendas registadas.</div>';
-        } else {
-            let html = '<table class="tabela-metricas"><thead><tr><th>Produto</th><th>Qtd</th></tr></thead><tbody>';
-            resMetricas.itensDetalhados.forEach(it => {
-                html += `<tr><td>${escaparHtml(it.nome)}</td><td><strong>${Number(it.quantidadeVendida)||0} un</strong></td></tr>`;
+                divSolic.appendChild(row);
             });
-            html += '</tbody></table>';
-            divTabela.innerHTML = html;
+        } else {
+            divSolic.innerHTML = '<div class="loading-slot">Nenhuma solicitação pendente.</div>';
         }
     }
 
-    // ─── 3. contas bloqueadas ──────────────────────────────────
-    const resBloq = await executarRequisicaoAPI("listar_bloqueados_adm", { tokenAdm: estadoSessao.token });
-    const divBloq = document.getElementById('adm-bloqueados-lista');
-    divBloq.innerHTML = '';
-    if (resBloq.sucesso && Array.isArray(resBloq.contas) && resBloq.contas.length > 0) {
-        resBloq.contas.forEach(b => {
-            const row = document.createElement('div');
-            row.style.padding = '6px 0';
-            row.innerHTML = `<p style="color:#b91c1c;"><strong>${escaparHtml(b.identificador)}</strong> (${Number(b.erros)||0} falhas)</p>`;
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-primary btn-sm';
-            btn.textContent = 'Liberar Conta';
-            btn.onclick = () => liberarContaUsuarioAdm(b.identificador);
-            row.appendChild(btn);
-            divBloq.appendChild(row);
-        });
-    } else {
-        divBloq.innerHTML = '<div class="loading-slot">Nenhuma conta bloqueada.</div>';
+    // 2. Métricas de vendas consolidadas
+    const resMetricas = await executarRequisicaoAPI("obter_metricas_vendas", { tokenAdm: estadoSessao.token });
+    if (resMetricas.sucesso) {
+        const fatEl = document.getElementById('metric-faturamento');
+        const pedEl = document.getElementById('metric-pedidos');
+        if (fatEl) fatEl.textContent = fmtPreco(resMetricas.faturamentoTotal || 0);
+        if (pedEl) pedEl.textContent = resMetricas.totalPedidos || 0;
+
+        const divTabela = document.getElementById('tabela-metricas-produtos');
+        if (divTabela) {
+            if (!resMetricas.itensDetalhados || resMetricas.itensDetalhados.length === 0) {
+                divTabela.innerHTML = '<div class="loading-slot">Sem vendas registadas ainda.</div>';
+            } else {
+                let html = '<table class="tabela-metricas"><thead><tr><th>Produto</th><th>Qtd</th></tr></thead><tbody>';
+                resMetricas.itensDetalhados.forEach(it => {
+                    html += `<tr><td>${escaparHtml(it.nome)}</td><td><strong>${Number(it.quantidadeVendida)||0} un</strong></td></tr>`;
+                });
+                html += '</tbody></table>';
+                divTabela.innerHTML = html;
+            }
+        }
     }
 
-    // ─── 4. comentários ────────────────────────────────────────
+    // 3. Contas bloqueadas com pedido de liberação
+    const resBloq = await executarRequisicaoAPI("listar_bloqueados_adm", { tokenAdm: estadoSessao.token });
+    const divBloq = document.getElementById('adm-bloqueados-lista');
+    if (divBloq) {
+        divBloq.innerHTML = '';
+        if (resBloq.sucesso && Array.isArray(resBloq.contas) && resBloq.contas.length > 0) {
+            resBloq.contas.forEach(b => {
+                const row = document.createElement('div');
+                row.style.padding = '6px 0';
+                row.innerHTML = `<p style="color:#b91c1c;"><strong>${escaparHtml(b.identificador)}</strong> (${Number(b.erros)||0} falhas)</p>`;
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-primary btn-sm';
+                btn.textContent = 'Liberar Conta';
+                btn.onclick = () => liberarContaUsuarioAdm(b.identificador);
+                row.appendChild(btn);
+                divBloq.appendChild(row);
+            });
+        } else {
+            divBloq.innerHTML = '<div class="loading-slot">Nenhuma conta bloqueada.</div>';
+        }
+    }
+
+    // 4. Comentários recebidos
     const resComent = await executarRequisicaoAPI("listar_comentarios_adm", { tokenAdm: estadoSessao.token });
     const divCom = document.getElementById('adm-comentarios-lista');
-    divCom.innerHTML = '';
-    if (resComent.sucesso && Array.isArray(resComent.comentarios) && resComent.comentarios.length > 0) {
-        resComent.comentarios.forEach(c => {
-            const p = document.createElement('p');
-            p.style.cssText = 'font-size:.8rem;padding:6px 0;border-bottom:1px solid #e2e8f0;';
-            const quando = c.data ? new Date(c.data).toLocaleString() : '';
-            p.innerHTML = `<strong>${escaparHtml(c.nome || 'Anônimo')}</strong> <small style="color:#94a3b8;">${escaparHtml(quando)}</small><br>${escaparHtml(c.texto || '')}`;
-            divCom.appendChild(p);
-        });
-    } else {
-        divCom.innerHTML = '<div class="loading-slot">Sem mensagens.</div>';
+    if (divCom) {
+        divCom.innerHTML = '';
+        if (resComent.sucesso && Array.isArray(resComent.comentarios) && resComent.comentarios.length > 0) {
+            resComent.comentarios.forEach(c => {
+                const p = document.createElement('p');
+                p.style.cssText = 'font-size:.8rem;padding:6px 0;border-bottom:1px solid #e2e8f0;';
+                const quando = c.data ? new Date(c.data).toLocaleString() : '';
+                p.innerHTML = `<strong>${escaparHtml(c.nome || 'Anônimo')}</strong> <small style="color:#94a3b8;">${escaparHtml(quando)}</small><br>${escaparHtml(c.texto || '')}`;
+                divCom.appendChild(p);
+            });
+        } else {
+            divCom.innerHTML = '<div class="loading-slot">Sem mensagens.</div>';
+        }
     }
 }
 
@@ -793,11 +934,11 @@ async function aprovarMembroAdm(idSolicitacao) {
     esconderLoader();
 
     if (res.sucesso) {
-        exibirToast(res.mensagem || "Membro aprovado!", "success");
-        await carregarPainelCentralAdm();   // recarrega lista
-        await consultarPendentesAdm();      // [NOVO] atualiza badge
+        exibirToast(res.mensagem || "Membro aprovado com sucesso!", "success");
+        await carregarPainelCentralAdm();
+        await consultarPendentesAdm();
     } else {
-        exibirToast(res.mensagem || "Erro ao aprovar.", "error");
+        exibirToast(res.mensagem || "Erro ao aprovar membro.", "error");
     }
 }
 
@@ -806,16 +947,12 @@ async function liberarContaUsuarioAdm(id) {
         tokenAdm: estadoSessao.token, identificador: id
     });
     if (res.sucesso) {
-        exibirToast(res.mensagem || "Conta liberada.", "success");
+        exibirToast(res.mensagem || "Conta liberada com sucesso.", "success");
         await carregarPainelCentralAdm();
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   [NOVO] BADGE + AUTO-REFRESH DO PAINEL ADM
-   ═══════════════════════════════════════════════════════════════ */
-
-/** Desenha o badge vermelho com a contagem ao lado de "Painel ADM". */
+// ─── BADGE E AUTO-REFRESH DO PAINEL ADM ─────────────────────
 function atualizarBadgePendentesAdm(qtd) {
     const btnAdm = document.getElementById('tab-btn-adm');
     if (!btnAdm) return;
@@ -835,27 +972,19 @@ function atualizarBadgePendentesAdm(qtd) {
     }
 }
 
-/** Consulta só a contagem (leve) — usada em background. */
 async function consultarPendentesAdm() {
     if (estadoSessao.papel !== 'adm') return;
     try {
-        const res = await executarRequisicaoAPI(
-            "listar_solicitacoes_adm",
-            { tokenAdm: estadoSessao.token }
-        );
-        const qtd = (res.sucesso && Array.isArray(res.solicitacoes))
-            ? res.solicitacoes.length
-            : 0;
+        const res = await executarRequisicaoAPI("listar_solicitacoes_adm", { tokenAdm: estadoSessao.token });
+        const qtd = (res.sucesso && Array.isArray(res.solicitacoes)) ? res.solicitacoes.length : 0;
         atualizarBadgePendentesAdm(qtd);
-    } catch (e) { /* silencioso */ }
+    } catch { /* silencioso */ }
 }
 
-/** Liga o auto-refresh (a cada 20s) enquanto o ADM estiver logado. */
 function ligarAutoRefreshAdm() {
     desligarAutoRefreshAdm();
     if (estadoSessao.papel !== 'adm') return;
-
-    consultarPendentesAdm();   // roda já
+    consultarPendentesAdm();
 
     _timerPainelAdm = setInterval(() => {
         if (estadoSessao.papel !== 'adm') {
@@ -866,7 +995,6 @@ function ligarAutoRefreshAdm() {
     }, 20000);
 }
 
-/** Desliga o auto-refresh. */
 function desligarAutoRefreshAdm() {
     if (_timerPainelAdm) {
         clearInterval(_timerPainelAdm);
@@ -875,7 +1003,7 @@ function desligarAutoRefreshAdm() {
 }
 
 // ============================================================================
-// 14. PIPELINE DE PEDIDOS (ADM)
+// 14. ESTEIRA DE PEDIDOS (ADM)
 // ============================================================================
 async function carregarPedidosAdm() {
     const cA = document.getElementById('pipe-analise');
@@ -883,44 +1011,59 @@ async function carregarPedidosAdm() {
     const cV = document.getElementById('pipe-viagem');
     const cC = document.getElementById('pipe-concluido');
 
-    [cA, cS, cV, cC].forEach(c => c.innerHTML = '<div class="loading-slot">…</div>');
+    [cA, cS, cV, cC].forEach(c => { if (c) c.innerHTML = '<div class="loading-slot">…</div>'; });
 
     const res = await executarRequisicaoAPI("listar_pedidos_adm", { tokenAdm: estadoSessao.token });
-
-    cA.innerHTML = cS.innerHTML = cV.innerHTML = cC.innerHTML = '';
+    if (cA) cA.innerHTML = '';
+    if (cS) cS.innerHTML = '';
+    if (cV) cV.innerHTML = '';
+    if (cC) cC.innerHTML = '';
 
     if (res.sucesso && Array.isArray(res.pedidos)) {
         res.pedidos.forEach(p => {
             const div = document.createElement('div');
-            div.style.cssText = 'background:#fff;padding:6px;margin-bottom:6px;border-radius:4px;border:1px solid #cbd5e1;';
+            div.style.cssText = 'background:#fff;padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid #cbd5e1;';
 
             div.innerHTML = `
                 <small><strong>${escaparHtml(p.id)}</strong></small><br>
-                <small>${fmtPreco(p.total)}</small>
+                <small>${fmtPreco(p.total)}</small><br>
+                <small style="color:#64748b;">Forma: ${escaparHtml(p.metodo || 'PIX')}</small>
             `;
 
+            const acoes = document.createElement('div');
+            acoes.style.cssText = 'display:flex;gap:4px;margin-top:6px;';
+
+            // Botão para avançar status
             if (p.status !== 'concluido') {
                 const btn = document.createElement('button');
                 btn.className = 'btn btn-primary btn-sm';
-                btn.style.marginTop = '4px';
                 btn.textContent = 'Avançar Fase';
                 btn.onclick = () => avancarStatusAdm(p.id, p.status);
-                div.appendChild(btn);
+                acoes.appendChild(btn);
             }
 
-            if (p.status === 'analise')      cA.appendChild(div);
-            if (p.status === 'solicitados')  cS.appendChild(div);
-            if (p.status === 'viagem')       cV.appendChild(div);
-            if (p.status === 'concluido')    cC.appendChild(div);
+            // Administrador também pode abrir o chat do pedido
+            const btnChatAdm = document.createElement('button');
+            btnChatAdm.className = 'btn btn-outline-dark btn-sm';
+            btnChatAdm.textContent = '💬';
+            btnChatAdm.title = 'Abrir Chat';
+            btnChatAdm.onclick = () => abrirChatPedido(p.id);
+            acoes.appendChild(btnChatAdm);
+
+            div.appendChild(acoes);
+
+            if (p.status === 'analise' && cA)      cA.appendChild(div);
+            if (p.status === 'solicitados' && cS)  cS.appendChild(div);
+            if (p.status === 'viagem' && cV)       cV.appendChild(div);
+            if (p.status === 'concluido' && cC)    cC.appendChild(div);
         });
     }
 
-    [[cA, 'Em análise'], [cS, 'Solicitados'], [cV, 'Em viagem'], [cC, 'Concluídos']]
-        .forEach(([col]) => {
-            if (!col.children.length) {
-                col.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem pedidos</div>`;
-            }
-        });
+    [[cA, 'Em análise'], [cS, 'Solicitados'], [cV, 'Em viagem'], [cC, 'Concluídos']].forEach(([col]) => {
+        if (col && !col.children.length) {
+            col.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem pedidos</div>`;
+        }
+    });
 }
 
 async function avancarStatusAdm(id, statusAtual) {
@@ -933,18 +1076,18 @@ async function avancarStatusAdm(id, statusAtual) {
     });
 
     if (res.sucesso) {
-        exibirToast("Status atualizado!", "success");
+        exibirToast("Status do pedido atualizado!", "success");
         await carregarPedidosAdm();
     } else {
-        exibirToast(res.mensagem || "Erro ao atualizar.", "error");
+        exibirToast(res.mensagem || "Erro ao atualizar status.", "error");
     }
 }
 
 // ============================================================================
-// 15. COMENTÁRIOS
+// 15. COMENTÁRIOS E DÚVIDAS
 // ============================================================================
 async function tratarEnvioComentario(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const nome = document.getElementById('campo-comentario-nome').value.trim();
     const msg  = document.getElementById('campo-comentario').value.trim();
     if (!msg) return;
@@ -952,19 +1095,19 @@ async function tratarEnvioComentario(e) {
     const res = await executarRequisicaoAPI("enviar_comentario", { nome, mensagem: msg });
 
     if (res.sucesso) {
-        exibirToast("Mensagem enviada!", "success");
+        exibirToast("Mensagem enviada com sucesso!", "success");
         document.getElementById('campo-comentario').value = '';
     } else {
-        exibirToast(res.mensagem || "Erro ao enviar.", "error");
+        exibirToast(res.mensagem || "Erro ao enviar mensagem.", "error");
     }
 }
 
 // ============================================================================
-// 16. LINK TEMPORÁRIO
+// 16. LINK TEMPORÁRIO COM TOKEN (ADM)
 // ============================================================================
 async function gerarLinkTemporarioAdm() {
     const minutos = document.getElementById('select-duracao-link').value;
-    mostrarLoader("Gerando link...");
+    mostrarLoader("Gerando link com token...");
 
     const res = await executarRequisicaoAPI("gerar_link_temporario", {
         tokenAdm: estadoSessao.token,
@@ -976,17 +1119,18 @@ async function gerarLinkTemporarioAdm() {
         const linkCompleto = `${obterUrlBasePlataforma()}?token=${res.token}`;
         document.getElementById('campo-link-gerado').value = linkCompleto;
         document.getElementById('area-link-gerado').classList.remove('hidden');
-        exibirToast("Link gerado!", "success");
+        exibirToast("Link temporário gerado com sucesso!", "success");
     } else {
-        exibirToast(res.mensagem || "Falha ao gerar link.", "error");
+        exibirToast(res.mensagem || "Falha ao gerar o link.", "error");
     }
 }
 
 function copiarLinkGerado() {
     const campo = document.getElementById('campo-link-gerado');
+    if (!campo) return;
     campo.select();
     navigator.clipboard.writeText(campo.value)
-        .then(() => exibirToast("Link copiado!", "success"))
+        .then(() => exibirToast("Link copiado para a área de transferência!", "success"))
         .catch(() => {
             document.execCommand("copy");
             exibirToast("Link copiado!", "success");
@@ -994,24 +1138,23 @@ function copiarLinkGerado() {
 }
 
 // ============================================================================
-// 17. CADASTRO DE PRODUTO
+// 17. CADASTRO DE PRODUTO (ADM)
 // ============================================================================
 async function tratarCadastroProduto(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
 
-    const nome     = document.getElementById('adm-prod-nome').value.trim();
-    const preco    = parseFloat(document.getElementById('adm-prod-preco').value);
-    const visib    = document.getElementById('adm-prod-visibilidade').value;
-    const urlFoto  = document.getElementById('adm-prod-foto-url').value.trim();
-    const fotoFinal= fotoBase64Temporaria || urlFoto ||
-                     "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400";
+    const nome      = document.getElementById('adm-prod-nome').value.trim();
+    const preco     = parseFloat(document.getElementById('adm-prod-preco').value);
+    const visib     = document.getElementById('adm-prod-visibilidade').value;
+    const urlFoto   = document.getElementById('adm-prod-foto-url').value.trim();
+    const fotoFinal = fotoBase64Temporaria || urlFoto || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400";
 
     if (!nome || !preco || preco <= 0) {
         return exibirToast("Preencha nome e preço válidos.", "error");
     }
 
     botaoCarregando('btn-salvar-produto', true);
-    exibirToast("A guardar produto...", "info");
+    exibirToast("A guardar produto na planilha...", "info");
 
     const res = await executarRequisicaoAPI("cadastrar_produto", {
         tokenAdm: estadoSessao.token,
@@ -1021,48 +1164,71 @@ async function tratarCadastroProduto(e) {
     botaoCarregando('btn-salvar-produto', false);
 
     if (res.sucesso) {
-        exibirToast("Produto adicionado!", "success");
+        exibirToast("Produto adicionado ao catálogo!", "success");
         document.getElementById('form-novo-produto').reset();
         removerFotoCarregada();
         await sincronizarProdutosServidor();
     } else {
-        exibirToast(res.mensagem || "Erro ao salvar.", "error");
+        exibirToast(res.mensagem || "Erro ao salvar produto.", "error");
     }
 }
 
 // ============================================================================
-// 18. MODAIS / TOASTS
+// 18. MODAIS, DIÁLOGOS DE CONFIRMAÇÃO E NOTIFICAÇÕES
 // ============================================================================
 function abrirModal(id) {
     const m = document.getElementById(id);
     if (m) m.classList.add('active');
 }
+
 function fecharModal(id) {
     const m = document.getElementById(id);
     if (m) m.classList.remove('active');
+    if (id === 'modal-chat') pararAutoRefreshChat();
 }
 
 let _callbackConfirmacao = null;
 function abrirConfirmacao(titulo, mensagem, callback) {
-    document.getElementById('confirmar-titulo').textContent = titulo;
-    document.getElementById('confirmar-mensagem').textContent = mensagem;
+    const tit = document.getElementById('confirmar-titulo');
+    const msg = document.getElementById('confirmar-mensagem');
+    if (tit) tit.textContent = titulo;
+    if (msg) {
+        if (mensagem.startsWith('<div')) {
+            msg.innerHTML = mensagem;
+        } else {
+            msg.textContent = mensagem;
+        }
+    }
     _callbackConfirmacao = callback;
 
     const btnOk = document.getElementById('confirmar-btn-ok');
-    btnOk.onclick = () => {
-        fecharConfirmacao();
-        if (typeof _callbackConfirmacao === 'function') _callbackConfirmacao();
-    };
+    if (btnOk) {
+        btnOk.onclick = () => {
+            fecharConfirmacao();
+            if (typeof _callbackConfirmacao === 'function') _callbackConfirmacao();
+        };
+    }
 
     abrirModal('modal-confirmar');
 }
+
 function fecharConfirmacao() {
     fecharModal('modal-confirmar');
     _callbackConfirmacao = null;
 }
 
+// Aliases para máxima compatibilidade com bindings.js:
+window.abrirConfirmacao  = abrirConfirmacao;
+window.exibirConfirmacao = abrirConfirmacao;
+window.fecharConfirmacao = fecharConfirmacao;
+window.abrirModal        = abrirModal;
+window.fecharModal       = fecharModal;
+window.enviarMensagemChat= enviarMensagemChat;
+window.aplicarFiltroVitrine = aplicarFiltroVitrine;
+
 function exibirToast(msg, tipo = 'info') {
     const cont = document.getElementById('toast-container');
+    if (!cont) return;
     const t = document.createElement('div');
     t.className = `toast toast-${tipo}`;
     t.textContent = msg;
@@ -1070,8 +1236,12 @@ function exibirToast(msg, tipo = 'info') {
     setTimeout(() => t.remove(), 3500);
 }
 
+// Fechamento de modais ao clicar no fundo escuro
 document.querySelectorAll('.modal-overlay').forEach(ov => {
     ov.addEventListener('click', e => {
-        if (e.target === ov) ov.classList.remove('active');
+        if (e.target === ov) {
+            ov.classList.remove('active');
+            if (ov.id === 'modal-chat') pararAutoRefreshChat();
+        }
     });
 });
