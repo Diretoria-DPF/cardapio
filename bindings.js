@@ -1,25 +1,23 @@
 /* ============================================================================
-   bindings.js — Delegação central de eventos
+   bindings.js — Delegação central de eventos (v2 corrigido)
    ============================================================================
-   POR QUE EXISTE:
-     O HTML não tem mais NENHUM onclick/onsubmit/oninput/onchange.
-     Em vez disso, cada elemento tem data-action="...".
-     Este arquivo escuta os eventos no document e roteia para a função certa.
-
-   VANTAGENS:
-     • Compatível com CSP estrita (script-src 'self')
-     • Todos os handlers visíveis num só lugar (fácil debugar)
-     • Funciona para elementos criados dinamicamente pelo JS
+   CORREÇÃO PRINCIPAL:
+     • O handler de CLIQUE agora IGNORA elementos <form>.
+       Antes, clicar num <button type="submit"> subia até o <form data-action="...">
+       e disparava um erro "data-action desconhecida". Agora o submit cuida disso.
    ============================================================================ */
 
 (function () {
   'use strict';
 
-  /* ─── BLOCO 1: CLIQUE (data-action em botões) ────────────────── */
+  /* ─── BLOCO 1: CLIQUE ──────────────────────────────────────── */
   document.addEventListener('click', function (e) {
-    // Sobe na árvore até achar um [data-action]; nada se não achar
     const el = e.target.closest('[data-action]');
     if (!el) return;
+
+    // ⚠️ CORREÇÃO CRÍTICA: se o elemento com data-action for um <form>,
+    // IGNORA no clique — o evento de submit cuida dele.
+    if (el.tagName === 'FORM') return;
 
     const acao = el.dataset.action;
 
@@ -51,13 +49,13 @@
         enviarPedidoDesbloqueio();
         break;
 
-      /* Navegação entre abas ------------------------------------- */
+      /* Navegação ------------------------------------------------ */
       case 'navegar':
         e.preventDefault();
         navegarPara(el.dataset.view);
         break;
 
-      /* Carrinho / pedidos --------------------------------------- */
+      /* Carrinho ------------------------------------------------- */
       case 'criar-pedido':
         e.preventDefault();
         tratarCriacaoPedido();
@@ -92,13 +90,12 @@
         enviarMensagemChat();
         break;
 
-      /* Ação desconhecida → avisa no console (ajuda a debugar) --- */
       default:
-        console.warn('[bindings] data-action desconhecida:', acao);
+        console.warn('[bindings] data-action desconhecida (clique):', acao);
     }
   }, false);
 
-  /* ─── BLOCO 2: SUBMIT (data-action em <form>) ───────────────── */
+  /* ─── BLOCO 2: SUBMIT (formulários) ────────────────────────── */
   document.addEventListener('submit', function (e) {
     const form = e.target.closest('form[data-action]');
     if (!form) return;
@@ -131,14 +128,14 @@
     }
   }, false);
 
-  /* ─── BLOCO 3: INPUT (filtro em tempo real) ─────────────────── */
+  /* ─── BLOCO 3: INPUT (filtro) ──────────────────────────────── */
   document.addEventListener('input', function (e) {
     if (e.target.matches('[data-action="filtro-vitrine"]')) {
       aplicarFiltroVitrine();
     }
   }, false);
 
-  /* ─── BLOCO 4: CHANGE (upload de arquivo) ───────────────────── */
+  /* ─── BLOCO 4: CHANGE (upload) ─────────────────────────────── */
   document.addEventListener('change', function (e) {
     if (e.target.matches('[data-action="upload-imagem"]')) {
       processarUploadImagem(e);
