@@ -1,25 +1,20 @@
 /* ============================================================================
-   bindings.js — Delegação Central de Eventos e Atalhos de Teclado (v3)
+   bindings.js — Delegação Central de Eventos (v4 — corrigido)
    ============================================================================
-   MELHORIAS APLICADAS:
-     • Proteção de chamada segura: nunca quebra a página se a função não existir.
-     • Ignora cliques em elementos desativados (disabled).
-     • O clique continua a ignorar elementos <form> (mantendo o submit seguro).
-     • Atalho de teclado: tecla "Enter" envia mensagem no chat temporário.
-     • Atalho de teclado: tecla "ESC" fecha qualquer modal aberto.
-     • Busca na vitrine com debounce (pausa de 150ms para poupar processador).
-     • Suporte para ação 'abrir-chat' vinculada ao número do pedido.
+   CORREÇÃO PRINCIPAL desta versão:
+     • O listener de CHANGE (duração do link + upload) foi MOVIDO para fora
+       do switch de clique. Antes, era registrado de novo a cada clique,
+       acumulando dezenas de listeners duplicados.
+     • Todos os "cases" ficaram agrupados no switch correto (clique vs submit).
+     • Adicionado suporte consolidado para 'mudar-duracao-link'.
    ============================================================================ */
 
 (function () {
   'use strict';
 
   /**
-   * Executa uma função global com segurança.
-   * Se o app.js ainda não tiver declarado a função, avisa na consola sem travar o código.
-   * 
-   * @param {string} nomeFuncao - Nome da função que queremos executar.
-   * @param {...*} argumentos - Parâmetros opcionais para passar à função.
+   * Executa uma função global com segurança. Nunca quebra a página se a
+   * função ainda não estiver carregada pelo app.js.
    */
   function chamarComSeguranca(nomeFuncao, ...argumentos) {
     if (typeof window[nomeFuncao] === 'function') {
@@ -29,22 +24,22 @@
         console.error(`[bindings] Erro ao executar "${nomeFuncao}":`, erro);
       }
     } else {
-      console.warn(`[bindings] A função "${nomeFuncao}" ainda não foi carregada no app.js.`);
+      console.warn(`[bindings] A função "${nomeFuncao}" ainda não foi carregada.`);
     }
   }
 
-  // Temporizador usado pelo debounce na caixa de pesquisa
+  // Temporizador do debounce da busca
   let temporizadorBusca = null;
 
-  /* ─── BLOCO 1: CLIQUE (Delegação Global) ────────────────────── */
+  /* ─── BLOCO 1: CLIQUE (delegação global) ─────────────────────── */
   document.addEventListener('click', function (e) {
     const el = e.target.closest('[data-action]');
     if (!el) return;
 
-    // 1. Ignora se o elemento for um formulário (o evento 'submit' cuida dele)
+    // Ignora <form> — o evento 'submit' trata dele
     if (el.tagName === 'FORM') return;
 
-    // 2. Ignora cliques em botões desativados
+    // Ignora elementos desabilitados
     if (el.disabled || el.getAttribute('aria-disabled') === 'true') {
       e.preventDefault();
       return;
@@ -53,7 +48,7 @@
     const acao = el.dataset.action;
 
     switch (acao) {
-      /* Modais ---------------------------------------------------- */
+      /* Modais -------------------------------------------------- */
       case 'abrir-modal':
         e.preventDefault();
         chamarComSeguranca('abrirModal', el.dataset.modal);
@@ -69,7 +64,7 @@
         chamarComSeguranca('fecharConfirmacao');
         break;
 
-      /* Sessão e Contas ------------------------------------------- */
+      /* Sessão e contas ----------------------------------------- */
       case 'confirmar-logout':
         e.preventDefault();
         if (typeof window.exibirConfirmacao === 'function') {
@@ -88,25 +83,25 @@
         chamarComSeguranca('enviarPedidoDesbloqueio');
         break;
 
-      /* Navegação de Telas --------------------------------------- */
+      /* Navegação ----------------------------------------------- */
       case 'navegar':
         e.preventDefault();
         chamarComSeguranca('navegarPara', el.dataset.view);
         break;
 
-      /* Carrinho e Checkout -------------------------------------- */
+      /* Carrinho e checkout ------------------------------------- */
       case 'criar-pedido':
         e.preventDefault();
         chamarComSeguranca('tratarCriacaoPedido');
         break;
 
-      /* Produtos (ADM) ------------------------------------------- */
+      /* Produtos (ADM) ------------------------------------------ */
       case 'remover-foto':
         e.preventDefault();
         chamarComSeguranca('removerFotoCarregada');
         break;
 
-      /* Links Temporários (ADM) ---------------------------------- */
+      /* Links temporários (ADM) --------------------------------- */
       case 'gerar-link':
         e.preventDefault();
         chamarComSeguranca('gerarLinkTemporarioAdm');
@@ -117,42 +112,26 @@
         chamarComSeguranca('copiarLinkGerado');
         break;
 
-// Alterna a exibição do campo de minutos personalizados no Painel ADM
-    document.addEventListener('change', function (e) {
-        if (e.target.matches('[data-action="mudar-duracao-link"]')) {
-            const inputPersonalizado = document.getElementById('input-duracao-personalizada');
-            if (inputPersonalizado) {
-                if (e.target.value === 'personalizado') {
-                    inputPersonalizado.classList.remove('hidden');
-                    inputPersonalizado.focus();
-                } else {
-                    inputPersonalizado.classList.add('hidden');
-                }
-            }
-        }
-    }, false);
-          
-      /* Painel ADM ----------------------------------------------- */
+      /* Painel ADM ---------------------------------------------- */
       case 'carregar-painel-adm':
         e.preventDefault();
         chamarComSeguranca('carregarPainelCentralAdm');
         break;
 
-/* Central de Dúvidas e Sugestões (Novo) ------------------- */
-   case 'abrir-central-duvidas':
-     e.preventDefault();
-     chamarComSeguranca('abrirCentralDuvidas');
-     break;
+      /* Central de dúvidas e FAQ -------------------------------- */
+      case 'abrir-central-duvidas':
+        e.preventDefault();
+        chamarComSeguranca('abrirCentralDuvidas');
+        break;
 
-   case 'toggle-faq':
-     e.preventDefault();
-     el.closest('.faq-item')?.classList.toggle('active');
-     break;
-          
-      /* Chat de Entregas ----------------------------------------- */
+      case 'toggle-faq':
+        e.preventDefault();
+        el.closest('.faq-item')?.classList.toggle('active');
+        break;
+
+      /* Chat ---------------------------------------------------- */
       case 'enviar-chat':
         e.preventDefault();
-        // Tenta o nome padrão ou a variação com prefixo
         if (typeof window.enviarMensagemChat === 'function') {
           chamarComSeguranca('enviarMensagemChat');
         } else {
@@ -170,7 +149,7 @@
     }
   }, false);
 
-  /* ─── BLOCO 2: SUBMIT (Formulários Protegidos) ──────────────── */
+  /* ─── BLOCO 2: SUBMIT (formulários) ──────────────────────────── */
   document.addEventListener('submit', function (e) {
     const form = e.target.closest('form[data-action]');
     if (!form) return;
@@ -198,30 +177,26 @@
         chamarComSeguranca('tratarCadastroProduto', e);
         break;
 
-case 'enviar-sugestao':
-     e.preventDefault();
-     chamarComSeguranca('tratarEnvioSugestao', e);
-     break;
+      case 'enviar-sugestao':
+        e.preventDefault();
+        chamarComSeguranca('tratarEnvioSugestao', e);
+        break;
 
-   case 'adicionar-faq':
-     e.preventDefault();
-     chamarComSeguranca('tratarAdicionarFaq', e);
-     break;
-          
+      case 'adicionar-faq':
+        e.preventDefault();
+        chamarComSeguranca('tratarAdicionarFaq', e);
+        break;
+
       default:
         console.warn('[bindings] Ação de formulário não reconhecida:', acao);
     }
   }, false);
 
-  /* ─── BLOCO 3: INPUT (Busca com Debounce Suave) ────────────── */
+  /* ─── BLOCO 3: INPUT (busca com debounce) ────────────────────── */
   document.addEventListener('input', function (e) {
     if (e.target.matches('[data-action="filtro-vitrine"]')) {
       const termo = e.target.value;
-      
-      // Cancela a busca anterior se o usuário ainda estiver a teclar
       clearTimeout(temporizadorBusca);
-
-      // Aguarda 150 milissegundos antes de atualizar os cartões
       temporizadorBusca = setTimeout(function () {
         if (typeof window.aplicarFiltroVitrine === 'function') {
           chamarComSeguranca('aplicarFiltroVitrine', termo);
@@ -232,26 +207,42 @@ case 'enviar-sugestao':
     }
   }, false);
 
-  /* ─── BLOCO 4: CHANGE (Upload de Foto/GIF do Dispositivo) ────── */
+  /* ─── BLOCO 4: CHANGE (uploads e duração do link) ────────────── */
+  /* ⚠️ ESTE BLOCO ESTAVA DENTRO DO SWITCH DE CLIQUE.
+     Agora está no nível correto: registrado UMA ÚNICA VEZ. */
   document.addEventListener('change', function (e) {
+    // 1. Upload de foto/GIF do produto (ADM)
     if (e.target.matches('[data-action="upload-imagem"]')) {
       chamarComSeguranca('processarUploadImagem', e);
+      return;
+    }
+
+    // 2. Seletor de duração do link temporário (ADM)
+    if (e.target.matches('[data-action="mudar-duracao-link"]')) {
+      const inputPersonalizado = document.getElementById('input-duracao-personalizada');
+      if (inputPersonalizado) {
+        if (e.target.value === 'personalizado') {
+          inputPersonalizado.classList.remove('hidden');
+          inputPersonalizado.focus();
+        } else {
+          inputPersonalizado.classList.add('hidden');
+        }
+      }
+      return;
     }
   }, false);
 
-  /* ─── BLOCO 5: TECLADO (Atalhos Úteis: Enter e ESC) ─────────── */
+  /* ─── BLOCO 5: TECLADO (atalhos úteis) ───────────────────────── */
   document.addEventListener('keydown', function (e) {
-    // 1. Tecla ESC fecha qualquer modal aberto na tela
+    // ESC fecha qualquer modal aberto
     if (e.key === 'Escape' || e.key === 'Esc') {
       const modaisAbertos = document.querySelectorAll('.modal-overlay.active, .modal.active');
-      modaisAbertos.forEach(modal => {
-        chamarComSeguranca('fecharModal', modal.id);
-      });
+      modaisAbertos.forEach(modal => chamarComSeguranca('fecharModal', modal.id));
       chamarComSeguranca('fecharConfirmacao');
       return;
     }
 
-    // 2. Tecla Enter no campo de chat envia a mensagem diretamente
+    // Enter no chat envia a mensagem (sem Shift)
     if (e.key === 'Enter' && !e.shiftKey && e.target && e.target.id === 'chat-input') {
       e.preventDefault();
       if (typeof window.enviarMensagemChat === 'function') {
