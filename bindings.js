@@ -1,12 +1,14 @@
 /* ============================================================================
-   bindings.js — Delegação Central de Eventos (v4 — corrigido)
+   bindings.js — Delegação Central de Eventos (v5 — CORRIGIDO)
    ============================================================================
-   CORREÇÃO PRINCIPAL desta versão:
-     • O listener de CHANGE (duração do link + upload) foi MOVIDO para fora
-       do switch de clique. Antes, era registrado de novo a cada clique,
-       acumulando dezenas de listeners duplicados.
-     • Todos os "cases" ficaram agrupados no switch correto (clique vs submit).
-     • Adicionado suporte consolidado para 'mudar-duracao-link'.
+   CORREÇÕES DESTA VERSÃO:
+     • BUG CRÍTICO: o case 'confirmar-logout' estava chamando
+       'enviarPedidoDesbloqueio' em vez de 'executarLogout'. Corrigido.
+     • O logout agora é IMEDIATO (sem modal de confirmação) e dispara
+       'executarLogout', que invalida o link no servidor e recarrega a
+       página na tela de bloqueio.
+     • Listener de CHANGE mantido fora do switch de clique.
+     • Todos os "cases" agrupados no tipo correto (clique vs submit).
    ============================================================================ */
 
 (function () {
@@ -65,7 +67,16 @@
         break;
 
       /* Sessão e contas ----------------------------------------- */
-       case 'confirmar-logout':
+
+      /* ✅ CORRIGIDO: 'confirmar-logout' agora chama 'executarLogout'
+         (antes estava chamando 'enviarPedidoDesbloqueio', por engano).
+         Logout é IMEDIATO — sem modal de confirmação. */
+      case 'confirmar-logout':
+        e.preventDefault();
+        chamarComSeguranca('executarLogout');
+        break;
+
+      case 'pedir-desbloqueio':
         e.preventDefault();
         chamarComSeguranca('enviarPedidoDesbloqueio');
         break;
@@ -195,8 +206,6 @@
   }, false);
 
   /* ─── BLOCO 4: CHANGE (uploads e duração do link) ────────────── */
-  /* ⚠️ ESTE BLOCO ESTAVA DENTRO DO SWITCH DE CLIQUE.
-     Agora está no nível correto: registrado UMA ÚNICA VEZ. */
   document.addEventListener('change', function (e) {
     // 1. Upload de foto/GIF do produto (ADM)
     if (e.target.matches('[data-action="upload-imagem"]')) {
