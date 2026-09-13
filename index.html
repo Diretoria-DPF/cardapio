@@ -22,7 +22,7 @@
                 </div>
 
                 <div id="auth-buttons" class="button-group" style="display: none;">
-                    <span id="user-display-name" class="user-greeting">Olá, Usuário</span>
+                    <span id="user-display-name" class="user-greeting">Olá, Utilizador</span>
                     <button class="btn btn-danger-outline" onclick="executarLogout()">Sair</button>
                 </div>
             </div>
@@ -31,14 +31,9 @@
 
     <!-- NAVEGAÇÃO ENTRE ABAS -->
     <nav class="app-nav">
-        <!-- Vitrine para todos -->
         <button class="nav-tab active" id="tab-btn-vitrine" onclick="navegarPara('vitrine')">Vitrine</button>
-        
-        <!-- Exclusivo Membros -->
         <button class="nav-tab" id="tab-btn-carrinho" onclick="navegarPara('carrinho')" style="display: none;">Cesta (<span id="cart-counter">0</span>)</button>
         <button class="nav-tab" id="tab-btn-meus-pedidos" onclick="navegarPara('meus-pedidos')" style="display: none;">Meus Pedidos</button>
-        
-        <!-- Exclusivo Administrador -->
         <button class="nav-tab" id="tab-btn-novo-produto" onclick="navegarPara('novo-produto')" style="display: none;">Cadastrar Produto</button>
         <button class="nav-tab" id="tab-btn-pedidos-adm" onclick="navegarPara('pedidos-adm')" style="display: none;">Pedidos</button>
         <button class="nav-tab" id="tab-btn-adm" onclick="navegarPara('adm')" style="display: none;">Painel ADM</button>
@@ -51,15 +46,15 @@
         <section id="view-vitrine" class="view-panel active">
             <header class="section-header">
                 <h2>Catálogo de Produtos</h2>
-                <p class="section-desc">Itens selecionados disponíveis para seu perfil de acesso.</p>
+                <p class="section-desc">Itens selecionados disponíveis para o seu perfil.</p>
             </header>
             <div id="produtos-container" class="cards-grid"></div>
 
             <section class="feedback-card">
                 <h3>Dúvidas ou Sugestões</h3>
-                <p>Envie uma mensagem direta para os administradores:</p>
+                <p>Envie uma mensagem direta para a administração:</p>
                 <form id="form-comentario" onsubmit="tratarEnvioComentario(event)">
-                    <textarea id="campo-comentario" rows="3" placeholder="Digite sua mensagem aqui..." maxlength="500" required></textarea>
+                    <textarea id="campo-comentario" rows="3" placeholder="Escreva a sua mensagem..." maxlength="500" required></textarea>
                     <button type="submit" class="btn btn-primary">Enviar Mensagem</button>
                 </form>
             </section>
@@ -69,7 +64,7 @@
         <section id="view-carrinho" class="view-panel">
             <header class="section-header">
                 <h2>Cesta de Compras</h2>
-                <p class="section-desc">Revise suas escolhas antes de concluir o pedido.</p>
+                <p class="section-desc">Revise os seus produtos antes de confirmar o pedido.</p>
             </header>
             <div id="carrinho-itens-lista" class="cart-items-wrapper"></div>
             <div class="cart-summary-card">
@@ -94,48 +89,64 @@
         <section id="view-meus-pedidos" class="view-panel">
             <header class="section-header">
                 <h2>Meus Pedidos</h2>
-                <p class="section-desc">Histórico dos seus pedidos e chat temporário de entrega.</p>
+                <p class="section-desc">Histórico dos seus pedidos e canal temporário de orientações.</p>
             </header>
             <div id="meus-pedidos-container"></div>
         </section>
 
-        <!-- ABA 4: CADASTRAR PRODUTO (EXCLUSIVO ADM) -->
+        <!-- ABA 4: CADASTRAR PRODUTO COM UPLOAD (ADM) -->
         <section id="view-novo-produto" class="view-panel">
             <header class="section-header">
                 <h2>Cadastrar Novo Produto na Vitrine</h2>
-                <p class="section-desc">Adicione produtos com foto, preço oficial e regras de visualização.</p>
+                <p class="section-desc">Adicione produtos com foto/GIF do seu telemóvel ou computador.</p>
             </header>
             <div class="adm-card">
                 <form id="form-novo-produto" onsubmit="tratarCadastroProduto(event)">
                     <div class="form-group">
                         <label>Nome do Produto:</label>
-                        <input type="text" id="adm-prod-nome" required>
+                        <input type="text" id="adm-prod-nome" required placeholder="Ex: Produto Especial">
                     </div>
                     <div class="form-group">
                         <label>Preço Base (R$):</label>
-                        <input type="number" id="adm-prod-preco" step="0.01" min="0.01" required>
+                        <input type="number" id="adm-prod-preco" step="0.01" min="0.01" required placeholder="99.90">
                     </div>
+
+                    <!-- ÁREA DE UPLOAD DE FOTO / GIF DO DISPOSITIVO -->
                     <div class="form-group">
-                        <label>Link da Foto:</label>
-                        <input type="url" id="adm-prod-foto" placeholder="https://exemplo.com/foto.jpg" required>
+                        <label>Fotografia ou GIF do Produto:</label>
+                        <input type="file" id="adm-prod-arquivo" accept="image/*,.gif" onchange="processarUploadImagem(event)">
+                        <input type="hidden" id="adm-prod-foto-final">
+                        
+                        <!-- Miniatura de Pré-visualização -->
+                        <div id="preview-container" class="preview-box" style="display: none;">
+                            <img id="img-preview" src="" alt="Pré-visualização">
+                            <button type="button" class="btn btn-danger-outline btn-sm" onclick="removerFotoCarregada()">Remover Foto</button>
+                        </div>
                     </div>
+
+                    <div class="form-group">
+                        <label>Ou insira o Link Externo da Foto (Opcional):</label>
+                        <input type="url" id="adm-prod-foto-url" placeholder="https://exemplo.com/foto.jpg">
+                    </div>
+
                     <div class="form-group">
                         <label>Visibilidade:</label>
                         <select id="adm-prod-visibilidade">
                             <option value="publico">Público (Visitantes e Membros)</option>
-                            <option value="registrado">Registrado (Apenas Membros)</option>
+                            <option value="registrado">Registado (Apenas Membros)</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary">Gravar Produto no Catálogo</button>
+
+                    <button type="submit" class="btn btn-primary btn-block" id="btn-salvar-produto">Gravar Produto no Catálogo</button>
                 </form>
             </div>
         </section>
 
-        <!-- ABA 5: PEDIDOS GERAL (EXCLUSIVO ADM) -->
+        <!-- ABA 5: PEDIDOS GERAL (ADM) -->
         <section id="view-pedidos-adm" class="view-panel">
             <header class="section-header">
                 <h2>Esteira Geral de Pedidos</h2>
-                <p class="section-desc">Acompanhe todos os pedidos da loja e gerencie o status das entregas.</p>
+                <p class="section-desc">Gerencie o progresso das entregas dos clientes.</p>
             </header>
             <div class="pipeline-grid">
                 <div class="pipeline-col"><h4>Em Análise</h4><div id="pipe-analise"></div></div>
@@ -145,62 +156,70 @@
             </div>
         </section>
 
-        <!-- ABA 6: PAINEL ADMINISTRATIVO (EXCLUSIVO ADM) -->
+        <!-- ABA 6: PAINEL CENTRAL ADM -->
         <section id="view-adm" class="view-panel">
             <header class="section-header">
                 <h2>Painel Central do Administrador</h2>
-                <p class="section-desc">Validação de novos membros, liberação de bloqueios, métricas de vendas e emissão de links.</p>
+                <p class="section-desc">Aprovações de membros, links temporários e métricas.</p>
             </header>
 
-            <!-- Card: Métricas e Vendas -->
-            <div class="adm-card">
-                <h3>Planilha Consolidada de Vendas</h3>
-                <div class="metrics-summary">
-                    <div class="metric-box">
-                        <span>Faturamento Total</span>
-                        <strong id="metric-faturamento">R$ 0,00</strong>
-                    </div>
-                    <div class="metric-box">
-                        <span>Total de Pedidos</span>
-                        <strong id="metric-pedidos">0</strong>
-                    </div>
-                </div>
-                <h4 style="margin: 12px 0 6px 0; font-size: 0.9rem;">Quantidade de Itens Vendidos:</h4>
-                <div id="tabela-metricas-produtos"></div>
-            </div>
-
-            <!-- Card: Gerador de Links com Token Temporário -->
+            <!-- Card: Gerador de Links com Token -->
             <div class="adm-card">
                 <h3>Emitir Link de Acesso com Token Temporário</h3>
-                <p class="modal-subtitle">Gere um link temporário com expiração programada para membros ou convidados:</p>
+                <p class="modal-subtitle">Gere um link temporário para permitir o acesso temporário a convidados:</p>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <select id="select-duracao-link" style="max-width: 200px;">
+                    <select id="select-duracao-link" style="max-width: 180px;">
                         <option value="15">15 Minutos</option>
                         <option value="60" selected>1 Hora (60 min)</option>
                         <option value="180">3 Horas</option>
-                        <option value="1440">24 Horas (1 dia)</option>
+                        <option value="1440">24 Horas</option>
                     </select>
-                    <button class="btn btn-primary" onclick="gerarLinkTemporarioAdm()">Gerar Link Temporário</button>
+                    <button class="btn btn-primary" onclick="gerarLinkTemporarioAdm()">Gerar Link</button>
                 </div>
-                <div id="area-link-gerado" style="margin-top: 10px; display: none;">
-                    <input type="text" id="campo-link-gerado" readonly onclick="this.select()">
-                    <small style="color: #64748b;">Link pronto para copiar e compartilhar.</small>
+
+                <!-- Caixa de Exibição do Link com Botão de Copiar -->
+                <div id="area-link-gerado" class="link-display-box" style="display: none;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #1e293b;">Link Gerado com Sucesso:</label>
+                    <div style="display: flex; gap: 8px; margin-top: 4px;">
+                        <input type="text" id="campo-link-gerado" readonly style="margin-bottom: 0;">
+                        <button class="btn btn-success" onclick="copiarLinkGerado()">Copiar</button>
+                    </div>
+                    <small style="color: #64748b; margin-top: 4px; display: block;">Partilhe este link com quem deseja autorizar.</small>
                 </div>
             </div>
 
-            <!-- Card: Solicitações de Novos Membros -->
+            <!-- Card: Validação de Novos Cadastros -->
             <div class="adm-card">
-                <h3>Validação de Novos Cadastros</h3>
-                <div id="adm-solicitacoes-lista"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h3>Validação de Novos Cadastros</h3>
+                    <button class="btn btn-outline btn-sm" onclick="carregarPainelCentralAdm()" style="color: #2563eb; border-color: #2563eb;">Atualizar Lista</button>
+                </div>
+                <div id="adm-solicitacoes-lista">Carregando solicitações...</div>
             </div>
 
-            <!-- Card: Contas Bloqueadas com Pedido de Desbloqueio -->
+            <!-- Card: Métricas e Vendas -->
             <div class="adm-card">
-                <h3>Contas Bloqueadas Aguardando Liberação</h3>
+                <h3>Planilha de Vendas Consolidadas</h3>
+                <div class="metrics-summary">
+                    <div class="metric-box">
+                        <span>Faturamento</span>
+                        <strong id="metric-faturamento">R$ 0,00</strong>
+                    </div>
+                    <div class="metric-box">
+                        <span>Total Pedidos</span>
+                        <strong id="metric-pedidos">0</strong>
+                    </div>
+                </div>
+                <div id="tabela-metricas-produtos"></div>
+            </div>
+
+            <!-- Card: Contas Bloqueadas -->
+            <div class="adm-card">
+                <h3>Contas Bloqueadas</h3>
                 <div id="adm-bloqueados-lista"></div>
             </div>
 
-            <!-- Card: Comentários de Usuários -->
+            <!-- Card: Comentários -->
             <div class="adm-card">
                 <h3>Mensagens Recebidas</h3>
                 <div id="adm-comentarios-lista"></div>
@@ -215,7 +234,7 @@
             <button class="btn-close" onclick="fecharModal('modal-cadastro')">&times;</button>
             <div class="modal-body">
                 <h3>Solicitar Cadastro de Membro</h3>
-                <p class="modal-subtitle">Preencha com seus dados e crie sua senha segura de acesso:</p>
+                <p class="modal-subtitle">Preencha com os seus dados e crie uma senha segura:</p>
 
                 <form id="form-registro" onsubmit="tratarSolicitacaoCadastro(event)">
                     <div class="form-group">
@@ -224,12 +243,12 @@
                     </div>
 
                     <div class="form-group">
-                        <label>Telefone / WhatsApp (Será seu Login):</label>
+                        <label>Telefone / WhatsApp (Será o seu Login):</label>
                         <input type="tel" id="cad-telefone" required placeholder="Ex: 71999999999">
                     </div>
 
                     <div class="form-group">
-                        <label>Criar Senha de Acesso (mínimo 6 caracteres):</label>
+                        <label>Criar Senha (mínimo 6 caracteres):</label>
                         <input type="password" id="cad-senha" required minlength="6" placeholder="******">
                     </div>
 
@@ -240,34 +259,34 @@
 
                     <div class="form-group">
                         <label>Twitter / X (opcional):</label>
-                        <input type="text" id="cad-twitter" placeholder="@usuario">
+                        <input type="text" id="cad-twitter" placeholder="@utilizador">
                     </div>
 
                     <div class="form-group">
                         <label>Telegram (opcional):</label>
-                        <input type="text" id="cad-telegram" placeholder="@usuario">
+                        <input type="text" id="cad-telegram" placeholder="@utilizador">
                     </div>
 
                     <div class="terms-container">
                         <input type="checkbox" id="cad-termos" required>
                         <label for="cad-termos">
-                            Declaro ciência e concordo com a coleta das informações acima apenas para funcionamento da plataforma. Sou responsável pelas informações fornecidas e poderei pedir exclusão ao encerrar a conta.
+                            Declaro ciência e concordo com a recolha dos dados acima para funcionamento na plataforma. Posso solicitar exclusão ao encerrar a conta.
                         </label>
                     </div>
 
-                    <button type="submit" class="btn btn-primary btn-block">Enviar Solicitação</button>
+                    <button type="submit" class="btn btn-primary btn-block">Enviar Pedido de Cadastro</button>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- MODAL 2: LOGIN COM RATE LIMIT E DESBLOQUEIO -->
+    <!-- MODAL 2: LOGIN COM RATE LIMIT -->
     <div id="modal-login" class="modal-overlay">
         <div class="modal-dialog">
             <button class="btn-close" onclick="fecharModal('modal-login')">&times;</button>
             <div class="modal-body">
                 <h3>Acessar Conta</h3>
-                <p class="modal-subtitle">Informe seu telefone ou usuário e senha:</p>
+                <p class="modal-subtitle">Informe o seu telefone/usuário e senha:</p>
 
                 <form id="form-login" onsubmit="tratarLogin(event)">
                     <div class="form-group">
@@ -283,13 +302,12 @@
                     <button type="submit" class="btn btn-primary btn-block">Entrar</button>
                 </form>
 
-                <!-- Área de Solicitação de Desbloqueio (quando a conta é bloqueada após 6 tentativas) -->
                 <div id="box-desbloqueio-conta" style="display: none; margin-top: 15px; padding: 12px; background: #fef2f2; border: 1px solid #f87171; border-radius: 6px;">
                     <p style="font-size: 0.8rem; color: #991b1b; margin-bottom: 8px;">
-                        Sua conta foi suspensa por exceder o limite de tentativas. Clique abaixo para pedir a liberação ao Administrador.
+                        Conta suspensa por exceder tentativas. Clique para solicitar desbloqueio:
                     </p>
                     <button id="btn-solicitar-desbloqueio" class="btn btn-danger-outline btn-block" onclick="enviarPedidoDesbloqueio()">
-                        Solicitar Liberação ao Administrador
+                        Pedir Liberação ao Administrador
                     </button>
                 </div>
             </div>
