@@ -1811,3 +1811,4 @@ window.abrirCentralDuvidas        = abrirCentralDuvidas;
 window.tratarEnvioSugestao        = tratarEnvioSugestao;
 window.tratarAdicionarFaq         = tratarAdicionarFaq;
 window.executarLimpezaTotalESaida = executarLimpezaTotalESaida;
+window.executarLogout = executarLogout;
