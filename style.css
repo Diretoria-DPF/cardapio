@@ -1,83 +1,106 @@
 /* ==========================================================================
-   RESET BÁSICO E CONFIGURAÇÕES DE TIPOGRAFIA
+   1. RESET E TIPOGRAFIA BASE (MOBILE-FIRST)
    ========================================================================== */
 * {
-    box-sizing: border-box; /* Garante cálculo correto de padding e bordas */
+    box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
 
 body {
-    background-color: #f4f6f9; /* Tom neutro suave para leitura */
-    color: #333333;
+    background-color: #f8fafc; /* Fundo suave acinzentado */
+    color: #1e293b;
     line-height: 1.5;
-    padding-bottom: 60px;
+    padding-bottom: 40px;
 }
 
 /* ==========================================================================
-   CABEÇALHO DA PLATAFORMA
+   2. CABEÇALHO E CONTROLES DE ACESSO
    ========================================================================== */
 .app-header {
-    background-color: #1f2937; /* Azul escuro corporativo */
+    background-color: #0f172a; /* Slate 900 elegante */
     color: #ffffff;
-    padding: 15px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    padding: 12px 16px;
     position: sticky;
     top: 0;
     z-index: 100;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-.logo {
-    font-size: 1.25rem;
-    font-weight: 700;
-}
-
-.user-status-container {
+.header-content {
+    max-width: 960px;
+    margin: 0 auto;
     display: flex;
+    justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
     gap: 10px;
 }
 
-/* ==========================================================================
-   BADGES DE STATUS DO USUÁRIO
-   ========================================================================== */
+.logo {
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.auth-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.button-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.user-greeting {
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    margin-right: 6px;
+}
+
+/* Distintivos (Badges) */
 .badge {
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
     text-transform: uppercase;
 }
 
-.badge-visitor { background-color: #6b7280; color: #fff; }
-.badge-member { background-color: #10b981; color: #fff; }
-.badge-adm { background-color: #ef4444; color: #fff; }
+.badge-visitor { background-color: #64748b; color: #ffffff; }
+.badge-member  { background-color: #10b981; color: #ffffff; }
+.badge-adm     { background-color: #ef4444; color: #ffffff; }
 
 /* ==========================================================================
-   BARRA DE NAVEGAÇÃO MOBILE-FIRST
+   3. BARRA DE NAVEGAÇÃO
    ========================================================================== */
 .app-nav {
     display: flex;
     background-color: #ffffff;
-    border-bottom: 1px solid #e5e7eb;
-    overflow-x: auto; /* Permite rolar horizontalmente em telas pequenas */
+    border-bottom: 1px solid #e2e8f0;
+    overflow-x: auto;
+    position: sticky;
+    top: 57px;
+    z-index: 90;
 }
 
 .nav-tab {
     flex: 1;
     min-width: 90px;
-    padding: 12px 10px;
+    padding: 12px 8px;
     background: none;
     border: none;
     border-bottom: 3px solid transparent;
     cursor: pointer;
     font-weight: 600;
-    color: #4b5563;
-    font-size: 0.9rem;
+    color: #64748b;
+    font-size: 0.85rem;
     text-align: center;
+    white-space: nowrap;
 }
 
 .nav-tab.active {
@@ -86,197 +109,286 @@ body {
 }
 
 /* ==========================================================================
-   CONTAINER PRINCIPAL E SEÇÕES DE CONTEÚDO
+   4. CONTEÚDO PRINCIPAL E SEÇÕES DINÂMICAS
    ========================================================================== */
-.app-container {
+.app-main {
     max-width: 960px;
-    margin: 20px auto;
-    padding: 0 15px;
+    margin: 16px auto;
+    padding: 0 16px;
 }
 
-.view-section {
-    display: none; /* Oculta todas por padrão; o JS exibe a ativa */
+.view-panel {
+    display: none;
 }
 
-.view-section.active {
+.view-panel.active {
     display: block;
-    animation: fadeIn 0.3s ease-in-out;
+    animation: fadeIn 0.25s ease-in-out;
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
+    from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
-.subtitle {
-    color: #6b7280;
-    margin-bottom: 15px;
+.section-header {
+    margin-bottom: 16px;
+}
+
+.section-header h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+
+.section-desc {
+    font-size: 0.85rem;
+    color: #64748b;
 }
 
 /* ==========================================================================
-   GRID DE PRODUTOS RESPONSIVO
+   5. CARDS DE PRODUTOS
    ========================================================================== */
 .cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 15px;
-    margin-bottom: 30px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
-.card-item {
+.product-card {
     background-color: #ffffff;
     border-radius: 8px;
+    border: 1px solid #e2e8f0;
     overflow: hidden;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
     display: flex;
     flex-direction: column;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
-.card-img {
+.product-thumb {
     width: 100%;
-    height: 160px;
+    height: 150px;
     object-fit: cover;
-    background-color: #e5e7eb;
+    background-color: #f1f5f9;
 }
 
-.card-body {
-    padding: 15px;
+.product-details {
+    padding: 12px;
     display: flex;
     flex-direction: column;
     flex-grow: 1;
     justify-content: space-between;
 }
 
-.card-title {
-    font-size: 1.1rem;
-    margin-bottom: 5px;
+.product-name {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 4px;
 }
 
-.card-price {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: #16a34a;
+.product-price {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #15803d;
     margin-bottom: 10px;
 }
 
+.visitor-note {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
 /* ==========================================================================
-   BOTÕES E CAMPOS DE FORMULÁRIO
+   6. BOTÕES E FORMULÁRIOS
    ========================================================================== */
-button {
+.btn {
     cursor: pointer;
     border-radius: 6px;
     font-weight: 600;
-    transition: background-color 0.2s ease;
-}
-
-.btn-primary {
-    background-color: #2563eb;
-    color: white;
-    padding: 10px 15px;
+    font-size: 0.85rem;
+    padding: 8px 14px;
     border: none;
-    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease;
 }
 
+.btn-primary { background-color: #2563eb; color: #ffffff; }
 .btn-primary:hover { background-color: #1d4ed8; }
 
-.btn-secondary {
-    background-color: #4b5563;
-    color: white;
-    padding: 6px 12px;
-    border: none;
-    font-size: 0.85rem;
+.btn-outline {
+    background-color: transparent;
+    color: #ffffff;
+    border: 1px solid #475569;
 }
+.btn-outline:hover { background-color: #334155; }
 
-.btn-success {
-    background-color: #16a34a;
-    color: white;
-    padding: 12px;
-    border: none;
-    width: 100%;
-    font-size: 1rem;
+.btn-danger-outline {
+    background-color: transparent;
+    color: #fca5a5;
+    border: 1px solid #ef4444;
 }
+.btn-danger-outline:hover { background-color: #7f1d1d; }
 
-input, textarea, select {
-    width: 100%;
-    padding: 10px;
+.btn-success { background-color: #16a34a; color: #ffffff; }
+.btn-success:hover { background-color: #15803d; }
+
+.btn-block { width: 100%; }
+
+.form-group {
     margin-bottom: 12px;
-    border: 1px solid #d1d5db;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #334155;
+}
+
+input, select, textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #cbd5e1;
     border-radius: 6px;
-    font-size: 0.95rem;
-}
-
-/* ==========================================================================
-   PIPELINE ADMINISTRATIVO E TABELAS
-   ========================================================================== */
-.adm-block {
-    background: #ffffff;
-    padding: 20px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-.pipeline-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 10px;
-    margin-top: 15px;
-}
-
-.pipeline-col {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    padding: 10px;
-    min-height: 150px;
-}
-
-.pipeline-col h4 {
     font-size: 0.9rem;
-    text-align: center;
-    margin-bottom: 10px;
-    color: #4b5563;
+    color: #0f172a;
+    background-color: #ffffff;
+}
+
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
 /* ==========================================================================
-   MODAL DE AUTENTICAÇÃO E TERMOS
+   7. MODAIS INDEPENDENTES
    ========================================================================== */
-.modal {
+.modal-overlay {
     display: none;
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
+    background-color: rgba(15, 23, 42, 0.65);
     z-index: 1000;
     align-items: center;
     justify-content: center;
+    padding: 16px;
 }
 
-.modal.active { display: flex; }
+.modal-overlay.active {
+    display: flex;
+}
 
-.modal-content {
-    background: white;
-    padding: 25px;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 480px;
+.modal-dialog {
+    background-color: #ffffff;
+    width: 100%;
+    max-width: 440px;
     max-height: 90vh;
+    border-radius: 10px;
     overflow-y: auto;
     position: relative;
+    padding: 24px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
 
-.close-btn {
+.btn-close {
     position: absolute;
-    right: 15px;
-    top: 10px;
+    top: 12px;
+    right: 14px;
+    background: none;
+    border: none;
     font-size: 1.5rem;
+    color: #94a3b8;
     cursor: pointer;
 }
 
-.termos-box {
-    display: flex;
-    gap: 10px;
-    font-size: 0.75rem;
-    color: #555;
-    margin-bottom: 12px;
+.modal-subtitle {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 16px;
 }
-.termos-box input { width: auto; }
+
+.terms-container {
+    display: flex;
+    gap: 8px;
+    margin: 14px 0;
+    font-size: 0.72rem;
+    color: #475569;
+    line-height: 1.4;
+}
+
+.terms-container input {
+    width: auto;
+    margin-top: 2px;
+}
+
+/* ==========================================================================
+   8. BLOCOS DO ADMINISTRADOR E CARDS AUXILIARES
+   ========================================================================== */
+.adm-card, .feedback-card, .cart-summary-card {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.pipeline-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.pipeline-col {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 8px;
+    min-height: 120px;
+}
+
+.pipeline-col h4 {
+    font-size: 0.8rem;
+    text-align: center;
+    color: #475569;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 4px;
+}
+
+/* ==========================================================================
+   9. NOTIFICAÇÕES FLUTUANTES (TOASTS)
+   ========================================================================== */
+.toast-wrapper {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 90vw;
+}
+
+.toast {
+    padding: 12px 16px;
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 0.85rem;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: slideUp 0.3s ease-out forwards;
+}
+
+.toast-success { background-color: #10b981; }
+.toast-error   { background-color: #ef4444; }
+.toast-info    { background-color: #3b82f6; }
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
