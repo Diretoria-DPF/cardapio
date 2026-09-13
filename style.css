@@ -517,3 +517,128 @@ input:focus, select:focus, textarea:focus {
     .nav-tab { min-width: 76px; font-size: 0.78rem; }
     .chat-msg { max-width: 88%; }
 }
+
+/* ==========================================================================
+   BOTÃO DISCRETO DE DÚVIDAS E ACORDEÃO DE FAQ
+   ========================================================================== */
+.duvidas-container-discreto {
+    margin: 35px 0 20px 0;
+    text-align: center;
+}
+
+.btn-duvidas-discreto {
+    background: transparent;
+    border: 1px solid #cbd5e1;
+    color: #64748b;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-duvidas-discreto:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+    border-color: #94a3b8;
+}
+
+/* Acordeão de Dúvidas */
+.faq-container {
+    margin-bottom: 20px;
+}
+
+.faq-header-title {
+    font-size: 0.95rem;
+    color: #1e293b;
+    margin-bottom: 10px;
+}
+
+.faq-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.faq-question {
+    padding: 10px 14px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #1e293b;
+    cursor: pointer;
+    background: #f8fafc;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.faq-question:hover {
+    background: #f1f5f9;
+}
+
+.faq-answer {
+    padding: 10px 14px;
+    font-size: 0.8rem;
+    color: #475569;
+    line-height: 1.4;
+    border-top: 1px solid #e2e8f0;
+    display: none;
+    background: #ffffff;
+}
+
+.faq-item.active .faq-answer {
+    display: block;
+}
+
+/* Área sutil de sugestões */
+.sugestao-box-sutil {
+    background: #f8fafc;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    margin-top: 15px;
+}
+
+.sugestao-box-sutil h4 {
+    font-size: 0.85rem;
+    color: #334155;
+    margin-bottom: 4px;
+}
+
+.sugestao-box-sutil p {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+/* Mini editor do ADM */
+.adm-faq-editor {
+    margin-top: 15px;
+}
+
+.adm-faq-editor h4 {
+    font-size: 0.85rem;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+/* Painel de controle de visibilidade de produto no card (Apenas ADM) */
+.adm-visib-controls {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed #cbd5e1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+}
+
+.adm-visib-controls select {
+    padding: 2px 4px;
+    font-size: 0.75rem;
+    width: auto;
+    margin-bottom: 0;
+}
