@@ -1,23 +1,54 @@
 /* ============================================================================
-   bindings.js — Delegação central de eventos (v2 corrigido)
+   bindings.js — Delegação Central de Eventos e Atalhos de Teclado (v3)
    ============================================================================
-   CORREÇÃO PRINCIPAL:
-     • O handler de CLIQUE agora IGNORA elementos <form>.
-       Antes, clicar num <button type="submit"> subia até o <form data-action="...">
-       e disparava um erro "data-action desconhecida". Agora o submit cuida disso.
+   MELHORIAS APLICADAS:
+     • Proteção de chamada segura: nunca quebra a página se a função não existir.
+     • Ignora cliques em elementos desativados (disabled).
+     • O clique continua a ignorar elementos <form> (mantendo o submit seguro).
+     • Atalho de teclado: tecla "Enter" envia mensagem no chat temporário.
+     • Atalho de teclado: tecla "ESC" fecha qualquer modal aberto.
+     • Busca na vitrine com debounce (pausa de 150ms para poupar processador).
+     • Suporte para ação 'abrir-chat' vinculada ao número do pedido.
    ============================================================================ */
 
 (function () {
   'use strict';
 
-  /* ─── BLOCO 1: CLIQUE ──────────────────────────────────────── */
+  /**
+   * Executa uma função global com segurança.
+   * Se o app.js ainda não tiver declarado a função, avisa na consola sem travar o código.
+   * 
+   * @param {string} nomeFuncao - Nome da função que queremos executar.
+   * @param {...*} argumentos - Parâmetros opcionais para passar à função.
+   */
+  function chamarComSeguranca(nomeFuncao, ...argumentos) {
+    if (typeof window[nomeFuncao] === 'function') {
+      try {
+        return window[nomeFuncao](...argumentos);
+      } catch (erro) {
+        console.error(`[bindings] Erro ao executar "${nomeFuncao}":`, erro);
+      }
+    } else {
+      console.warn(`[bindings] A função "${nomeFuncao}" ainda não foi carregada no app.js.`);
+    }
+  }
+
+  // Temporizador usado pelo debounce na caixa de pesquisa
+  let temporizadorBusca = null;
+
+  /* ─── BLOCO 1: CLIQUE (Delegação Global) ────────────────────── */
   document.addEventListener('click', function (e) {
     const el = e.target.closest('[data-action]');
     if (!el) return;
 
-    // ⚠️ CORREÇÃO CRÍTICA: se o elemento com data-action for um <form>,
-    // IGNORA no clique — o evento de submit cuida dele.
+    // 1. Ignora se o elemento for um formulário (o evento 'submit' cuida dele)
     if (el.tagName === 'FORM') return;
+
+    // 2. Ignora cliques em botões desativados
+    if (el.disabled || el.getAttribute('aria-disabled') === 'true') {
+      e.preventDefault();
+      return;
+    }
 
     const acao = el.dataset.action;
 
@@ -25,77 +56,95 @@
       /* Modais ---------------------------------------------------- */
       case 'abrir-modal':
         e.preventDefault();
-        abrirModal(el.dataset.modal);
+        chamarComSeguranca('abrirModal', el.dataset.modal);
         break;
 
       case 'fechar-modal':
         e.preventDefault();
-        fecharModal(el.dataset.modal);
+        chamarComSeguranca('fecharModal', el.dataset.modal);
         break;
 
       case 'fechar-confirmacao':
         e.preventDefault();
-        fecharConfirmacao();
+        chamarComSeguranca('fecharConfirmacao');
         break;
 
-      /* Sessão --------------------------------------------------- */
+      /* Sessão e Contas ------------------------------------------- */
       case 'confirmar-logout':
         e.preventDefault();
-        confirmarLogout();
+        if (typeof window.exibirConfirmacao === 'function') {
+          window.exibirConfirmacao(
+            'Encerrar Sessão',
+            'Tem a certeza de que deseja sair da sua conta?',
+            () => chamarComSeguranca('executarLogout')
+          );
+        } else {
+          chamarComSeguranca('executarLogout');
+        }
         break;
 
       case 'pedir-desbloqueio':
         e.preventDefault();
-        enviarPedidoDesbloqueio();
+        chamarComSeguranca('enviarPedidoDesbloqueio');
         break;
 
-      /* Navegação ------------------------------------------------ */
+      /* Navegação de Telas --------------------------------------- */
       case 'navegar':
         e.preventDefault();
-        navegarPara(el.dataset.view);
+        chamarComSeguranca('navegarPara', el.dataset.view);
         break;
 
-      /* Carrinho ------------------------------------------------- */
+      /* Carrinho e Checkout -------------------------------------- */
       case 'criar-pedido':
         e.preventDefault();
-        tratarCriacaoPedido();
+        chamarComSeguranca('tratarCriacaoPedido');
         break;
 
       /* Produtos (ADM) ------------------------------------------- */
       case 'remover-foto':
         e.preventDefault();
-        removerFotoCarregada();
+        chamarComSeguranca('removerFotoCarregada');
         break;
 
-      /* Links temporários (ADM) ---------------------------------- */
+      /* Links Temporários (ADM) ---------------------------------- */
       case 'gerar-link':
         e.preventDefault();
-        gerarLinkTemporarioAdm();
+        chamarComSeguranca('gerarLinkTemporarioAdm');
         break;
 
       case 'copiar-link':
         e.preventDefault();
-        copiarLinkGerado();
+        chamarComSeguranca('copiarLinkGerado');
         break;
 
       /* Painel ADM ----------------------------------------------- */
       case 'carregar-painel-adm':
         e.preventDefault();
-        carregarPainelCentralAdm();
+        chamarComSeguranca('carregarPainelCentralAdm');
         break;
 
-      /* Chat ----------------------------------------------------- */
+      /* Chat de Entregas ----------------------------------------- */
       case 'enviar-chat':
         e.preventDefault();
-        enviarMensagemChat();
+        // Tenta o nome padrão ou a variação com prefixo
+        if (typeof window.enviarMensagemChat === 'function') {
+          chamarComSeguranca('enviarMensagemChat');
+        } else {
+          chamarComSeguranca('tratarEnvioMensagemChat');
+        }
+        break;
+
+      case 'abrir-chat':
+        e.preventDefault();
+        chamarComSeguranca('abrirChatPedido', el.dataset.pedidoId);
         break;
 
       default:
-        console.warn('[bindings] data-action desconhecida (clique):', acao);
+        console.warn('[bindings] Ação de clique não reconhecida:', acao);
     }
   }, false);
 
-  /* ─── BLOCO 2: SUBMIT (formulários) ────────────────────────── */
+  /* ─── BLOCO 2: SUBMIT (Formulários Protegidos) ──────────────── */
   document.addEventListener('submit', function (e) {
     const form = e.target.closest('form[data-action]');
     if (!form) return;
@@ -105,40 +154,75 @@
     switch (acao) {
       case 'enviar-comentario':
         e.preventDefault();
-        tratarEnvioComentario(e);
+        chamarComSeguranca('tratarEnvioComentario', e);
         break;
 
       case 'enviar-cadastro':
         e.preventDefault();
-        tratarSolicitacaoCadastro(e);
+        chamarComSeguranca('tratarSolicitacaoCadastro', e);
         break;
 
       case 'login':
         e.preventDefault();
-        tratarLogin(e);
+        chamarComSeguranca('tratarLogin', e);
         break;
 
       case 'cadastrar-produto':
         e.preventDefault();
-        tratarCadastroProduto(e);
+        chamarComSeguranca('tratarCadastroProduto', e);
         break;
 
       default:
-        console.warn('[bindings] form data-action desconhecida:', acao);
+        console.warn('[bindings] Ação de formulário não reconhecida:', acao);
     }
   }, false);
 
-  /* ─── BLOCO 3: INPUT (filtro) ──────────────────────────────── */
+  /* ─── BLOCO 3: INPUT (Busca com Debounce Suave) ────────────── */
   document.addEventListener('input', function (e) {
     if (e.target.matches('[data-action="filtro-vitrine"]')) {
-      aplicarFiltroVitrine();
+      const termo = e.target.value;
+      
+      // Cancela a busca anterior se o usuário ainda estiver a teclar
+      clearTimeout(temporizadorBusca);
+
+      // Aguarda 150 milissegundos antes de atualizar os cartões
+      temporizadorBusca = setTimeout(function () {
+        if (typeof window.aplicarFiltroVitrine === 'function') {
+          chamarComSeguranca('aplicarFiltroVitrine', termo);
+        } else if (typeof window.filtrarVitrineEmTempoReal === 'function') {
+          chamarComSeguranca('filtrarVitrineEmTempoReal', termo);
+        }
+      }, 150);
     }
   }, false);
 
-  /* ─── BLOCO 4: CHANGE (upload) ─────────────────────────────── */
+  /* ─── BLOCO 4: CHANGE (Upload de Foto/GIF do Dispositivo) ────── */
   document.addEventListener('change', function (e) {
     if (e.target.matches('[data-action="upload-imagem"]')) {
-      processarUploadImagem(e);
+      chamarComSeguranca('processarUploadImagem', e);
+    }
+  }, false);
+
+  /* ─── BLOCO 5: TECLADO (Atalhos Úteis: Enter e ESC) ─────────── */
+  document.addEventListener('keydown', function (e) {
+    // 1. Tecla ESC fecha qualquer modal aberto na tela
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      const modaisAbertos = document.querySelectorAll('.modal-overlay.active, .modal.active');
+      modaisAbertos.forEach(modal => {
+        chamarComSeguranca('fecharModal', modal.id);
+      });
+      chamarComSeguranca('fecharConfirmacao');
+      return;
+    }
+
+    // 2. Tecla Enter no campo de chat envia a mensagem diretamente
+    if (e.key === 'Enter' && !e.shiftKey && e.target && e.target.id === 'chat-input') {
+      e.preventDefault();
+      if (typeof window.enviarMensagemChat === 'function') {
+        chamarComSeguranca('enviarMensagemChat');
+      } else {
+        chamarComSeguranca('tratarEnvioMensagemChat');
+      }
     }
   }, false);
 
