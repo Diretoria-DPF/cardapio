@@ -1,189 +1,265 @@
 <!DOCTYPE html>
-<!-- Início da declaração do documento HTML5 -->
+<!-- Início do documento HTML5 estruturado para acessibilidade e dispositivos móveis -->
 <html lang="pt-BR">
 <head>
-    <!-- Metadados essenciais de codificação e escala para celulares -->
+    <!-- Configurações essenciais de codificação de caracteres e escala para celular -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plataforma Comercial Exclusiva</title>
-    <!-- Importação da folha de estilos personalizada -->
+    <title>Vitrine Segura e Exclusiva</title>
+    
+    <!-- Vinculação do arquivo de estilos externos -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <!-- CABEÇALHO DO SISTEMA -->
+    <!-- ====================================================== -->
+    <!-- ÁREA 1: CABEÇALHO PRINCIPAL DA PLATAFORMA               -->
+    <!-- ====================================================== -->
     <header class="app-header">
-        <!-- Título principal da plataforma -->
-        <h1 class="logo">LojaSegura</h1>
-        
-        <!-- Indicador de perfil atual do usuário -->
-        <div class="user-status-container">
-            <span id="role-badge" class="badge badge-visitor">Visitante</span>
-            <button id="btn-login-toggle" class="btn-secondary" onclick="alternarTelaLogin()">Acessar Conta</button>
+        <div class="header-content">
+            <!-- Logotipo ou Nome do Negócio -->
+            <h1 class="logo">PlataformaSegura</h1>
+            
+            <!-- Ações do Usuário: Login, Cadastro e Indicador de Perfil -->
+            <div class="auth-actions" id="auth-actions-container">
+                <!-- Distintivo visual do papel atual -->
+                <span id="role-badge" class="badge badge-visitor">Visitante</span>
+
+                <!-- Botões para usuários não autenticados -->
+                <div id="anon-buttons" class="button-group">
+                    <button id="btn-abrir-cadastro" class="btn btn-outline" onclick="abrirModal('modal-cadastro')">Cadastre-se</button>
+                    <button id="btn-abrir-login" class="btn btn-primary" onclick="abrirModal('modal-login')">Entrar</button>
+                </div>
+
+                <!-- Botões para usuários autenticados (inicialmente ocultos) -->
+                <div id="auth-buttons" class="button-group" style="display: none;">
+                    <span id="user-display-name" class="user-greeting">Olá, Usuário</span>
+                    <button id="btn-logout" class="btn btn-danger-outline" onclick="executarLogout()">Sair</button>
+                </div>
+            </div>
         </div>
     </header>
 
-    <!-- CONTAINER DE NAVEGAÇÃO ENTRE TELAS -->
+    <!-- ====================================================== -->
+    <!-- ÁREA 2: BARRA DE NAVEGAÇÃO ENTRE TELAS                  -->
+    <!-- ====================================================== -->
     <nav class="app-nav">
-        <button class="nav-tab active" onclick="trocarAba('vitrine')">Vitrine</button>
-        <button class="nav-tab" id="tab-carrinho" onclick="trocarAba('carrinho')" style="display: none;">Carrinho (<span id="cart-count">0</span>)</button>
-        <button class="nav-tab" id="tab-pedidos" onclick="trocarAba('pedidos')" style="display: none;">Meus Pedidos</button>
-        <button class="nav-tab" id="tab-adm" onclick="trocarAba('adm')" style="display: none;">Painel ADM</button>
+        <button class="nav-tab active" id="tab-btn-vitrine" onclick="navegarPara('vitrine')">Vitrine</button>
+        <button class="nav-tab" id="tab-btn-carrinho" onclick="navegarPara('carrinho')" style="display: none;">Cesta (<span id="cart-counter">0</span>)</button>
+        <button class="nav-tab" id="tab-btn-pedidos" onclick="navegarPara('pedidos')" style="display: none;">Meus Pedidos</button>
+        <button class="nav-tab" id="tab-btn-adm" onclick="navegarPara('adm')" style="display: none;">Painel ADM</button>
     </nav>
 
-    <!-- CONTEÚDO PRINCIPAL (ÁREA DINÂMICA) -->
-    <main class="app-container">
+    <!-- ====================================================== -->
+    <!-- ÁREA 3: CONTEÚDO PRINCIPAL (TELAS INTERATIVAS)          -->
+    <!-- ====================================================== -->
+    <main class="app-main">
 
-        <!-- ============================================== -->
-        <!-- SEÇÃO 1: VITRINE DE PRODUTOS (Pública e Membros) -->
-        <!-- ============================================== -->
-        <section id="view-vitrine" class="view-section active">
-            <h2>Vitrine de Produtos</h2>
-            <p class="subtitle">Confira os produtos disponíveis para o seu nível de acesso.</p>
-            
-            <!-- Grade onde os cards dos produtos serão injetados via JavaScript -->
-            <div id="produtos-grid" class="cards-grid">
-                <!-- Conteúdo gerado dinamicamente -->
+        <!-- TELA 1: VITRINE DE PRODUTOS (Acessível a Visitantes, Membros e ADMs) -->
+        <section id="view-vitrine" class="view-panel active">
+            <header class="section-header">
+                <h2>Catálogo de Produtos</h2>
+                <p class="section-desc">Confira os produtos selecionados disponíveis para o seu acesso.</p>
+            </header>
+
+            <!-- Grade onde os cards são injetados de forma segura pelo JavaScript -->
+            <div id="produtos-container" class="cards-grid">
+                <!-- Cards de produtos serão gerados aqui -->
             </div>
 
-            <!-- Bloco de Comentários / Mensagens (Apenas texto seguro) -->
-            <div class="comment-box">
-                <h3>Envie uma mensagem / comentário</h3>
-                <p>Suas mensagens serão lidas exclusivamente pela administração.</p>
-                <form id="form-comentario" onsubmit="enviarComentario(event)">
-                    <textarea id="texto-comentario" placeholder="Escreva aqui seu comentário seguro..." required maxlength="500"></textarea>
-                    <button type="submit" class="btn-primary">Enviar Comentário</button>
+            <!-- Formulário Seguro de Envio de Mensagem / Dúvida -->
+            <section class="feedback-card">
+                <h3>Dúvidas ou Sugestões</h3>
+                <p>Envie uma mensagem em texto simples. Ela será lida apenas pela nossa administração.</p>
+                <form id="form-comentario" onsubmit="tratarEnvioComentario(event)">
+                    <textarea id="campo-comentario" rows="3" placeholder="Digite sua mensagem aqui..." maxlength="500" required></textarea>
+                    <button type="submit" class="btn btn-primary">Enviar Mensagem</button>
                 </form>
-            </div>
+            </section>
         </section>
 
-        <!-- ============================================== -->
-        <!-- SEÇÃO 2: CARRINHO E CHECKOUT (Apenas Membros)  -->
-        <!-- ============================================== -->
-        <section id="view-carrinho" class="view-section">
-            <h2>Cesta de Compras</h2>
-            <div id="itens-carrinho" class="cart-items-list">
-                <!-- Itens adicionados aparecerão aqui -->
+        <!-- TELA 2: CESTA DE COMPRAS (Exclusiva para Membros e ADMs) -->
+        <section id="view-carrinho" class="view-panel">
+            <header class="section-header">
+                <h2>Sua Cesta de Compras</h2>
+                <p class="section-desc">Revise as quantidades antes de gerar a solicitação do pedido.</p>
+            </header>
+
+            <div id="carrinho-itens-lista" class="cart-items-wrapper">
+                <!-- Itens da cesta serão listados aqui -->
             </div>
-            
-            <!-- Resumo Financeiro -->
-            <div class="cart-summary">
-                <p>Total do Pedido: <strong id="cart-total">R$ 0,00</strong></p>
-                
-                <!-- Métodos de Pagamento Seguros -->
-                <div class="payment-methods">
-                    <label>Selecione a Forma de Pagamento:</label>
-                    <select id="select-pagamento">
-                        <option value="PIX">PIX (Confirmação Imediata)</option>
+
+            <div class="cart-summary-card">
+                <div class="cart-total-row">
+                    <span>Total Estimado:</span>
+                    <strong id="carrinho-total-valor">R$ 0,00</strong>
+                </div>
+
+                <div class="form-group">
+                    <label for="metodo-pagamento">Forma de Pagamento Desejada:</label>
+                    <select id="metodo-pagamento">
+                        <option value="PIX">PIX (Chave Dinâmica)</option>
                         <option value="CARTAO">Cartão de Crédito</option>
-                        <option value="BTC">Criptomoeda - Bitcoin (BTC)</option>
-                        <option value="ETH">Criptomoeda - Ethereum (ETH)</option>
-                        <option value="USDT">Criptomoeda - Tether (USD)</option>
+                        <option value="BTC">Cripto - Bitcoin (BTC)</option>
+                        <option value="ETH">Cripto - Ethereum (ETH)</option>
+                        <option value="USDT">Cripto - Tether USD (USDT)</option>
                     </select>
                 </div>
 
-                <button class="btn-success" onclick="finalizarPedido()">Gerar Pedido e Pagamento</button>
+                <button class="btn btn-success btn-block" onclick="tratarCriacaoPedido()">Solicitar Pedido e Gerar Pagamento</button>
             </div>
         </section>
 
-        <!-- ============================================== -->
-        <!-- SEÇÃO 3: MEUS PEDIDOS E CHAT DE ENTREGA       -->
-        <!-- ============================================== -->
-        <section id="view-pedidos" class="view-section">
-            <h2>Acompanhamento de Entregas</h2>
-            <div id="lista-pedidos-usuario">
-                <!-- Pedidos e links de entrega gerados aparecerão aqui -->
+        <!-- TELA 3: ACOMPANHAMENTO DE PEDIDOS (Exclusiva para Membros e ADMs) -->
+        <section id="view-pedidos" class="view-panel">
+            <header class="section-header">
+                <h2>Acompanhamento de Entregas</h2>
+                <p class="section-desc">Verifique o status do seu pedido e o canal temporário de orientações.</p>
+            </header>
+
+            <div id="pedidos-lista-container">
+                <!-- Cards de pedidos e chats temporários serão exibidos aqui -->
             </div>
         </section>
 
-        <!-- ============================================== -->
-        <!-- SEÇÃO 4: PAINEL ADMINISTRATIVO (Apenas ADM)    -->
-        <!-- ============================================== -->
-        <section id="view-adm" class="view-section">
-            <h2>Painel de Controle Central</h2>
-            
-            <!-- Sub-Aba: Aprovação de Membros -->
-            <div class="adm-block">
-                <h3>Solicitações de Cadastro Pendentes</h3>
-                <div id="adm-cadastros-lista">
-                    <!-- Cadastros para aprovar -->
-                </div>
+        <!-- TELA 4: PAINEL ADMINISTRATIVO (Exclusivo para Administrador) -->
+        <section id="view-adm" class="view-panel">
+            <header class="section-header">
+                <h2>Painel Administrativo</h2>
+                <p class="section-desc">Gerenciamento central de cadastros, catálogo, pedidos e moderação.</p>
+            </header>
+
+            <!-- Bloco 1: Solicitações de Cadastro -->
+            <div class="adm-card">
+                <h3>Solicitações de Novos Membros</h3>
+                <div id="adm-solicitacoes-lista"></div>
             </div>
 
-            <!-- Sub-Aba: Gerenciamento de Produtos -->
-            <div class="adm-block">
-                <h3>Cadastrar Novo Produto</h3>
-                <form id="form-novo-produto" onsubmit="cadastrarProduto(event)">
-                    <input type="text" id="novo-prod-nome" placeholder="Nome do Produto" required>
-                    <input type="number" id="novo-prod-preco" placeholder="Preço (R$)" step="0.01" required>
-                    <input type="text" id="novo-prod-foto" placeholder="URL da Foto do Produto" required>
-                    <select id="novo-prod-visibilidade">
-                        <option value="publico">Público (Visitantes e Membros)</option>
-                        <option value="registrado">Registrado (Apenas Membros)</option>
-                    </select>
-                    <button type="submit" class="btn-primary">Publicar na Vitrine</button>
+            <!-- Bloco 2: Cadastro de Novo Produto -->
+            <div class="adm-card">
+                <h3>Cadastrar Novo Produto na Vitrine</h3>
+                <form id="form-novo-produto" onsubmit="tratarCadastroProduto(event)">
+                    <div class="form-group">
+                        <label>Nome do Produto:</label>
+                        <input type="text" id="adm-prod-nome" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Preço Base (R$):</label>
+                        <input type="number" id="adm-prod-preco" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Link da Imagem:</label>
+                        <input type="url" id="adm-prod-foto" placeholder="https://exemplo.com/foto.jpg" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Visibilidade:</label>
+                        <select id="adm-prod-visibilidade">
+                            <option value="publico">Público (Visitantes e Membros)</option>
+                            <option value="registrado">Registrado (Apenas Membros)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Adicionar ao Catálogo</button>
                 </form>
             </div>
 
-            <!-- Sub-Aba: Acompanhamento Geral de Pedidos -->
-            <div class="adm-block">
-                <h3>Pipeline de Pedidos da Plataforma</h3>
-                <div class="pipeline-container">
-                    <div class="pipeline-col"><h4>Em Análise</h4><div id="col-analise"></div></div>
-                    <div class="pipeline-col"><h4>Solicitados</h4><div id="col-solicitados"></div></div>
-                    <div class="pipeline-col"><h4>Em Viagem</h4><div id="col-viagem"></div></div>
-                    <div class="pipeline-col"><h4>Concluído</h4><div id="col-concluido"></div></div>
+            <!-- Bloco 3: Esteira de Pedidos e Entregas -->
+            <div class="adm-card">
+                <h3>Esteira de Acompanhamento de Pedidos</h3>
+                <div class="pipeline-grid">
+                    <div class="pipeline-col"><h4>Em Análise</h4><div id="pipe-analise"></div></div>
+                    <div class="pipeline-col"><h4>Solicitados</h4><div id="pipe-solicitados"></div></div>
+                    <div class="pipeline-col"><h4>Em Viagem</h4><div id="pipe-viagem"></div></div>
+                    <div class="pipeline-col"><h4>Concluídos</h4><div id="pipe-concluido"></div></div>
                 </div>
             </div>
 
-            <!-- Sub-Aba: Comentários Recebidos -->
-            <div class="adm-block">
-                <h3>Mensagens de Usuários</h3>
+            <!-- Bloco 4: Comentários Recebidos -->
+            <div class="adm-card">
+                <h3>Mensagens Recebidas dos Usuários</h3>
                 <div id="adm-comentarios-lista"></div>
             </div>
         </section>
 
     </main>
 
-    <!-- ============================================== -->
-    <!-- MODAL DE CADASTRO / LOGIN / TERMOS DE USO      -->
-    <!-- ============================================== -->
-    <div id="modal-auth" class="modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="fecharModalAuth()">&times;</span>
-            <div id="auth-forms">
+    <!-- ====================================================== -->
+    <!-- MODAL 1: CADASTRO INDEPENDENTE                         -->
+    <!-- ====================================================== -->
+    <div id="modal-cadastro" class="modal-overlay">
+        <div class="modal-dialog">
+            <button class="btn-close" onclick="fecharModal('modal-cadastro')" aria-label="Fechar">&times;</button>
+            <div class="modal-body">
                 <h3>Solicitar Cadastro de Membro</h3>
-                <p>Preencha seus dados para análise da moderação.</p>
-                <form id="form-registro" onsubmit="registrarUsuario(event)">
-                    <input type="text" id="reg-nome" placeholder="Nome de Exibição" required>
-                    <input type="tel" id="reg-numero" placeholder="Número de Telefone / WhatsApp" required>
-                    <input type="text" id="reg-twitter" placeholder="Twitter / X (@usuario)">
-                    <input type="text" id="reg-telegram" placeholder="Telegram (@usuario)">
-                    
-                    <!-- Termos de Política e Privacidade -->
-                    <div class="termos-box">
-                        <input type="checkbox" id="reg-termos" required>
-                        <label for="reg-termos">
-                            Declaro ciência e concordo com a coleta das informações acima apenas para funcionamento da plataforma. Declaro total responsabilidade pela veracidade dos dados inseridos, isentando a plataforma de qualquer responsabilidade sobre o conteúdo cadastrado. Posso solicitar exclusão ao encerrar minha conta.
+                <p class="modal-subtitle">Preencha com seus dados para validação pela nossa equipe.</p>
+
+                <form id="form-registro" onsubmit="tratarSolicitacaoCadastro(event)">
+                    <div class="form-group">
+                        <label for="cad-nome">Nome Completo ou Exibição:</label>
+                        <input type="text" id="cad-nome" required placeholder="Ex: Maria Silva">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="cad-telefone">Telefone / WhatsApp:</label>
+                        <input type="tel" id="cad-telefone" required placeholder="Ex: (71) 99999-9999">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="cad-twitter">Twitter / X (opcional):</label>
+                        <input type="text" id="cad-twitter" placeholder="@usuario">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="cad-telegram">Telegram (opcional):</label>
+                        <input type="text" id="cad-telegram" placeholder="@usuario">
+                    </div>
+
+                    <!-- Termos de Política e Privacidade (Isenção e Transparência) -->
+                    <div class="terms-container">
+                        <input type="checkbox" id="cad-termos" required>
+                        <label for="cad-termos">
+                            Declaro ciência e concordo com a coleta das informações acima apenas para fins de funcionamento e contato na plataforma. Reconheço minha inteira responsabilidade pela autenticidade dos dados fornecidos, isentando a plataforma de qualquer responsabilidade pelas informações inseridas. Estou ciente de que posso solicitar a exclusão de meus dados ao encerrar a conta.
                         </label>
                     </div>
 
-                    <button type="submit" class="btn-primary">Enviar Solicitação</button>
-                </form>
-
-                <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
-                
-                <!-- Acesso Administrativo Direto -->
-                <h4>Acesso com Chave / Token (Membros e ADM)</h4>
-                <form id="form-token-login" onsubmit="acessarComToken(event)">
-                    <input type="password" id="login-token" placeholder="Insira seu Token ou Senha ADM" required>
-                    <button type="submit" class="btn-secondary">Autenticar</button>
+                    <button type="submit" class="btn btn-primary btn-block">Enviar Solicitação de Cadastro</button>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Script principal de lógica -->
+    <!-- ====================================================== -->
+    <!-- MODAL 2: LOGIN INDEPENDENTE                            -->
+    <!-- ====================================================== -->
+    <div id="modal-login" class="modal-overlay">
+        <div class="modal-dialog">
+            <button class="btn-close" onclick="fecharModal('modal-login')" aria-label="Fechar">&times;</button>
+            <div class="modal-body">
+                <h3>Acessar Plataforma</h3>
+                <p class="modal-subtitle">Informe seu identificador de membro ou token seguro.</p>
+
+                <form id="form-login" onsubmit="tratarLogin(event)">
+                    <div class="form-group">
+                        <label for="login-usuario">Usuário ou Telefone:</label>
+                        <input type="text" id="login-usuario" required placeholder="Seu identificador">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="login-senha">Senha ou Chave de Acesso:</label>
+                        <input type="password" id="login-senha" required placeholder="Sua senha secreta">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block">Autenticar e Entrar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================== -->
+    <!-- ÁREA 4: CONTAINER DE NOTIFICAÇÕES (TOASTS)              -->
+    <!-- ====================================================== -->
+    <div id="toast-container" class="toast-wrapper"></div>
+
+    <!-- Importação do arquivo de lógica JavaScript -->
     <script src="app.js"></script>
 </body>
 </html>
