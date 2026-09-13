@@ -1,13 +1,14 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v4 Consolidado)
+   app.js — Plataforma Comercial Segura (v5 Consolidada e Blindada)
    ============================================================================
-   MELHORIAS DESTA VERSÃO:
-     • Integração com Payments.gs (botão para exibir QR Code PIX e Cripto).
-     • Correção do alinhamento das bolhas do chat temporário (esquerda vs. direita).
-     • Auto-refresh suave do chat aberto a cada 5 segundos.
-     • Compatibilidade total com bindings.js (alias exibirConfirmacao / abrirConfirmacao).
-     • Auto-refresh do painel ADM e badge vermelho de solicitações pendentes.
-     • Cache-first instantâneo e filtros de pesquisa em tempo real.
+   PRINCIPAIS RECURSOS E CORREÇÕES:
+     • Resolução definitiva de CORS com redirect: 'follow' e mode: 'cors'.
+     • Leitura segura de texto antes do parsing JSON para evitar quebras.
+     • Compatibilidade total com CSP estrita (sem onclick em elementos criados).
+     • Integração com Payments.gs (PIX dinâmico, QR Code, Criptomoedas e Cartão).
+     • Chat temporário com polling a cada 5s e alinhamento correto de bolhas.
+     • Painel ADM com auto-refresh a cada 20s e badge de pendências.
+     • Exportação global de funções para conexão perfeita com o bindings.js.
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
@@ -17,38 +18,39 @@ const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbw3a-97
 // 1. FUNÇÕES AUXILIARES (HELPERS)
 // ============================================================================
 
-/** Higieniza valores para exibição segura no HTML. */
-function escaparHtml(v) {
-    return String(v ?? '').replace(/[&<>"']/g, c => ({
+/** Higieniza texto para inserção segura no DOM, prevenindo ataques XSS. */
+function escaparHtml(valor) {
+    return String(valor ?? '').replace(/[&<>"']/g, caractere => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[c]));
+    }[caractere]));
 }
 
-/** Formata valores numéricos no padrão monetário brasileiro (R$). */
-function fmtPreco(v) {
-    const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
-    return `R$ ${(isNaN(n) ? 0 : n).toFixed(2).replace('.', ',')}`;
+/** Formata números no padrão monetário brasileiro (R$). */
+function fmtPreco(valor) {
+    const numero = typeof valor === 'number' ? valor : parseFloat(String(valor).replace(',', '.'));
+    return `R$ ${(isNaN(numero) ? 0 : numero).toFixed(2).replace('.', ',')}`;
 }
 
-/** Controla o overlay de carregamento global. */
+/** Exibe o indicador de carregamento global com mensagem personalizada. */
 function mostrarLoader(texto = 'Carregando...') {
-    const txt = document.getElementById('loader-text');
-    const overlay = document.getElementById('loader-overlay');
-    if (txt) txt.textContent = texto;
-    if (overlay) overlay.classList.remove('hidden');
+    const elementoTexto = document.getElementById('loader-text');
+    const elementoOverlay = document.getElementById('loader-overlay');
+    if (elementoTexto) elementoTexto.textContent = texto;
+    if (elementoOverlay) elementoOverlay.classList.remove('hidden');
 }
 
+/** Oculta o indicador de carregamento global. */
 function esconderLoader() {
-    const overlay = document.getElementById('loader-overlay');
-    if (overlay) overlay.classList.add('hidden');
+    const elementoOverlay = document.getElementById('loader-overlay');
+    if (elementoOverlay) elementoOverlay.classList.add('hidden');
 }
 
-/** Aplica estado de carregamento a botões de ação. */
-function botaoCarregando(id, carregando = true) {
-    const b = document.getElementById(id);
-    if (!b) return;
-    b.disabled = carregando;
-    b.classList.toggle('loading', carregando);
+/** Alterna o estado visual e bloqueio de botões de ação. */
+function botaoCarregando(idBotao, carregando = true) {
+    const botao = document.getElementById(idBotao);
+    if (!botao) return;
+    botao.disabled = carregando;
+    botao.classList.toggle('loading', carregando);
 }
 
 // ============================================================================
@@ -56,16 +58,23 @@ function botaoCarregando(id, carregando = true) {
 // ============================================================================
 const CacheLoja = {
     salvar(chave, dados) {
-        try { localStorage.setItem('cache_' + chave, JSON.stringify({ dados, hora: Date.now() })); }
-        catch (e) { console.warn("Cache cheio:", e); }
+        try {
+            localStorage.setItem('cache_' + chave, JSON.stringify({ dados, hora: Date.now() }));
+        } catch (erro) {
+            console.warn("[Cache] Limite de armazenamento local excedido:", erro);
+        }
     },
     obter(chave) {
         try {
             const item = localStorage.getItem('cache_' + chave);
             return item ? JSON.parse(item).dados : null;
-        } catch { return null; }
+        } catch {
+            return null;
+        }
     },
-    limpar(chave) { localStorage.removeItem('cache_' + chave); }
+    limpar(chave) {
+        localStorage.removeItem('cache_' + chave);
+    }
 };
 
 // ============================================================================
@@ -84,19 +93,19 @@ let fotoBase64Temporaria = "";
 let identificadorEmTentativa = "";
 let pedidoChatAberto = null;
 
-// Timers para atualizações em segundo plano
+// Controladores de intervalo para sincronização em background
 let _timerPainelAdm = null;
 let _timerChat = null;
 
 // ============================================================================
-// 4. INICIALIZAÇÃO DA PLATAFORMA
+// 4. INICIALIZAÇÃO DA PLATAFORMA E COMUNICAÇÃO (BLINDADA CONTRA CORS)
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     await verificarTokenUrl();
     restaurarSessaoLocal();
     atualizarInterfaceSessao();
 
-    // 1. Carregamento ultra-rápido via cache local
+    // 1. Carregamento instantâneo a partir da memória local (Cache-First)
     const produtosEmCache = CacheLoja.obter('produtos_' + estadoSessao.papel);
     if (produtosEmCache && produtosEmCache.length > 0) {
         catalogoProdutos = produtosEmCache;
@@ -104,7 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderizarVitrine();
     }
 
-    // 2. Sincronização em segundo plano com a planilha
+    // 2. Atualização em segundo plano consultando o Google Apps Script
     await sincronizarProdutosServidor();
 });
 
@@ -113,64 +122,94 @@ function obterUrlBasePlataforma() {
 }
 
 async function verificarTokenUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const tokenAcesso = params.get('token');
+    const parametros = new URLSearchParams(window.location.search);
+    const tokenAcesso = parametros.get('token');
     if (!tokenAcesso) return;
 
     mostrarLoader('Validando link temporário...');
     try {
         const url = `${URL_BACKEND_APPS_SCRIPT}?acao=validar_link&tokenAcesso=${encodeURIComponent(tokenAcesso)}`;
-        const resp = await fetchComTimeout(url, 15000);
-        const res  = await resp.json();
+        const resposta = await fetchComTimeout(url, 15000);
+        const resultado = await resposta.json();
 
-        if (res.valido) {
+        if (resultado.valido) {
             estadoSessao.token = tokenAcesso;
             exibirToast("Acesso temporário concedido!", "success");
         } else {
-            exibirToast(res.mensagem || "Link temporário expirado.", "error");
+            exibirToast(resultado.mensagem || "Link temporário expirado.", "error");
         }
-    } catch (e) {
-        console.error(e);
+    } catch (erro) {
+        console.error("[Token URL] Erro na validação:", erro);
         exibirToast("Falha ao validar token temporário.", "error");
     } finally {
         esconderLoader();
     }
 }
 
-async function fetchComTimeout(url, ms = 20000, opcoes = {}) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), ms);
+/**
+ * Realiza chamadas HTTP com timeout, seguimento estrito de redirects e modo CORS.
+ */
+async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
+    const controladorAborto = new AbortController();
+    const temporizador = setTimeout(() => controladorAborto.abort(), limiteTempoMs);
+
+    const configuracao = {
+        mode: 'cors',               // Garante requisição cross-origin explícita
+        redirect: 'follow',         // Essencial para seguir o redirect 302 do Google Apps Script
+        cache: 'no-cache',
+        ...opcoesExtras,
+        signal: controladorAborto.signal
+    };
+
     try {
-        return await fetch(url, { ...opcoes, signal: ctrl.signal });
+        return await fetch(url, configuracao);
     } finally {
-        clearTimeout(timer);
+        clearTimeout(temporizador);
     }
 }
 
+/**
+ * Envia comandos ao Google Apps Script via POST seguro com corpo em texto simples.
+ */
 async function executarRequisicaoAPI(acao, dadosExtras = {}) {
     try {
-        const resp = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 25000, {
+        const corpoEnvio = JSON.stringify({ acao, ...dadosExtras });
+
+        const resposta = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 25000, {
             method: 'POST',
+            // text/plain evita que o navegador emita preflight OPTIONS antes do POST
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ acao, ...dadosExtras })
+            body: corpoEnvio
         });
-        return await resp.json();
-    } catch (erro) {
-        console.error("Erro na API:", erro);
-        const offline = !navigator.onLine;
-        exibirToast(offline ? "Sem conexão à internet." : "Falha na comunicação com o servidor.", "error");
-        return { sucesso: false };
+
+        const textoResposta = await resposta.text();
+
+        try {
+            return JSON.parse(textoResposta);
+        } catch (erroParse) {
+            console.error("[API] A resposta do servidor não é um JSON válido:", textoResposta);
+            return { sucesso: false, mensagem: "Resposta inesperada do servidor." };
+        }
+
+    } catch (erroRede) {
+        console.error("[API] Erro de rede na comunicação:", erroRede);
+        const semInternet = !navigator.onLine;
+        exibirToast(
+            semInternet ? "Sem conexão à internet." : "Falha na comunicação com o servidor.",
+            "error"
+        );
+        return { sucesso: false, mensagem: erroRede.toString() };
     }
 }
 
 // ============================================================================
-// 5. UPLOAD DE FOTOGRAFIA OU GIF LOCAL
+// 5. UPLOAD E COMPRESSÃO DE FOTOS/GIFS DO DISPOSITIVO
 // ============================================================================
 function processarUploadImagem(evento) {
     const ficheiro = evento.target.files[0];
     if (!ficheiro) return;
 
-    // Se for GIF animado, preserva os frames com limite de tamanho
+    // Preserva animações de GIF respeitando o limite de tamanho
     if (ficheiro.type === "image/gif") {
         if (ficheiro.size > 200 * 1024) {
             exibirToast("O GIF é muito pesado. Escolha um ficheiro de até 200KB.", "error");
@@ -186,76 +225,99 @@ function processarUploadImagem(evento) {
         return;
     }
 
-    // Para fotos comuns (JPG, PNG), comprime via Canvas para <35KB
+    // Para fotografias normais (JPG, PNG), comprime via Canvas para menos de 35KB
     const leitor = new FileReader();
     leitor.onload = e => {
-        const img = new Image();
-        img.onload = () => {
+        const imagem = new Image();
+        imagem.onload = () => {
             const canvas = document.createElement('canvas');
-            const MAX = 350;
-            let { width: w, height: h } = img;
-            if (w > h && w > MAX) { h *= MAX / w; w = MAX; }
-            else if (h >= w && h > MAX) { w *= MAX / h; h = MAX; }
-            canvas.width = w; canvas.height = h;
-            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            const LIMITE_MAX = 350;
+            let { width: largura, height: altura } = imagem;
+
+            if (largura > altura && largura > LIMITE_MAX) {
+                altura *= LIMITE_MAX / largura;
+                largura = LIMITE_MAX;
+            } else if (altura >= largura && altura > LIMITE_MAX) {
+                largura *= LIMITE_MAX / altura;
+                altura = LIMITE_MAX;
+            }
+
+            canvas.width = largura;
+            canvas.height = altura;
+            const contexto = canvas.getContext('2d');
+            contexto.drawImage(imagem, 0, 0, largura, altura);
+
             fotoBase64Temporaria = canvas.toDataURL('image/jpeg', 0.7);
             exibirPreviewImagem(fotoBase64Temporaria);
         };
-        img.src = e.target.result;
+        imagem.src = e.target.result;
     };
     leitor.readAsDataURL(ficheiro);
 }
 
-function exibirPreviewImagem(src) {
-    document.getElementById('img-preview').src = src;
-    document.getElementById('preview-container').classList.remove('hidden');
-    document.getElementById('adm-prod-foto-url').value = "";
+function exibirPreviewImagem(origemBase64) {
+    const imgPreview = document.getElementById('img-preview');
+    const containerPreview = document.getElementById('preview-container');
+    const inputUrl = document.getElementById('adm-prod-foto-url');
+
+    if (imgPreview) imgPreview.src = origemBase64;
+    if (containerPreview) containerPreview.classList.remove('hidden');
+    if (inputUrl) inputUrl.value = "";
 }
 
 function removerFotoCarregada() {
     fotoBase64Temporaria = "";
-    document.getElementById('preview-container').classList.add('hidden');
-    document.getElementById('adm-prod-arquivo').value = "";
-    document.getElementById('img-preview').src = "";
+    const containerPreview = document.getElementById('preview-container');
+    const inputArquivo = document.getElementById('adm-prod-arquivo');
+    const imgPreview = document.getElementById('img-preview');
+
+    if (containerPreview) containerPreview.classList.add('hidden');
+    if (inputArquivo) inputArquivo.value = "";
+    if (imgPreview) imgPreview.src = "";
 }
 
 // ============================================================================
-// 6. VITRINE DE PRODUTOS E BUSCA COM DEBOUNCE
+// 6. VITRINE DE PRODUTOS E BUSCA EM TEMPO REAL
 // ============================================================================
 async function sincronizarProdutosServidor() {
     let url = `${URL_BACKEND_APPS_SCRIPT}?acao=listar_produtos`;
-    if (estadoSessao.token) url += `&token=${encodeURIComponent(estadoSessao.token)}`;
+    if (estadoSessao.token) {
+        url += `&token=${encodeURIComponent(estadoSessao.token)}`;
+    }
 
     try {
-        const resp = await fetchComTimeout(url, 20000);
-        const res  = await resp.json();
-        if (res.sucesso && Array.isArray(res.produtos)) {
-            catalogoProdutos = res.produtos;
-            catalogoFiltrado = res.produtos;
+        const resposta = await fetchComTimeout(url, 20000);
+        const resultado = await resposta.json();
+        if (resultado.sucesso && Array.isArray(resultado.produtos)) {
+            catalogoProdutos = resultado.produtos;
+            catalogoFiltrado = resultado.produtos;
             CacheLoja.salvar('produtos_' + estadoSessao.papel, catalogoProdutos);
             renderizarVitrine();
         }
-    } catch (e) { console.warn("Modo offline ou falha temporária:", e); }
+    } catch (erro) {
+        console.warn("[Vitrine] Sincronização offline ou em espera:", erro);
+    }
 }
 
 function aplicarFiltroVitrine(termoManual = null) {
-    const input = document.getElementById('filtro-produtos');
-    const termo = (termoManual !== null ? termoManual : (input ? input.value : '')).trim().toLowerCase();
+    const inputFiltro = document.getElementById('filtro-produtos');
+    const termo = (termoManual !== null ? termoManual : (inputFiltro ? inputFiltro.value : '')).trim().toLowerCase();
 
     catalogoFiltrado = termo
-        ? catalogoProdutos.filter(p => String(p.nome || '').toLowerCase().includes(termo))
+        ? catalogoProdutos.filter(produto => String(produto.nome || '').toLowerCase().includes(termo))
         : catalogoProdutos;
+
     renderizarVitrine();
 }
 
 function renderizarVitrine() {
-    const grid = document.getElementById('produtos-container');
-    if (!grid) return;
-    grid.innerHTML = '';
+    const grade = document.getElementById('produtos-container');
+    if (!grade) return;
+    grade.innerHTML = '';
 
     if (!catalogoFiltrado || catalogoFiltrado.length === 0) {
         const termo = document.getElementById('filtro-produtos')?.value.trim();
-        grid.innerHTML = `
+        grade.innerHTML = `
             <div class="empty-state">
                 <strong>${termo ? 'Nenhum produto encontrado' : 'Vitrine vazia'}</strong>
                 ${termo ? `Nada corresponde a "${escaparHtml(termo)}".` : 'Aguarde novos produtos da administração.'}
@@ -263,57 +325,57 @@ function renderizarVitrine() {
         return;
     }
 
-    catalogoFiltrado.forEach(p => {
-        const card = document.createElement('div');
-        card.className = 'product-card';
+    catalogoFiltrado.forEach(produto => {
+        const cartao = document.createElement('div');
+        cartao.className = 'product-card';
 
-        const img = document.createElement('img');
-        img.className = 'product-thumb';
-        img.src = p.foto || 'https://via.placeholder.com/300x200?text=Sem+Foto';
-        img.alt = p.nome || 'Produto';
-        img.loading = 'lazy';
+        const imagem = document.createElement('img');
+        imagem.className = 'product-thumb';
+        imagem.src = produto.foto || 'https://via.placeholder.com/300x200?text=Sem+Foto';
+        imagem.alt = produto.nome || 'Produto';
+        imagem.loading = 'lazy';
 
-        const body = document.createElement('div');
-        body.className = 'product-details';
+        const corpo = document.createElement('div');
+        corpo.className = 'product-details';
 
-        const t = document.createElement('h3');
-        t.className = 'product-name';
-        t.textContent = p.nome || 'Sem nome';
+        const titulo = document.createElement('h3');
+        titulo.className = 'product-name';
+        titulo.textContent = produto.nome || 'Sem nome';
 
-        const pr = document.createElement('p');
-        pr.className = 'product-price';
-        pr.textContent = fmtPreco(p.preco);
+        const preco = document.createElement('p');
+        preco.className = 'product-price';
+        preco.textContent = fmtPreco(produto.preco);
 
-        body.append(t, pr);
+        corpo.append(titulo, preco);
 
         if (estadoSessao.papel === 'membro' || estadoSessao.papel === 'entregador') {
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-primary btn-block';
-            btn.textContent = 'Adicionar à Cesta';
-            btn.onclick = () => adicionarAoCarrinho(p);
-            body.appendChild(btn);
+            const botaoComprar = document.createElement('button');
+            botaoComprar.className = 'btn btn-primary btn-block';
+            botaoComprar.textContent = 'Adicionar à Cesta';
+            botaoComprar.onclick = () => adicionarAoCarrinho(produto);
+            corpo.appendChild(botaoComprar);
         } else if (estadoSessao.papel === 'adm') {
-            const aviso = document.createElement('small');
-            aviso.style.color = '#ef4444';
-            aviso.textContent = `Visibilidade: ${String(p.visibilidade || '').toUpperCase()}`;
-            body.appendChild(aviso);
+            const avisoAdm = document.createElement('small');
+            avisoAdm.style.color = '#ef4444';
+            avisoAdm.textContent = `Visibilidade: ${String(produto.visibilidade || '').toUpperCase()}`;
+            corpo.appendChild(avisoAdm);
         } else {
-            const aviso = document.createElement('small');
-            aviso.className = 'visitor-note';
-            aviso.textContent = 'Acesso exclusivo para membros.';
-            body.appendChild(aviso);
+            const avisoVisitante = document.createElement('small');
+            avisoVisitante.className = 'visitor-note';
+            avisoVisitante.textContent = 'Acesso exclusivo para membros.';
+            corpo.appendChild(avisoVisitante);
         }
 
-        card.append(img, body);
-        grid.appendChild(card);
+        cartao.append(imagem, corpo);
+        grade.appendChild(cartao);
     });
 }
 
 // ============================================================================
-// 7. CADASTRO DE NOVO MEMBRO
+// 7. SOLICITAÇÃO DE CADASTRO
 // ============================================================================
-async function tratarSolicitacaoCadastro(e) {
-    if (e && e.preventDefault) e.preventDefault();
+async function tratarSolicitacaoCadastro(evento) {
+    if (evento && evento.preventDefault) evento.preventDefault();
 
     const nome      = document.getElementById('cad-nome').value.trim();
     const telefone  = document.getElementById('cad-telefone').value.trim();
@@ -323,31 +385,32 @@ async function tratarSolicitacaoCadastro(e) {
     const telegram  = document.getElementById('cad-telegram').value.trim();
 
     if (senha !== senhaConf) return exibirToast("As senhas digitadas não coincidem.", "error");
-    if (senha.length < 6)    return exibirToast("A senha deve ter no mínimo 6 caracteres.", "error");
+    if (senha.length < 6)    return exibirToast("A senha deve conter no mínimo 6 caracteres.", "error");
 
     botaoCarregando('btn-enviar-cadastro', true);
     exibirToast("A enviar solicitação...", "info");
 
-    const res = await executarRequisicaoAPI("solicitar_cadastro", {
+    const resposta = await executarRequisicaoAPI("solicitar_cadastro", {
         nome, telefone, senha, twitter, telegram
     });
 
     botaoCarregando('btn-enviar-cadastro', false);
 
-    if (res.sucesso) {
-        exibirToast(res.mensagem || "Solicitação enviada com sucesso!", "success");
+    if (resposta.sucesso) {
+        exibirToast(resposta.mensagem || "Solicitação enviada com sucesso!", "success");
         document.getElementById('form-registro').reset();
         fecharModal('modal-cadastro');
     } else {
-        exibirToast(res.mensagem || "Erro ao registrar solicitação.", "error");
+        exibirToast(resposta.mensagem || "Erro ao registrar solicitação.", "error");
     }
 }
 
 // ============================================================================
 // 8. AUTENTICAÇÃO (LOGIN / LOGOUT / DESBLOQUEIO)
 // ============================================================================
-async function tratarLogin(e) {
-    if (e && e.preventDefault) e.preventDefault();
+async function tratarLogin(evento) {
+    if (evento && evento.preventDefault) evento.preventDefault();
+
     const usuario = document.getElementById('login-usuario').value.trim();
     const senha   = document.getElementById('login-senha').value;
     identificadorEmTentativa = usuario;
@@ -355,26 +418,27 @@ async function tratarLogin(e) {
     botaoCarregando('btn-entrar', true);
     exibirToast("A autenticar...", "info");
 
-    const res = await executarRequisicaoAPI("login", { identificador: usuario, senha });
+    const resposta = await executarRequisicaoAPI("login", { identificador: usuario, senha });
 
     botaoCarregando('btn-entrar', false);
 
-    if (res.sucesso) {
-        estadoSessao.papel       = res.papel;
-        estadoSessao.token       = res.token;
-        estadoSessao.nomeUsuario = res.nome;
+    if (resposta.sucesso) {
+        estadoSessao.papel       = resposta.papel;
+        estadoSessao.token       = resposta.token;
+        estadoSessao.nomeUsuario = resposta.nome;
 
         localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
         document.getElementById('form-login').reset();
         document.getElementById('box-desbloqueio-conta').classList.add('hidden');
         fecharModal('modal-login');
         atualizarInterfaceSessao();
+
         CacheLoja.limpar('produtos_visitante');
         await sincronizarProdutosServidor();
-        exibirToast(`Bem-vindo, ${res.nome}!`, "success");
+        exibirToast(`Bem-vindo, ${resposta.nome}!`, "success");
     } else {
-        exibirToast(res.mensagem || "Credenciais inválidas.", "error");
-        if (res.requerLiberacaoAdm) {
+        exibirToast(resposta.mensagem || "Credenciais inválidas.", "error");
+        if (resposta.requerLiberacaoAdm) {
             document.getElementById('box-desbloqueio-conta').classList.remove('hidden');
         }
     }
@@ -382,9 +446,9 @@ async function tratarLogin(e) {
 
 async function enviarPedidoDesbloqueio() {
     if (!identificadorEmTentativa) return;
-    const res = await executarRequisicaoAPI("pedir_desbloqueio", { identificador: identificadorEmTentativa });
-    if (res.sucesso) {
-        exibirToast(res.mensagem || "Pedido de liberação enviado.", "success");
+    const resposta = await executarRequisicaoAPI("pedir_desbloqueio", { identificador: identificadorEmTentativa });
+    if (resposta.sucesso) {
+        exibirToast(resposta.mensagem || "Pedido de liberação enviado com sucesso.", "success");
         const btn = document.getElementById('btn-solicitar-desbloqueio');
         if (btn) btn.disabled = true;
     }
@@ -399,8 +463,9 @@ function executarLogout() {
     estadoSessao.token = null;
     estadoSessao.nomeUsuario = 'Visitante';
     cestaCompras = [];
-    const cartCont = document.getElementById('cart-counter');
-    if (cartCont) cartCont.textContent = "0";
+
+    const contadorCesta = document.getElementById('cart-counter');
+    if (contadorCesta) contadorCesta.textContent = "0";
 
     localStorage.removeItem('plataforma_sessao');
     desligarAutoRefreshAdm();
@@ -416,13 +481,13 @@ function executarLogout() {
 }
 
 function restaurarSessaoLocal() {
-    const salva = localStorage.getItem('plataforma_sessao');
-    if (!salva) return;
+    const dadosSalvos = localStorage.getItem('plataforma_sessao');
+    if (!dadosSalvos) return;
     try {
-        const d = JSON.parse(salva);
-        estadoSessao.papel       = d.papel || 'visitante';
-        estadoSessao.token       = d.token || null;
-        estadoSessao.nomeUsuario = d.nomeUsuario || 'Visitante';
+        const sessao = JSON.parse(dadosSalvos);
+        estadoSessao.papel       = sessao.papel || 'visitante';
+        estadoSessao.token       = sessao.token || null;
+        estadoSessao.nomeUsuario = sessao.nomeUsuario || 'Visitante';
     } catch {
         localStorage.removeItem('plataforma_sessao');
     }
@@ -432,10 +497,10 @@ function restaurarSessaoLocal() {
 // 9. CONTROLO VISUAL POR PAPEL
 // ============================================================================
 function atualizarInterfaceSessao() {
-    const badge   = document.getElementById('role-badge');
-    const anonBox = document.getElementById('anon-buttons');
-    const authBox = document.getElementById('auth-buttons');
-    const userLbl = document.getElementById('user-display-name');
+    const badge       = document.getElementById('role-badge');
+    const anonBox     = document.getElementById('anon-buttons');
+    const authBox     = document.getElementById('auth-buttons');
+    const userLabel   = document.getElementById('user-display-name');
 
     const tabCarrinho    = document.getElementById('tab-btn-carrinho');
     const tabMeusPedidos = document.getElementById('tab-btn-meus-pedidos');
@@ -448,8 +513,8 @@ function atualizarInterfaceSessao() {
         badge.className   = `badge badge-${estadoSessao.papel}`;
     }
 
-    const esconder = el => el && el.classList.add('hidden');
-    const mostrar  = el => el && el.classList.remove('hidden');
+    const esconder = elemento => elemento && elemento.classList.add('hidden');
+    const mostrar  = elemento => elemento && elemento.classList.remove('hidden');
 
     [tabCarrinho, tabMeusPedidos, tabNovoProduto, tabPedidosAdm, tabAdm].forEach(esconder);
 
@@ -457,15 +522,15 @@ function atualizarInterfaceSessao() {
         mostrar(anonBox); esconder(authBox);
     } else if (estadoSessao.papel === 'membro') {
         esconder(anonBox); mostrar(authBox);
-        if (userLbl) userLbl.textContent = `Olá, ${estadoSessao.nomeUsuario}`;
+        if (userLabel) userLabel.textContent = `Olá, ${estadoSessao.nomeUsuario}`;
         mostrar(tabCarrinho); mostrar(tabMeusPedidos);
     } else if (estadoSessao.papel === 'entregador') {
         esconder(anonBox); mostrar(authBox);
-        if (userLbl) userLbl.textContent = `Entregador: ${estadoSessao.nomeUsuario}`;
+        if (userLabel) userLabel.textContent = `Entregador: ${estadoSessao.nomeUsuario}`;
         mostrar(tabMeusPedidos); mostrar(tabPedidosAdm);
     } else if (estadoSessao.papel === 'adm') {
         esconder(anonBox); mostrar(authBox);
-        if (userLbl) userLbl.textContent = `ADM: ${estadoSessao.nomeUsuario}`;
+        if (userLabel) userLabel.textContent = `ADM: ${estadoSessao.nomeUsuario}`;
         mostrar(tabNovoProduto); mostrar(tabPedidosAdm); mostrar(tabAdm);
     }
 
@@ -481,15 +546,15 @@ function atualizarInterfaceSessao() {
 // 10. NAVEGAÇÃO ENTRE TELAS
 // ============================================================================
 function navegarPara(nomeAba) {
-    document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.view-panel').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(botao => botao.classList.remove('active'));
+    document.querySelectorAll('.view-panel').forEach(painel => painel.classList.remove('active'));
 
-    const btn    = document.getElementById(`tab-btn-${nomeAba}`);
-    const painel = document.getElementById(`view-${nomeAba}`);
+    const botaoAtivo  = document.getElementById(`tab-btn-${nomeAba}`);
+    const painelAtivo = document.getElementById(`view-${nomeAba}`);
 
-    if (btn && painel) {
-        btn.classList.add('active');
-        painel.classList.add('active');
+    if (botaoAtivo && painelAtivo) {
+        botaoAtivo.classList.add('active');
+        painelAtivo.classList.add('active');
     }
 
     if (nomeAba === 'vitrine')      sincronizarProdutosServidor();
@@ -505,27 +570,30 @@ function navegarPara(nomeAba) {
 // ============================================================================
 // 11. CESTA DE COMPRAS E CRIAÇÃO DE PEDIDOS
 // ============================================================================
-function adicionarAoCarrinho(p) {
-    const it = cestaCompras.find(i => i.id === p.id);
-    if (it) it.quantidade += 1;
-    else cestaCompras.push({
-        id: p.id,
-        nome: p.nome,
-        preco: typeof p.preco === 'number' ? p.preco : parseFloat(String(p.preco).replace(',', '.')),
-        quantidade: 1
-    });
+function adicionarAoCarrinho(produto) {
+    const itemExistente = cestaCompras.find(item => item.id === produto.id);
+    if (itemExistente) {
+        itemExistente.quantidade += 1;
+    } else {
+        cestaCompras.push({
+            id: produto.id,
+            nome: produto.nome,
+            preco: typeof produto.preco === 'number' ? produto.preco : parseFloat(String(produto.preco).replace(',', '.')),
+            quantidade: 1
+        });
+    }
 
-    const total = cestaCompras.reduce((a, i) => a + i.quantidade, 0);
-    const cartCont = document.getElementById('cart-counter');
-    if (cartCont) cartCont.textContent = total;
-    exibirToast(`${p.nome} colocado na cesta.`, "info");
+    const totalItens = cestaCompras.reduce((acumulador, item) => acumulador + item.quantidade, 0);
+    const contador = document.getElementById('cart-counter');
+    if (contador) contador.textContent = totalItens;
+    exibirToast(`${produto.nome} adicionado à cesta.`, "info");
 }
 
 function renderizarCarrinho() {
     const lista = document.getElementById('carrinho-itens-lista');
     if (!lista) return;
     lista.innerHTML = '';
-    let total = 0;
+    let valorTotal = 0;
 
     if (cestaCompras.length === 0) {
         lista.innerHTML = `<div class="empty-state"><strong>Sua cesta está vazia</strong>Adicione itens da vitrine.</div>`;
@@ -533,51 +601,49 @@ function renderizarCarrinho() {
         return;
     }
 
-    cestaCompras.forEach(i => {
-        const sub = i.preco * i.quantidade;
-        total += sub;
+    cestaCompras.forEach(item => {
+        const subtotal = item.preco * item.quantidade;
+        valorTotal += subtotal;
 
-        const row = document.createElement('div');
-        row.className = 'cart-item-row';
-        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #e2e8f0;';
+        const linha = document.createElement('div');
+        linha.className = 'cart-item-row';
+        linha.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #e2e8f0;';
 
-        const desc = document.createElement('span');
-        desc.textContent = `${i.nome} (x${i.quantidade})`;
+        const descricao = document.createElement('span');
+        descricao.textContent = `${item.nome} (x${item.quantidade})`;
 
-        const qtd = document.createElement('input');
-        qtd.type = 'number'; qtd.min = 1; qtd.value = i.quantidade;
-        qtd.style.cssText = 'width:64px;padding:4px 6px;';
-        qtd.onchange = () => {
-            i.quantidade = Math.max(1, Number(qtd.value) || 1);
+        const campoQuantidade = document.createElement('input');
+        campoQuantidade.type = 'number';
+        campoQuantidade.min = 1;
+        campoQuantidade.value = item.quantidade;
+        campoQuantidade.style.cssText = 'width:64px;padding:4px 6px;';
+        campoQuantidade.onchange = () => {
+            item.quantidade = Math.max(1, Number(campoQuantidade.value) || 1);
             renderizarCarrinho();
-            const c = document.getElementById('cart-counter');
-            if (c) c.textContent = cestaCompras.reduce((a, x) => a + x.quantidade, 0);
+            const contador = document.getElementById('cart-counter');
+            if (contador) contador.textContent = cestaCompras.reduce((acc, el) => acc + el.quantidade, 0);
         };
 
-        const valor = document.createElement('strong');
-        valor.textContent = fmtPreco(sub);
+        const precoTexto = document.createElement('strong');
+        precoTexto.textContent = fmtPreco(subtotal);
 
-        const rem = document.createElement('button');
-        rem.className = 'btn btn-danger-outline btn-sm';
-        rem.textContent = '✕';
-        rem.title = 'Remover item';
-        rem.onclick = () => {
-            cestaCompras = cestaCompras.filter(x => x.id !== i.id);
+        const botaoRemover = document.createElement('button');
+        botaoRemover.className = 'btn btn-danger-outline btn-sm';
+        botaoRemover.textContent = '✕';
+        botaoRemover.title = 'Remover item';
+        botaoRemover.onclick = () => {
+            cestaCompras = cestaCompras.filter(el => el.id !== item.id);
             renderizarCarrinho();
-            const c = document.getElementById('cart-counter');
-            if (c) c.textContent = cestaCompras.reduce((a, x) => a + x.quantidade, 0);
+            const contador = document.getElementById('cart-counter');
+            if (contador) contador.textContent = cestaCompras.reduce((acc, el) => acc + el.quantidade, 0);
         };
 
-        row.append(desc, qtd, valor, rem);
-        lista.appendChild(row);
+        linha.append(descricao, campoQuantidade, precoTexto, botaoRemover);
+        lista.appendChild(linha);
     });
 
-    document.getElementById('carrinho-total-valor').textContent = fmtPreco(total);
+    document.getElementById('carrinho-total-valor').textContent = fmtPreco(valorTotal);
 }
-
-// ============================================================================
-// CRIAÇÃO DE PEDIDO COM GERAÇÃO AUTOMÁTICA E FALLBACK DE SUPORTE AO VIVO
-// ============================================================================
 
 async function tratarCriacaoPedido() {
     if (cestaCompras.length === 0) {
@@ -589,43 +655,36 @@ async function tratarCriacaoPedido() {
 
     const metodo = document.getElementById('metodo-pagamento').value;
 
-    const res = await executarRequisicaoAPI("criar_pedido", {
+    const resposta = await executarRequisicaoAPI("criar_pedido", {
         tokenMembro: estadoSessao.token,
-        itens: cestaCompras.map(i => ({ id: i.id, quantidade: i.quantidade })),
+        itens: cestaCompras.map(item => ({ id: item.id, quantidade: item.quantidade })),
         metodoPagamento: metodo
     });
 
     esconderLoader();
     botaoCarregando('btn-confirmar-pedido', false);
 
-    // FLUXO PRINCIPAL: Sucesso na criação do pedido
-    if (res.sucesso) {
-        exibirToast(`Pedido ${res.idPedido} gerado com sucesso!`, "success");
-        
-        // Guarda uma cópia do método antes de esvaziar
+    // FLUXO NORMAL: Pedido criado com sucesso
+    if (resposta.sucesso) {
+        exibirToast(`Pedido ${resposta.idPedido} gerado com sucesso!`, "success");
+
         const metodoEscolhido = metodo;
         cestaCompras = [];
-        const c = document.getElementById('cart-counter');
-        if (c) c.textContent = "0";
+        const contador = document.getElementById('cart-counter');
+        if (contador) contador.textContent = "0";
 
-        // Redireciona para Meus Pedidos e abre imediatamente a cobrança automática
         navegarPara('meus-pedidos');
-        abrirCobrancaPedido(res.idPedido, metodoEscolhido);
-    } 
-    // FLUXO DE CONTINGÊNCIA: Falha no servidor, instabilidade ou conta inativa
+        abrirCobrancaPedido(resposta.idPedido, metodoEscolhido);
+    }
+    // FLUXO DE CONTINGÊNCIA: Falha no servidor ou bloqueio de conta
     else {
-        exibirToast(res.mensagem || "Não foi possível gerar o pedido automaticamente.", "error");
-        
-        // Aciona o Fallback: Abre janela para o cliente falar com o Administrador
-        exibirContingenciaSuporteAdm(res.mensagem, metodo);
+        exibirToast(resposta.mensagem || "Não foi possível gerar o pedido automaticamente.", "error");
+        exibirContingenciaSuporteAdm(resposta.mensagem, metodo);
     }
 }
 
-/**
- * MODAL DE CONTINGÊNCIA: Permite ao cliente solicitar auxílio manual ao Administrador
- */
 function exibirContingenciaSuporteAdm(motivoErro, metodoEscolhido) {
-    const itensDescricao = cestaCompras.map(i => `${i.nome} (x${i.quantidade})`).join(', ');
+    const itensDescricao = cestaCompras.map(item => `${item.nome} (x${item.quantidade})`).join(', ');
     const totalEstimado = document.getElementById('carrinho-total-valor')?.textContent || "R$ 0,00";
 
     const corpoMensagem = `
@@ -634,13 +693,13 @@ function exibirContingenciaSuporteAdm(motivoErro, metodoEscolhido) {
                 ⚠️ Não foi possível concluir o pedido de forma automática:
             </p>
             <p style="background:#fef2f2;padding:8px;border-radius:6px;border:1px solid #fca5a5;font-size:0.8rem;margin-bottom:12px;">
-                ${escaparHtml(motivoErro || "Instabilidade temporária na ligação ao servidor.")}
+                ${escaparHtml(motivoErro || "Instabilidade na ligação com o servidor.")}
             </p>
             <p style="margin-bottom:6px;">
-                <strong>O que deseja fazer?</strong> Pode acionar o Administrador agora mesmo para que ele regularize a sua conta ou envie a chave/link de pagamento de forma manual.
+                Pode contactar o Administrador agora mesmo para que ele regularize a sua conta ou envie a chave/link de pagamento manual.
             </p>
             <p style="font-size:0.8rem;color:#64748b;margin-bottom:12px;">
-                <strong>Resumo da sua Cesta:</strong> ${escaparHtml(itensDescricao)}<br>
+                <strong>Itens:</strong> ${escaparHtml(itensDescricao)}<br>
                 <strong>Total:</strong> ${escaparHtml(totalEstimado)} | <strong>Forma:</strong> ${escaparHtml(metodoEscolhido)}
             </p>
         </div>
@@ -650,129 +709,172 @@ function exibirContingenciaSuporteAdm(motivoErro, metodoEscolhido) {
         "Suporte com o Administrador",
         corpoMensagem,
         async () => {
-            // Ao clicar em "Sim", envia uma mensagem direta para a aba de Comentários do ADM
             mostrarLoader("A contactar o Administrador...");
-            const textoMensagem = `[SOLICITAÇÃO MANUAL DE PAGAMENTO] O utilizador ${estadoSessao.nomeUsuario} tentou comprar [${itensDescricao}] no valor de ${totalEstimado} via ${metodoEscolhido}, mas encontrou o erro: "${motivoErro}". Por favor, enviar link manual.`;
-            
+            const textoMensagem = `[PEDIDO MANUAL] O utilizador ${estadoSessao.nomeUsuario} tentou pedir [${itensDescricao}] totalizando ${totalEstimado} via ${metodoEscolhido}, com aviso: "${motivoErro}". Por favor, enviar link manual.`;
+
             await executarRequisicaoAPI("enviar_comentario", {
                 nome: estadoSessao.nomeUsuario,
                 mensagem: textoMensagem
             });
 
             esconderLoader();
-            exibirToast("O Administrador foi notificado! Ele entrará em contacto para fornecer o link.", "success");
+            exibirToast("O Administrador foi notificado com sucesso!", "success");
         }
     );
 
-    // Ajusta o texto do botão de confirmação para ficar intuitivo
-    const btnSim = document.getElementById('confirmar-btn-ok');
-    if (btnSim) btnSim.textContent = "Chamar Administrador";
+    const btnOk = document.getElementById('confirmar-btn-ok');
+    if (btnOk) btnOk.textContent = "Chamar Administrador";
 }
 
 // ============================================================================
-// 12. MEUS PEDIDOS, PAGAMENTO E CHAT TEMPORÁRIO
+// 12. MEUS PEDIDOS, PAGAMENTO SEGURO E CHAT TEMPORÁRIO
 // ============================================================================
 async function carregarMeusPedidos() {
-    const box = document.getElementById('meus-pedidos-container');
-    if (!box) return;
-    box.innerHTML = '<div class="loading-slot">Carregando os seus pedidos...</div>';
+    const container = document.getElementById('meus-pedidos-container');
+    if (!container) return;
+    container.innerHTML = '<div class="loading-slot">Carregando os seus pedidos...</div>';
 
-    const res = await executarRequisicaoAPI("listar_meus_pedidos", { tokenMembro: estadoSessao.token });
-    box.innerHTML = '';
+    const resposta = await executarRequisicaoAPI("listar_meus_pedidos", { tokenMembro: estadoSessao.token });
+    container.innerHTML = '';
 
-    if (!res.sucesso || !res.pedidos || res.pedidos.length === 0) {
-        box.innerHTML = `<div class="empty-state"><strong>Nenhum pedido ainda</strong>Quando criar um pedido, ele aparece aqui.</div>`;
+    if (!resposta.sucesso || !resposta.pedidos || resposta.pedidos.length === 0) {
+        container.innerHTML = `<div class="empty-state"><strong>Nenhum pedido ainda</strong>Quando criar um pedido, ele aparece aqui.</div>`;
         return;
     }
 
-    res.pedidos.forEach(p => {
-        const card = document.createElement('div');
-        card.className = 'adm-card';
-        const st = String(p.status).toLowerCase();
+    resposta.pedidos.forEach(pedido => {
+        const cartao = document.createElement('div');
+        cartao.className = 'adm-card';
+        const statusMinusculo = String(pedido.status).toLowerCase();
 
-        card.innerHTML = `
-            <h4>Pedido: ${escaparHtml(p.id)}</h4>
-            <p>Status: <strong class="status-tag status-${escaparHtml(st)}">${escaparHtml(st.toUpperCase())}</strong>
-               | Total: <strong>${fmtPreco(p.total)}</strong></p>
-            <p>Forma de Pagamento: <strong>${escaparHtml(p.metodo || 'PIX')}</strong></p>
+        cartao.innerHTML = `
+            <h4>Pedido: ${escaparHtml(pedido.id)}</h4>
+            <p>Status: <strong class="status-tag status-${escaparHtml(statusMinusculo)}">${escaparHtml(statusMinusculo.toUpperCase())}</strong>
+               | Total: <strong>${fmtPreco(pedido.total)}</strong></p>
+            <p>Forma de Pagamento: <strong>${escaparHtml(pedido.metodo || 'PIX')}</strong></p>
         `;
 
-        const acoes = document.createElement('div');
-        acoes.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;';
+        const painelAcoes = document.createElement('div');
+        painelAcoes.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;';
 
-        // Botão de Pagamento se o pedido estiver em análise
-        if (st === 'analise') {
-            const btnPagar = document.createElement('button');
-            btnPagar.className = 'btn btn-success btn-sm';
-            btnPagar.textContent = '💳 Pagar / Ver Cobrança';
-            btnPagar.onclick = () => abrirCobrancaPedido(p.id, p.metodo);
-            acoes.appendChild(btnPagar);
+        // Botão para ver instruções de pagamento se estiver em análise
+        if (statusMinusculo === 'analise') {
+            const botaoPagar = document.createElement('button');
+            botaoPagar.className = 'btn btn-success btn-sm';
+            botaoPagar.textContent = '💳 Pagar / Ver Cobrança';
+            botaoPagar.onclick = () => abrirCobrancaPedido(pedido.id, pedido.metodo);
+            painelAcoes.appendChild(botaoPagar);
         }
 
-        // Botão de Chat Temporário
-        if (p.chatAtivo) {
-            const btnChat = document.createElement('button');
-            btnChat.className = 'btn btn-primary btn-sm';
-            btnChat.textContent = '💬 Abrir Chat';
-            btnChat.onclick = () => abrirChatPedido(p.id);
-            acoes.appendChild(btnChat);
+        // Botão para abrir o chat temporário com a loja
+        if (pedido.chatAtivo) {
+            const botaoChat = document.createElement('button');
+            botaoChat.className = 'btn btn-primary btn-sm';
+            botaoChat.textContent = '💬 Abrir Chat';
+            botaoChat.onclick = () => abrirChatPedido(pedido.id);
+            painelAcoes.appendChild(botaoChat);
         } else {
-            const aviso = document.createElement('small');
-            aviso.style.color = '#94a3b8';
-            aviso.textContent = 'Chat temporário encerrado.';
-            acoes.appendChild(aviso);
+            const avisoChat = document.createElement('small');
+            avisoChat.style.color = '#94a3b8';
+            avisoChat.textContent = 'Chat temporário encerrado.';
+            painelAcoes.appendChild(avisoChat);
         }
 
-        card.appendChild(acoes);
-        box.appendChild(card);
+        cartao.appendChild(painelAcoes);
+        container.appendChild(cartao);
     });
 }
 
-/** Consulta o Payments.gs e exibe os dados para pagamento */
+/** Consulta o Payments.gs e exibe os dados para pagamento sem violar a CSP */
 async function abrirCobrancaPedido(idPedido, metodo) {
     mostrarLoader("Gerando instruções de pagamento...");
-    const res = await executarRequisicaoAPI("gerar_pagamento", {
+    const resposta = await executarRequisicaoAPI("gerar_pagamento", {
         tokenMembro: estadoSessao.token,
         idPedido: idPedido,
         metodo: metodo || "PIX"
     });
     esconderLoader();
 
-    if (!res.sucesso) {
-        return exibirToast(res.mensagem || "Não foi possível gerar a cobrança.", "error");
+    if (!resposta.sucesso) {
+        return exibirToast(resposta.mensagem || "Não foi possível gerar a cobrança.", "error");
     }
 
-    if (res.jaPago) {
-        return exibirToast("Este pedido já foi pago e está em entrega!", "success");
+    if (resposta.jaPago) {
+        return exibirToast("Este pedido já se encontra pago e em fase de entrega!", "success");
     }
 
-    const cob = res.cobranca;
-    let htmlCorpo = `<div style="text-align:center;padding:10px;">`;
+    const cobranca = resposta.cobranca;
 
-    if (cob.tipo === "PIX") {
-        htmlCorpo += `
-            <img src="${escaparHtml(cob.qrCodeUrl)}" alt="QR Code PIX" style="width:200px;height:200px;margin-bottom:12px;border:1px solid #cbd5e1;border-radius:8px;">
-            <p style="font-size:.85rem;color:#475569;margin-bottom:8px;">${escaparHtml(cob.instrucoes)}</p>
-            <input type="text" id="pix-copia-cola" value="${escaparHtml(cob.pixCopiaECola)}" readonly style="font-size:.75rem;margin-bottom:8px;text-align:center;" onclick="this.select()">
-            <button type="button" class="btn btn-primary btn-block" onclick="copiarPixCopiaECola()">📋 Copiar Código PIX</button>
-        `;
-    } else if (cob.tipo === "CRIPTO") {
-        htmlCorpo += `
-            <img src="${escaparHtml(cob.qrCodeUrl)}" alt="QR Code Cripto" style="width:180px;height:180px;margin-bottom:10px;border-radius:8px;">
-            <p><strong>Valor a transferir:</strong> ${escaparHtml(cob.quantidadeEstimada)} ${escaparHtml(cob.moeda)}</p>
-            <p style="font-size:.75rem;color:#64748b;word-break:break-all;margin:6px 0;"><strong>Carteira:</strong><br>${escaparHtml(cob.carteiraDestino)}</p>
-            <button type="button" class="btn btn-primary btn-block" onclick="navigator.clipboard.writeText('${escaparHtml(cob.carteiraDestino)}');exibirToast('Carteira copiada!','success');">📋 Copiar Endereço da Carteira</button>
-        `;
-    } else if (cob.tipo === "CARTAO") {
-        htmlCorpo += `
-            <p style="margin-bottom:12px;">${escaparHtml(cob.instrucoes)}</p>
-            <a href="${escaparHtml(cob.urlCheckout)}" target="_blank" class="btn btn-success btn-block" style="text-decoration:none;display:block;">🔒 Ir para Pagamento Seguro</a>
-        `;
+    // Constrói o DOM limpo para não violar a política estrita de scripts inline (CSP)
+    const caixaConteudo = document.createElement('div');
+    caixaConteudo.style.cssText = 'text-align:center;padding:10px;';
+
+    if (cobranca.tipo === "PIX") {
+        const imgQr = document.createElement('img');
+        imgQr.src = cobranca.qrCodeUrl;
+        imgQr.alt = "QR Code PIX";
+        imgQr.style.cssText = 'width:200px;height:200px;margin-bottom:12px;border:1px solid #cbd5e1;border-radius:8px;';
+
+        const instrucoes = document.createElement('p');
+        instrucoes.style.cssText = 'font-size:.85rem;color:#475569;margin-bottom:8px;';
+        instrucoes.textContent = cobranca.instrucoes;
+
+        const inputPix = document.createElement('input');
+        inputPix.type = 'text';
+        inputPix.id = 'pix-copia-cola';
+        inputPix.value = cobranca.pixCopiaECola;
+        inputPix.readOnly = true;
+        inputPix.style.cssText = 'font-size:.75rem;margin-bottom:8px;text-align:center;width:100%;';
+        inputPix.onclick = () => inputPix.select();
+
+        const botaoCopiar = document.createElement('button');
+        botaoCopiar.type = 'button';
+        botaoCopiar.className = 'btn btn-primary btn-block';
+        botaoCopiar.textContent = '📋 Copiar Código PIX';
+        botaoCopiar.onclick = () => copiarPixCopiaECola();
+
+        caixaConteudo.append(imgQr, instrucoes, inputPix, botaoCopiar);
+
+    } else if (cobranca.tipo === "CRIPTO") {
+        const imgQr = document.createElement('img');
+        imgQr.src = cobranca.qrCodeUrl;
+        imgQr.alt = "QR Code Cripto";
+        imgQr.style.cssText = 'width:180px;height:180px;margin-bottom:10px;border-radius:8px;';
+
+        const valorTexto = document.createElement('p');
+        valorTexto.innerHTML = `<strong>Transferir:</strong> ${escaparHtml(cobranca.quantidadeEstimada)} ${escaparHtml(cobranca.moeda)}`;
+
+        const carteiraTexto = document.createElement('p');
+        carteiraTexto.style.cssText = 'font-size:.75rem;color:#64748b;word-break:break-all;margin:6px 0;';
+        carteiraTexto.innerHTML = `<strong>Carteira:</strong><br>${escaparHtml(cobranca.carteiraDestino)}`;
+
+        const botaoCopiar = document.createElement('button');
+        botaoCopiar.type = 'button';
+        botaoCopiar.className = 'btn btn-primary btn-block';
+        botaoCopiar.textContent = '📋 Copiar Endereço da Carteira';
+        botaoCopiar.onclick = () => {
+            navigator.clipboard.writeText(cobranca.carteiraDestino);
+            exibirToast("Carteira copiada para a área de transferência!", "success");
+        };
+
+        caixaConteudo.append(imgQr, valorTexto, carteiraTexto, botaoCopiar);
+
+    } else if (cobranca.tipo === "CARTAO") {
+        const instrucoes = document.createElement('p');
+        instrucoes.style.cssText = 'margin-bottom:12px;';
+        instrucoes.textContent = cobranca.instrucoes;
+
+        const linkCheckout = document.createElement('a');
+        linkCheckout.href = cobranca.urlCheckout;
+        linkCheckout.target = '_blank';
+        linkCheckout.className = 'btn btn-success btn-block';
+        linkCheckout.style.cssText = 'text-decoration:none;display:block;';
+        linkCheckout.textContent = '🔒 Ir para Pagamento Seguro';
+
+        caixaConteudo.append(instrucoes, linkCheckout);
     }
 
-    htmlCorpo += `</div>`;
-
-    abrirConfirmacao(`Pagamento Pedido #${idPedido}`, htmlCorpo, () => {
+    abrirConfirmacaoElemento(`Pagamento Pedido #${idPedido}`, caixaConteudo, () => {
         carregarMeusPedidos();
     });
 }
@@ -789,13 +891,14 @@ function copiarPixCopiaECola() {
         });
 }
 
-// ─── CHAT TEMPORÁRIO COM POLLING A CADA 5s ──────────────────
+// ─── CHAT TEMPORÁRIO COM POLLING CONTÍNUO ───────────────────
 async function abrirChatPedido(pedidoId) {
     pedidoChatAberto = pedidoId;
-    const tit = document.getElementById('chat-pedido-id');
-    const box = document.getElementById('chat-mensagens');
-    if (tit) tit.textContent = '#' + pedidoId;
-    if (box) box.innerHTML = '<div class="loading-slot">Carregando mensagens...</div>';
+    const elementoTitulo = document.getElementById('chat-pedido-id');
+    const caixaMensagens = document.getElementById('chat-mensagens');
+
+    if (elementoTitulo) elementoTitulo.textContent = '#' + pedidoId;
+    if (caixaMensagens) caixaMensagens.innerHTML = '<div class="loading-slot">Carregando mensagens...</div>';
 
     abrirModal('modal-chat');
     await renderizarChat();
@@ -806,7 +909,7 @@ function iniciarAutoRefreshChat() {
     pararAutoRefreshChat();
     _timerChat = setInterval(async () => {
         if (!pedidoChatAberto) return pararAutoRefreshChat();
-        await renderizarChat(true); // renderiza silenciosamente sem scroll travado
+        await renderizarChat(true); // Atualização silenciosa sem saltos de scroll
     }, 5000);
 }
 
@@ -819,54 +922,54 @@ function pararAutoRefreshChat() {
 
 async function renderizarChat(silencioso = false) {
     if (!pedidoChatAberto) return;
-    const box = document.getElementById('chat-mensagens');
-    if (!box) return;
+    const caixaMensagens = document.getElementById('chat-mensagens');
+    if (!caixaMensagens) return;
 
-    const res = await executarRequisicaoAPI("chat_listar", {
+    const resposta = await executarRequisicaoAPI("chat_listar", {
         tokenMembro: estadoSessao.token,
         idPedido: pedidoChatAberto
     });
 
-    if (!res.sucesso || !res.mensagens || res.mensagens.length === 0) {
-        if (!silencioso) box.innerHTML = '<div class="loading-slot">Sem mensagens ainda.</div>';
+    if (!resposta.sucesso || !resposta.mensagens || resposta.mensagens.length === 0) {
+        if (!silencioso) caixaMensagens.innerHTML = '<div class="loading-slot">Sem mensagens ainda.</div>';
         return;
     }
 
-    const estavaNoFim = (box.scrollHeight - box.scrollTop) <= (box.clientHeight + 50);
-    box.innerHTML = '';
+    const estavaNoFim = (caixaMensagens.scrollHeight - caixaMensagens.scrollTop) <= (caixaMensagens.clientHeight + 50);
+    caixaMensagens.innerHTML = '';
 
-    res.mensagens.forEach(m => {
-        const div = document.createElement('div');
-        // Alinhamento correto: mensagem do próprio usuário à direita, de terceiros à esquerda
-        const ehMinha = (m.autorNome === estadoSessao.nomeUsuario) ||
-                        (estadoSessao.papel === 'adm' && m.autorNome === 'Administração');
+    resposta.mensagens.forEach(mensagem => {
+        const bolha = document.createElement('div');
+        // Mensagem enviada pelo próprio usuário alinha à direita (chat-msg--out)
+        const ehMinha = (mensagem.autorNome === estadoSessao.nomeUsuario) ||
+                        (estadoSessao.papel === 'adm' && mensagem.autorNome === 'Administração');
 
-        div.className = 'chat-msg ' + (ehMinha ? 'chat-msg--out' : 'chat-msg--in');
+        bolha.className = 'chat-msg ' + (ehMinha ? 'chat-msg--out' : 'chat-msg--in');
 
-        const txt = document.createElement('span');
-        txt.textContent = m.texto || '';
+        const texto = document.createElement('span');
+        texto.textContent = mensagem.texto || '';
 
         const meta = document.createElement('span');
         meta.className = 'meta';
-        meta.textContent = m.autorNome || (ehMinha ? 'Você' : 'Atendimento');
+        meta.textContent = mensagem.autorNome || (ehMinha ? 'Você' : 'Atendimento');
 
-        div.append(txt, meta);
-        box.appendChild(div);
+        bolha.append(texto, meta);
+        caixaMensagens.appendChild(bolha);
     });
 
     if (estavaNoFim || !silencioso) {
-        box.scrollTop = box.scrollHeight;
+        caixaMensagens.scrollTop = caixaMensagens.scrollHeight;
     }
 }
 
 async function enviarMensagemChat() {
-    const input = document.getElementById('chat-input');
-    if (!input) return;
-    const texto = input.value.trim();
+    const inputTexto = document.getElementById('chat-input');
+    if (!inputTexto) return;
+    const texto = inputTexto.value.trim();
     if (!texto) return;
 
     botaoCarregando('btn-chat-enviar', true);
-    const res = await executarRequisicaoAPI("chat_enviar", {
+    const resposta = await executarRequisicaoAPI("chat_enviar", {
         tokenMembro: estadoSessao.token,
         idPedido: pedidoChatAberto,
         autorNome: estadoSessao.nomeUsuario,
@@ -874,73 +977,73 @@ async function enviarMensagemChat() {
     });
     botaoCarregando('btn-chat-enviar', false);
 
-    if (res.sucesso) {
-        input.value = '';
+    if (resposta.sucesso) {
+        inputTexto.value = '';
         await renderizarChat();
     } else {
-        exibirToast(res.mensagem || "Falha ao enviar mensagem.", "error");
+        exibirToast(resposta.mensagem || "Falha ao enviar mensagem.", "error");
     }
 }
 
 // ============================================================================
-// 13. PAINEL ADMINISTRATIVO (APROVAÇÃO, MÉTRICAS E DESBLOQUEIOS)
+// 13. PAINEL CENTRAL ADMINISTRATIVO (APROVAÇÃO, MÉTRICAS E DESBLOQUEIOS)
 // ============================================================================
 async function carregarPainelCentralAdm() {
     if (estadoSessao.papel !== 'adm') return;
 
-    // 1. Lista de solicitações de novos membros
-    const divSolic = document.getElementById('adm-solicitacoes-lista');
-    if (divSolic) divSolic.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
+    // 1. Solicitações de novos membros
+    const divSolicitacoes = document.getElementById('adm-solicitacoes-lista');
+    if (divSolicitacoes) divSolicitacoes.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
 
-    const resSolic = await executarRequisicaoAPI("listar_solicitacoes_adm", { tokenAdm: estadoSessao.token });
-    const pendentes = (resSolic.sucesso && Array.isArray(resSolic.solicitacoes)) ? resSolic.solicitacoes.length : 0;
+    const respostaSolic = await executarRequisicaoAPI("listar_solicitacoes_adm", { tokenAdm: estadoSessao.token });
+    const totalPendentes = (respostaSolic.sucesso && Array.isArray(respostaSolic.solicitacoes)) ? respostaSolic.solicitacoes.length : 0;
 
-    atualizarBadgePendentesAdm(pendentes);
+    atualizarBadgePendentesAdm(totalPendentes);
 
-    if (divSolic) {
-        divSolic.innerHTML = '';
-        if (pendentes > 0) {
-            resSolic.solicitacoes.forEach(s => {
-                const row = document.createElement('div');
-                row.style.cssText = 'padding:10px 0;border-bottom:1px solid #e2e8f0;';
+    if (divSolicitacoes) {
+        divSolicitacoes.innerHTML = '';
+        if (totalPendentes > 0) {
+            respostaSolic.solicitacoes.forEach(solicitacao => {
+                const linha = document.createElement('div');
+                linha.style.cssText = 'padding:10px 0;border-bottom:1px solid #e2e8f0;';
 
-                row.innerHTML = `
-                    <p><strong>${escaparHtml(s.nome)}</strong> (Login: ${escaparHtml(s.telefone)})</p>
+                linha.innerHTML = `
+                    <p><strong>${escaparHtml(solicitacao.nome)}</strong> (Login: ${escaparHtml(solicitacao.telefone)})</p>
                     <p style="font-size:.78rem;color:#64748b;">
-                        Twitter: ${escaparHtml(s.twitter || '-')} | Telegram: ${escaparHtml(s.telegram || '-')}
+                        Twitter: ${escaparHtml(solicitacao.twitter || '-')} | Telegram: ${escaparHtml(solicitacao.telegram || '-')}
                     </p>
                 `;
 
-                const btn = document.createElement('button');
-                btn.className = 'btn btn-success btn-sm';
-                btn.style.marginTop = '5px';
-                btn.textContent = 'Aprovar Membro';
-                btn.onclick = () => aprovarMembroAdm(s.id);
-                row.appendChild(btn);
+                const botaoAprovar = document.createElement('button');
+                botaoAprovar.className = 'btn btn-success btn-sm';
+                botaoAprovar.style.marginTop = '5px';
+                botaoAprovar.textContent = 'Aprovar Membro';
+                botaoAprovar.onclick = () => aprovarMembroAdm(solicitacao.id);
+                linha.appendChild(botaoAprovar);
 
-                divSolic.appendChild(row);
+                divSolicitacoes.appendChild(linha);
             });
         } else {
-            divSolic.innerHTML = '<div class="loading-slot">Nenhuma solicitação pendente.</div>';
+            divSolicitacoes.innerHTML = '<div class="loading-slot">Nenhuma solicitação pendente.</div>';
         }
     }
 
     // 2. Métricas de vendas consolidadas
-    const resMetricas = await executarRequisicaoAPI("obter_metricas_vendas", { tokenAdm: estadoSessao.token });
-    if (resMetricas.sucesso) {
-        const fatEl = document.getElementById('metric-faturamento');
-        const pedEl = document.getElementById('metric-pedidos');
-        if (fatEl) fatEl.textContent = fmtPreco(resMetricas.faturamentoTotal || 0);
-        if (pedEl) pedEl.textContent = resMetricas.totalPedidos || 0;
+    const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas", { tokenAdm: estadoSessao.token });
+    if (respostaMetricas.sucesso) {
+        const elementoFaturamento = document.getElementById('metric-faturamento');
+        const elementoPedidos = document.getElementById('metric-pedidos');
+        if (elementoFaturamento) elementoFaturamento.textContent = fmtPreco(respostaMetricas.faturamentoTotal || 0);
+        if (elementoPedidos) elementoPedidos.textContent = respostaMetricas.totalPedidos || 0;
 
         const divTabela = document.getElementById('tabela-metricas-produtos');
         if (divTabela) {
-            if (!resMetricas.itensDetalhados || resMetricas.itensDetalhados.length === 0) {
+            if (!respostaMetricas.itensDetalhados || respostaMetricas.itensDetalhados.length === 0) {
                 divTabela.innerHTML = '<div class="loading-slot">Sem vendas registadas ainda.</div>';
             } else {
                 let html = '<table class="tabela-metricas"><thead><tr><th>Produto</th><th>Qtd</th></tr></thead><tbody>';
-                resMetricas.itensDetalhados.forEach(it => {
-                    html += `<tr><td>${escaparHtml(it.nome)}</td><td><strong>${Number(it.quantidadeVendida)||0} un</strong></td></tr>`;
+                respostaMetricas.itensDetalhados.forEach(item => {
+                    html += `<tr><td>${escaparHtml(item.nome)}</td><td><strong>${Number(item.quantidadeVendida) || 0} un</strong></td></tr>`;
                 });
                 html += '</tbody></table>';
                 divTabela.innerHTML = html;
@@ -949,100 +1052,105 @@ async function carregarPainelCentralAdm() {
     }
 
     // 3. Contas bloqueadas com pedido de liberação
-    const resBloq = await executarRequisicaoAPI("listar_bloqueados_adm", { tokenAdm: estadoSessao.token });
-    const divBloq = document.getElementById('adm-bloqueados-lista');
-    if (divBloq) {
-        divBloq.innerHTML = '';
-        if (resBloq.sucesso && Array.isArray(resBloq.contas) && resBloq.contas.length > 0) {
-            resBloq.contas.forEach(b => {
-                const row = document.createElement('div');
-                row.style.padding = '6px 0';
-                row.innerHTML = `<p style="color:#b91c1c;"><strong>${escaparHtml(b.identificador)}</strong> (${Number(b.erros)||0} falhas)</p>`;
-                const btn = document.createElement('button');
-                btn.className = 'btn btn-primary btn-sm';
-                btn.textContent = 'Liberar Conta';
-                btn.onclick = () => liberarContaUsuarioAdm(b.identificador);
-                row.appendChild(btn);
-                divBloq.appendChild(row);
+    const respostaBloqueados = await executarRequisicaoAPI("listar_bloqueados_adm", { tokenAdm: estadoSessao.token });
+    const divBloqueados = document.getElementById('adm-bloqueados-lista');
+    if (divBloqueados) {
+        divBloqueados.innerHTML = '';
+        if (respostaBloqueados.sucesso && Array.isArray(respostaBloqueados.contas) && respostaBloqueados.contas.length > 0) {
+            respostaBloqueados.contas.forEach(conta => {
+                const linha = document.createElement('div');
+                linha.style.padding = '6px 0';
+                linha.innerHTML = `<p style="color:#b91c1c;"><strong>${escaparHtml(conta.identificador)}</strong> (${Number(conta.erros) || 0} falhas)</p>`;
+
+                const botaoLiberar = document.createElement('button');
+                botaoLiberar.className = 'btn btn-primary btn-sm';
+                botaoLiberar.textContent = 'Liberar Conta';
+                botaoLiberar.onclick = () => liberarContaUsuarioAdm(conta.identificador);
+                linha.appendChild(botaoLiberar);
+
+                divBloqueados.appendChild(linha);
             });
         } else {
-            divBloq.innerHTML = '<div class="loading-slot">Nenhuma conta bloqueada.</div>';
+            divBloqueados.innerHTML = '<div class="loading-slot">Nenhuma conta bloqueada.</div>';
         }
     }
 
     // 4. Comentários recebidos
-    const resComent = await executarRequisicaoAPI("listar_comentarios_adm", { tokenAdm: estadoSessao.token });
-    const divCom = document.getElementById('adm-comentarios-lista');
-    if (divCom) {
-        divCom.innerHTML = '';
-        if (resComent.sucesso && Array.isArray(resComent.comentarios) && resComent.comentarios.length > 0) {
-            resComent.comentarios.forEach(c => {
-                const p = document.createElement('p');
-                p.style.cssText = 'font-size:.8rem;padding:6px 0;border-bottom:1px solid #e2e8f0;';
-                const quando = c.data ? new Date(c.data).toLocaleString() : '';
-                p.innerHTML = `<strong>${escaparHtml(c.nome || 'Anônimo')}</strong> <small style="color:#94a3b8;">${escaparHtml(quando)}</small><br>${escaparHtml(c.texto || '')}`;
-                divCom.appendChild(p);
+    const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm", { tokenAdm: estadoSessao.token });
+    const divComentarios = document.getElementById('adm-comentarios-lista');
+    if (divComentarios) {
+        divComentarios.innerHTML = '';
+        if (respostaComentarios.sucesso && Array.isArray(respostaComentarios.comentarios) && respostaComentarios.comentarios.length > 0) {
+            respostaComentarios.comentarios.forEach(comentario => {
+                const paragrafo = document.createElement('p');
+                paragrafo.style.cssText = 'font-size:.8rem;padding:6px 0;border-bottom:1px solid #e2e8f0;';
+                const dataFormatada = comentario.data ? new Date(comentario.data).toLocaleString() : '';
+                paragrafo.innerHTML = `<strong>${escaparHtml(comentario.nome || 'Anônimo')}</strong> <small style="color:#94a3b8;">${escaparHtml(dataFormatada)}</small><br>${escaparHtml(comentario.texto || '')}`;
+                divComentarios.appendChild(paragrafo);
             });
         } else {
-            divCom.innerHTML = '<div class="loading-slot">Sem mensagens.</div>';
+            divComentarios.innerHTML = '<div class="loading-slot">Sem mensagens.</div>';
         }
     }
 }
 
 async function aprovarMembroAdm(idSolicitacao) {
     mostrarLoader("Aprovando membro...");
-    const res = await executarRequisicaoAPI("aprovar_cadastro", {
+    const resposta = await executarRequisicaoAPI("aprovar_cadastro", {
         tokenAdm: estadoSessao.token,
         idSolicitacao
     });
     esconderLoader();
 
-    if (res.sucesso) {
-        exibirToast(res.mensagem || "Membro aprovado com sucesso!", "success");
+    if (resposta.sucesso) {
+        exibirToast(resposta.mensagem || "Membro aprovado com sucesso!", "success");
         await carregarPainelCentralAdm();
         await consultarPendentesAdm();
     } else {
-        exibirToast(res.mensagem || "Erro ao aprovar membro.", "error");
+        exibirToast(resposta.mensagem || "Erro ao aprovar membro.", "error");
     }
 }
 
-async function liberarContaUsuarioAdm(id) {
-    const res = await executarRequisicaoAPI("liberar_conta_adm", {
-        tokenAdm: estadoSessao.token, identificador: id
+async function liberarContaUsuarioAdm(identificador) {
+    const resposta = await executarRequisicaoAPI("liberar_conta_adm", {
+        tokenAdm: estadoSessao.token,
+        identificador: identificador
     });
-    if (res.sucesso) {
-        exibirToast(res.mensagem || "Conta liberada com sucesso.", "success");
+    if (resposta.sucesso) {
+        exibirToast(resposta.mensagem || "Conta liberada com sucesso.", "success");
         await carregarPainelCentralAdm();
     }
 }
 
 // ─── BADGE E AUTO-REFRESH DO PAINEL ADM ─────────────────────
-function atualizarBadgePendentesAdm(qtd) {
-    const btnAdm = document.getElementById('tab-btn-adm');
-    if (!btnAdm) return;
+function atualizarBadgePendentesAdm(quantidade) {
+    const botaoAdm = document.getElementById('tab-btn-adm');
+    if (!botaoAdm) return;
 
-    const antigo = btnAdm.querySelector('.badge-pendentes');
-    if (antigo) antigo.remove();
+    const badgeAntigo = botaoAdm.querySelector('.badge-pendentes');
+    if (badgeAntigo) badgeAntigo.remove();
 
-    if (qtd > 0) {
-        const span = document.createElement('span');
-        span.className = 'badge-pendentes';
-        span.textContent = qtd;
-        span.style.cssText =
+    if (quantidade > 0) {
+        const badgeSpan = document.createElement('span');
+        badgeSpan.className = 'badge-pendentes';
+        badgeSpan.textContent = quantidade;
+        badgeSpan.style.cssText =
             'display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;' +
             'background:#ef4444;color:#fff;border-radius:999px;font-size:.7rem;' +
             'font-weight:700;text-align:center;line-height:18px;';
-        btnAdm.appendChild(span);
+        botaoAdm.appendChild(badgeSpan);
     }
 }
 
 async function consultarPendentesAdm() {
     if (estadoSessao.papel !== 'adm') return;
     try {
-        const res = await executarRequisicaoAPI("listar_solicitacoes_adm", { tokenAdm: estadoSessao.token });
-        const qtd = (res.sucesso && Array.isArray(res.solicitacoes)) ? res.solicitacoes.length : 0;
-        atualizarBadgePendentesAdm(qtd);
-    } catch { /* silencioso */ }
+        const resposta = await executarRequisicaoAPI("listar_solicitacoes_adm", { tokenAdm: estadoSessao.token });
+        const total = (resposta.sucesso && Array.isArray(resposta.solicitacoes)) ? resposta.solicitacoes.length : 0;
+        atualizarBadgePendentesAdm(total);
+    } catch {
+        /* Silencioso para não incomodar em caso de oscilação momentânea */
+    }
 }
 
 function ligarAutoRefreshAdm() {
@@ -1070,99 +1178,102 @@ function desligarAutoRefreshAdm() {
 // 14. ESTEIRA DE PEDIDOS (ADM)
 // ============================================================================
 async function carregarPedidosAdm() {
-    const cA = document.getElementById('pipe-analise');
-    const cS = document.getElementById('pipe-solicitados');
-    const cV = document.getElementById('pipe-viagem');
-    const cC = document.getElementById('pipe-concluido');
+    const colunaAnalise     = document.getElementById('pipe-analise');
+    const colunaSolicitados = document.getElementById('pipe-solicitados');
+    const colunaViagem      = document.getElementById('pipe-viagem');
+    const colunaConcluido   = document.getElementById('pipe-concluido');
 
-    [cA, cS, cV, cC].forEach(c => { if (c) c.innerHTML = '<div class="loading-slot">…</div>'; });
+    [colunaAnalise, colunaSolicitados, colunaViagem, colunaConcluido].forEach(coluna => {
+        if (coluna) coluna.innerHTML = '<div class="loading-slot">…</div>';
+    });
 
-    const res = await executarRequisicaoAPI("listar_pedidos_adm", { tokenAdm: estadoSessao.token });
-    if (cA) cA.innerHTML = '';
-    if (cS) cS.innerHTML = '';
-    if (cV) cV.innerHTML = '';
-    if (cC) cC.innerHTML = '';
+    const resposta = await executarRequisicaoAPI("listar_pedidos_adm", { tokenAdm: estadoSessao.token });
+    if (colunaAnalise)     colunaAnalise.innerHTML = '';
+    if (colunaSolicitados) colunaSolicitados.innerHTML = '';
+    if (colunaViagem)      colunaViagem.innerHTML = '';
+    if (colunaConcluido)   colunaConcluido.innerHTML = '';
 
-    if (res.sucesso && Array.isArray(res.pedidos)) {
-        res.pedidos.forEach(p => {
-            const div = document.createElement('div');
-            div.style.cssText = 'background:#fff;padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid #cbd5e1;';
+    if (resposta.sucesso && Array.isArray(resposta.pedidos)) {
+        resposta.pedidos.forEach(pedido => {
+            const divCartao = document.createElement('div');
+            divCartao.style.cssText = 'background:#fff;padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid #cbd5e1;';
 
-            div.innerHTML = `
-                <small><strong>${escaparHtml(p.id)}</strong></small><br>
-                <small>${fmtPreco(p.total)}</small><br>
-                <small style="color:#64748b;">Forma: ${escaparHtml(p.metodo || 'PIX')}</small>
+            divCartao.innerHTML = `
+                <small><strong>${escaparHtml(pedido.id)}</strong></small><br>
+                <small>${fmtPreco(pedido.total)}</small><br>
+                <small style="color:#64748b;">Forma: ${escaparHtml(pedido.metodo || 'PIX')}</small>
             `;
 
-            const acoes = document.createElement('div');
-            acoes.style.cssText = 'display:flex;gap:4px;margin-top:6px;';
+            const painelBotoes = document.createElement('div');
+            painelBotoes.style.cssText = 'display:flex;gap:4px;margin-top:6px;';
 
-            // Botão para avançar status
-            if (p.status !== 'concluido') {
-                const btn = document.createElement('button');
-                btn.className = 'btn btn-primary btn-sm';
-                btn.textContent = 'Avançar Fase';
-                btn.onclick = () => avancarStatusAdm(p.id, p.status);
-                acoes.appendChild(btn);
+            if (pedido.status !== 'concluido') {
+                const botaoAvancar = document.createElement('button');
+                botaoAvancar.className = 'btn btn-primary btn-sm';
+                botaoAvancar.textContent = 'Avançar Fase';
+                botaoAvancar.onclick = () => avancarStatusAdm(pedido.id, pedido.status);
+                painelBotoes.appendChild(botaoAvancar);
             }
 
-            // Administrador também pode abrir o chat do pedido
-            const btnChatAdm = document.createElement('button');
-            btnChatAdm.className = 'btn btn-outline-dark btn-sm';
-            btnChatAdm.textContent = '💬';
-            btnChatAdm.title = 'Abrir Chat';
-            btnChatAdm.onclick = () => abrirChatPedido(p.id);
-            acoes.appendChild(btnChatAdm);
+            const botaoChatAdm = document.createElement('button');
+            botaoChatAdm.className = 'btn btn-outline-dark btn-sm';
+            botaoChatAdm.textContent = '💬';
+            botaoChatAdm.title = 'Abrir Chat com o Cliente';
+            botaoChatAdm.onclick = () => abrirChatPedido(pedido.id);
+            painelBotoes.appendChild(botaoChatAdm);
 
-            div.appendChild(acoes);
+            divCartao.appendChild(painelBotoes);
 
-            if (p.status === 'analise' && cA)      cA.appendChild(div);
-            if (p.status === 'solicitados' && cS)  cS.appendChild(div);
-            if (p.status === 'viagem' && cV)       cV.appendChild(div);
-            if (p.status === 'concluido' && cC)    cC.appendChild(div);
+            if (pedido.status === 'analise'     && colunaAnalise)     colunaAnalise.appendChild(divCartao);
+            if (pedido.status === 'solicitados' && colunaSolicitados) colunaSolicitados.appendChild(divCartao);
+            if (pedido.status === 'viagem'      && colunaViagem)      colunaViagem.appendChild(divCartao);
+            if (pedido.status === 'concluido'   && colunaConcluido)   colunaConcluido.appendChild(divCartao);
         });
     }
 
-    [[cA, 'Em análise'], [cS, 'Solicitados'], [cV, 'Em viagem'], [cC, 'Concluídos']].forEach(([col]) => {
-        if (col && !col.children.length) {
-            col.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem pedidos</div>`;
+    [[colunaAnalise, 'Em análise'], [colunaSolicitados, 'Solicitados'], [colunaViagem, 'Em viagem'], [colunaConcluido, 'Concluídos']].forEach(([coluna]) => {
+        if (coluna && !coluna.children.length) {
+            coluna.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem pedidos</div>`;
         }
     });
 }
 
-async function avancarStatusAdm(id, statusAtual) {
-    let prox = 'solicitados';
-    if (statusAtual === 'solicitados') prox = 'viagem';
-    if (statusAtual === 'viagem')      prox = 'concluido';
+async function avancarStatusAdm(idPedido, statusAtual) {
+    let proximoStatus = 'solicitados';
+    if (statusAtual === 'solicitados') proximoStatus = 'viagem';
+    if (statusAtual === 'viagem')      proximoStatus = 'concluido';
 
-    const res = await executarRequisicaoAPI("atualizar_status_pedido", {
-        tokenAdm: estadoSessao.token, idPedido: id, novoStatus: prox
+    const resposta = await executarRequisicaoAPI("atualizar_status_pedido", {
+        tokenAdm: estadoSessao.token,
+        idPedido: idPedido,
+        novoStatus: proximoStatus
     });
 
-    if (res.sucesso) {
+    if (resposta.sucesso) {
         exibirToast("Status do pedido atualizado!", "success");
         await carregarPedidosAdm();
     } else {
-        exibirToast(res.mensagem || "Erro ao atualizar status.", "error");
+        exibirToast(resposta.mensagem || "Erro ao atualizar status.", "error");
     }
 }
 
 // ============================================================================
 // 15. COMENTÁRIOS E DÚVIDAS
 // ============================================================================
-async function tratarEnvioComentario(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    const nome = document.getElementById('campo-comentario-nome').value.trim();
-    const msg  = document.getElementById('campo-comentario').value.trim();
-    if (!msg) return;
+async function tratarEnvioComentario(evento) {
+    if (evento && evento.preventDefault) evento.preventDefault();
 
-    const res = await executarRequisicaoAPI("enviar_comentario", { nome, mensagem: msg });
+    const nome      = document.getElementById('campo-comentario-nome').value.trim();
+    const mensagem  = document.getElementById('campo-comentario').value.trim();
+    if (!mensagem) return;
 
-    if (res.sucesso) {
+    const resposta = await executarRequisicaoAPI("enviar_comentario", { nome, mensagem });
+
+    if (resposta.sucesso) {
         exibirToast("Mensagem enviada com sucesso!", "success");
         document.getElementById('campo-comentario').value = '';
     } else {
-        exibirToast(res.mensagem || "Erro ao enviar mensagem.", "error");
+        exibirToast(resposta.mensagem || "Erro ao enviar mensagem.", "error");
     }
 }
 
@@ -1173,19 +1284,19 @@ async function gerarLinkTemporarioAdm() {
     const minutos = document.getElementById('select-duracao-link').value;
     mostrarLoader("Gerando link com token...");
 
-    const res = await executarRequisicaoAPI("gerar_link_temporario", {
+    const resposta = await executarRequisicaoAPI("gerar_link_temporario", {
         tokenAdm: estadoSessao.token,
         duracaoMinutos: minutos
     });
     esconderLoader();
 
-    if (res.sucesso) {
-        const linkCompleto = `${obterUrlBasePlataforma()}?token=${res.token}`;
+    if (resposta.sucesso) {
+        const linkCompleto = `${obterUrlBasePlataforma()}?token=${resposta.token}`;
         document.getElementById('campo-link-gerado').value = linkCompleto;
         document.getElementById('area-link-gerado').classList.remove('hidden');
         exibirToast("Link temporário gerado com sucesso!", "success");
     } else {
-        exibirToast(res.mensagem || "Falha ao gerar o link.", "error");
+        exibirToast(resposta.mensagem || "Falha ao gerar o link.", "error");
     }
 }
 
@@ -1202,16 +1313,16 @@ function copiarLinkGerado() {
 }
 
 // ============================================================================
-// 17. CADASTRO DE PRODUTO (ADM)
+// 17. CADASTRO DE NOVO PRODUTO (ADM)
 // ============================================================================
-async function tratarCadastroProduto(e) {
-    if (e && e.preventDefault) e.preventDefault();
+async function tratarCadastroProduto(evento) {
+    if (evento && evento.preventDefault) evento.preventDefault();
 
-    const nome      = document.getElementById('adm-prod-nome').value.trim();
-    const preco     = parseFloat(document.getElementById('adm-prod-preco').value);
-    const visib     = document.getElementById('adm-prod-visibilidade').value;
-    const urlFoto   = document.getElementById('adm-prod-foto-url').value.trim();
-    const fotoFinal = fotoBase64Temporaria || urlFoto || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400";
+    const nome         = document.getElementById('adm-prod-nome').value.trim();
+    const preco        = parseFloat(document.getElementById('adm-prod-preco').value);
+    const visibilidade = document.getElementById('adm-prod-visibilidade').value;
+    const urlFoto      = document.getElementById('adm-prod-foto-url').value.trim();
+    const fotoFinal    = fotoBase64Temporaria || urlFoto || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400";
 
     if (!nome || !preco || preco <= 0) {
         return exibirToast("Preencha nome e preço válidos.", "error");
@@ -1220,50 +1331,77 @@ async function tratarCadastroProduto(e) {
     botaoCarregando('btn-salvar-produto', true);
     exibirToast("A guardar produto na planilha...", "info");
 
-    const res = await executarRequisicaoAPI("cadastrar_produto", {
+    const resposta = await executarRequisicaoAPI("cadastrar_produto", {
         tokenAdm: estadoSessao.token,
-        produto: { nome, preco, foto: fotoFinal, visibilidade: visib }
+        produto: { nome, preco, foto: fotoFinal, visibilidade }
     });
 
     botaoCarregando('btn-salvar-produto', false);
 
-    if (res.sucesso) {
+    if (resposta.sucesso) {
         exibirToast("Produto adicionado ao catálogo!", "success");
         document.getElementById('form-novo-produto').reset();
         removerFotoCarregada();
         await sincronizarProdutosServidor();
     } else {
-        exibirToast(res.mensagem || "Erro ao salvar produto.", "error");
+        exibirToast(resposta.mensagem || "Erro ao salvar produto.", "error");
     }
 }
 
 // ============================================================================
-// 18. MODAIS, DIÁLOGOS DE CONFIRMAÇÃO E NOTIFICAÇÕES
+// 18. MODAIS, DIÁLOGOS DE CONFIRMAÇÃO E INTEGRAÇÃO GLOBAL COM BINDINGS.JS
 // ============================================================================
-function abrirModal(id) {
-    const m = document.getElementById(id);
-    if (m) m.classList.add('active');
+function abrirModal(idModal) {
+    const modal = document.getElementById(idModal);
+    if (modal) modal.classList.add('active');
 }
 
-function fecharModal(id) {
-    const m = document.getElementById(id);
-    if (m) m.classList.remove('active');
-    if (id === 'modal-chat') pararAutoRefreshChat();
+function fecharModal(idModal) {
+    const modal = document.getElementById(idModal);
+    if (modal) modal.classList.remove('active');
+    if (idModal === 'modal-chat') pararAutoRefreshChat();
 }
 
 let _callbackConfirmacao = null;
-function abrirConfirmacao(titulo, mensagem, callback) {
-    const tit = document.getElementById('confirmar-titulo');
-    const msg = document.getElementById('confirmar-mensagem');
-    if (tit) tit.textContent = titulo;
-    if (msg) {
-        if (mensagem.startsWith('<div')) {
-            msg.innerHTML = mensagem;
+
+function abrirConfirmacao(titulo, mensagemTextoOuHtml, callbackAcao) {
+    const elementoTitulo = document.getElementById('confirmar-titulo');
+    const elementoMensagem = document.getElementById('confirmar-mensagem');
+
+    if (elementoTitulo) elementoTitulo.textContent = titulo;
+    if (elementoMensagem) {
+        if (typeof mensagemTextoOuHtml === 'string' && mensagemTextoOuHtml.startsWith('<div')) {
+            elementoMensagem.innerHTML = mensagemTextoOuHtml;
         } else {
-            msg.textContent = mensagem;
+            elementoMensagem.textContent = mensagemTextoOuHtml;
         }
     }
-    _callbackConfirmacao = callback;
+
+    _callbackConfirmacao = callbackAcao;
+
+    const btnOk = document.getElementById('confirmar-btn-ok');
+    if (btnOk) {
+        btnOk.onclick = () => {
+            fecharConfirmacao();
+            if (typeof _callbackConfirmacao === 'function') _callbackConfirmacao();
+        };
+    }
+
+    abrirModal('modal-confirmar');
+}
+
+/** Permite passar um nó HTML estruturado sem uso de innerHTML arriscado */
+function abrirConfirmacaoElemento(titulo, elementoDom, callbackAcao) {
+    const elementoTitulo = document.getElementById('confirmar-titulo');
+    const elementoMensagem = document.getElementById('confirmar-mensagem');
+
+    if (elementoTitulo) elementoTitulo.textContent = titulo;
+    if (elementoMensagem) {
+        elementoMensagem.innerHTML = '';
+        elementoMensagem.appendChild(elementoDom);
+    }
+
+    _callbackConfirmacao = callbackAcao;
 
     const btnOk = document.getElementById('confirmar-btn-ok');
     if (btnOk) {
@@ -1281,31 +1419,51 @@ function fecharConfirmacao() {
     _callbackConfirmacao = null;
 }
 
-// Aliases para máxima compatibilidade com bindings.js:
-window.abrirConfirmacao  = abrirConfirmacao;
-window.exibirConfirmacao = abrirConfirmacao;
-window.fecharConfirmacao = fecharConfirmacao;
-window.abrirModal        = abrirModal;
-window.fecharModal       = fecharModal;
-window.enviarMensagemChat= enviarMensagemChat;
-window.aplicarFiltroVitrine = aplicarFiltroVitrine;
-
-function exibirToast(msg, tipo = 'info') {
-    const cont = document.getElementById('toast-container');
-    if (!cont) return;
-    const t = document.createElement('div');
-    t.className = `toast toast-${tipo}`;
-    t.textContent = msg;
-    cont.appendChild(t);
-    setTimeout(() => t.remove(), 3500);
+function exibirToast(mensagem, tipo = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${tipo}`;
+    toast.textContent = mensagem;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 3500);
 }
 
 // Fechamento de modais ao clicar no fundo escuro
-document.querySelectorAll('.modal-overlay').forEach(ov => {
-    ov.addEventListener('click', e => {
-        if (e.target === ov) {
-            ov.classList.remove('active');
-            if (ov.id === 'modal-chat') pararAutoRefreshChat();
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', evento => {
+        if (evento.target === overlay) {
+            overlay.classList.remove('active');
+            if (overlay.id === 'modal-chat') pararAutoRefreshChat();
         }
     });
 });
+
+// ============================================================================
+// EXPORTAÇÃO GLOBAL DE ALIASES (GARANTE LIGAÇÃO COM O BINDINGS.JS)
+// ============================================================================
+window.abrirModal                 = abrirModal;
+window.fecharModal                = fecharModal;
+window.abrirConfirmacao           = abrirConfirmacao;
+window.exibirConfirmacao          = abrirConfirmacao;
+window.fecharConfirmacao          = fecharConfirmacao;
+window.confirmarLogout            = confirmarLogout;
+window.executarLogout             = executarLogout;
+window.enviarPedidoDesbloqueio    = enviarPedidoDesbloqueio;
+window.navegarPara                = navegarPara;
+window.tratarCriacaoPedido        = tratarCriacaoPedido;
+window.removerFotoCarregada       = removerFotoCarregada;
+window.gerarLinkTemporarioAdm     = gerarLinkTemporarioAdm;
+window.copiarLinkGerado           = copiarLinkGerado;
+window.carregarPainelCentralAdm   = carregarPainelCentralAdm;
+window.enviarMensagemChat         = enviarMensagemChat;
+window.tratarEnvioMensagemChat    = enviarMensagemChat;
+window.abrirChatPedido            = abrirChatPedido;
+window.tratarEnvioComentario      = tratarEnvioComentario;
+window.tratarSolicitacaoCadastro  = tratarSolicitacaoCadastro;
+window.tratarLogin                = tratarLogin;
+window.tratarCadastroProduto      = tratarCadastroProduto;
+window.aplicarFiltroVitrine       = aplicarFiltroVitrine;
+window.filtrarVitrineEmTempoReal  = aplicarFiltroVitrine;
+window.processarUploadImagem      = processarUploadImagem;
+window.copiarPixCopiaECola        = copiarPixCopiaECola;
