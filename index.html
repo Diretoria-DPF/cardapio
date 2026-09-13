@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<!-- Início da declaração do documento HTML5 -->
+<html lang="pt-BR">
+<head>
+    <!-- Metadados essenciais de codificação e escala para celulares -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma Comercial Exclusiva</title>
+    <!-- Importação da folha de estilos personalizada -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- CABEÇALHO DO SISTEMA -->
+    <header class="app-header">
+        <!-- Título principal da plataforma -->
+        <h1 class="logo">LojaSegura</h1>
+        
+        <!-- Indicador de perfil atual do usuário -->
+        <div class="user-status-container">
+            <span id="role-badge" class="badge badge-visitor">Visitante</span>
+            <button id="btn-login-toggle" class="btn-secondary" onclick="alternarTelaLogin()">Acessar Conta</button>
+        </div>
+    </header>
+
+    <!-- CONTAINER DE NAVEGAÇÃO ENTRE TELAS -->
+    <nav class="app-nav">
+        <button class="nav-tab active" onclick="trocarAba('vitrine')">Vitrine</button>
+        <button class="nav-tab" id="tab-carrinho" onclick="trocarAba('carrinho')" style="display: none;">Carrinho (<span id="cart-count">0</span>)</button>
+        <button class="nav-tab" id="tab-pedidos" onclick="trocarAba('pedidos')" style="display: none;">Meus Pedidos</button>
+        <button class="nav-tab" id="tab-adm" onclick="trocarAba('adm')" style="display: none;">Painel ADM</button>
+    </nav>
+
+    <!-- CONTEÚDO PRINCIPAL (ÁREA DINÂMICA) -->
+    <main class="app-container">
+
+        <!-- ============================================== -->
+        <!-- SEÇÃO 1: VITRINE DE PRODUTOS (Pública e Membros) -->
+        <!-- ============================================== -->
+        <section id="view-vitrine" class="view-section active">
+            <h2>Vitrine de Produtos</h2>
+            <p class="subtitle">Confira os produtos disponíveis para o seu nível de acesso.</p>
+            
+            <!-- Grade onde os cards dos produtos serão injetados via JavaScript -->
+            <div id="produtos-grid" class="cards-grid">
+                <!-- Conteúdo gerado dinamicamente -->
+            </div>
+
+            <!-- Bloco de Comentários / Mensagens (Apenas texto seguro) -->
+            <div class="comment-box">
+                <h3>Envie uma mensagem / comentário</h3>
+                <p>Suas mensagens serão lidas exclusivamente pela administração.</p>
+                <form id="form-comentario" onsubmit="enviarComentario(event)">
+                    <textarea id="texto-comentario" placeholder="Escreva aqui seu comentário seguro..." required maxlength="500"></textarea>
+                    <button type="submit" class="btn-primary">Enviar Comentário</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- SEÇÃO 2: CARRINHO E CHECKOUT (Apenas Membros)  -->
+        <!-- ============================================== -->
+        <section id="view-carrinho" class="view-section">
+            <h2>Cesta de Compras</h2>
+            <div id="itens-carrinho" class="cart-items-list">
+                <!-- Itens adicionados aparecerão aqui -->
+            </div>
+            
+            <!-- Resumo Financeiro -->
+            <div class="cart-summary">
+                <p>Total do Pedido: <strong id="cart-total">R$ 0,00</strong></p>
+                
+                <!-- Métodos de Pagamento Seguros -->
+                <div class="payment-methods">
+                    <label>Selecione a Forma de Pagamento:</label>
+                    <select id="select-pagamento">
+                        <option value="PIX">PIX (Confirmação Imediata)</option>
+                        <option value="CARTAO">Cartão de Crédito</option>
+                        <option value="BTC">Criptomoeda - Bitcoin (BTC)</option>
+                        <option value="ETH">Criptomoeda - Ethereum (ETH)</option>
+                        <option value="USDT">Criptomoeda - Tether (USD)</option>
+                    </select>
+                </div>
+
+                <button class="btn-success" onclick="finalizarPedido()">Gerar Pedido e Pagamento</button>
+            </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- SEÇÃO 3: MEUS PEDIDOS E CHAT DE ENTREGA       -->
+        <!-- ============================================== -->
+        <section id="view-pedidos" class="view-section">
+            <h2>Acompanhamento de Entregas</h2>
+            <div id="lista-pedidos-usuario">
+                <!-- Pedidos e links de entrega gerados aparecerão aqui -->
+            </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- SEÇÃO 4: PAINEL ADMINISTRATIVO (Apenas ADM)    -->
+        <!-- ============================================== -->
+        <section id="view-adm" class="view-section">
+            <h2>Painel de Controle Central</h2>
+            
+            <!-- Sub-Aba: Aprovação de Membros -->
+            <div class="adm-block">
+                <h3>Solicitações de Cadastro Pendentes</h3>
+                <div id="adm-cadastros-lista">
+                    <!-- Cadastros para aprovar -->
+                </div>
+            </div>
+
+            <!-- Sub-Aba: Gerenciamento de Produtos -->
+            <div class="adm-block">
+                <h3>Cadastrar Novo Produto</h3>
+                <form id="form-novo-produto" onsubmit="cadastrarProduto(event)">
+                    <input type="text" id="novo-prod-nome" placeholder="Nome do Produto" required>
+                    <input type="number" id="novo-prod-preco" placeholder="Preço (R$)" step="0.01" required>
+                    <input type="text" id="novo-prod-foto" placeholder="URL da Foto do Produto" required>
+                    <select id="novo-prod-visibilidade">
+                        <option value="publico">Público (Visitantes e Membros)</option>
+                        <option value="registrado">Registrado (Apenas Membros)</option>
+                    </select>
+                    <button type="submit" class="btn-primary">Publicar na Vitrine</button>
+                </form>
+            </div>
+
+            <!-- Sub-Aba: Acompanhamento Geral de Pedidos -->
+            <div class="adm-block">
+                <h3>Pipeline de Pedidos da Plataforma</h3>
+                <div class="pipeline-container">
+                    <div class="pipeline-col"><h4>Em Análise</h4><div id="col-analise"></div></div>
+                    <div class="pipeline-col"><h4>Solicitados</h4><div id="col-solicitados"></div></div>
+                    <div class="pipeline-col"><h4>Em Viagem</h4><div id="col-viagem"></div></div>
+                    <div class="pipeline-col"><h4>Concluído</h4><div id="col-concluido"></div></div>
+                </div>
+            </div>
+
+            <!-- Sub-Aba: Comentários Recebidos -->
+            <div class="adm-block">
+                <h3>Mensagens de Usuários</h3>
+                <div id="adm-comentarios-lista"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ============================================== -->
+    <!-- MODAL DE CADASTRO / LOGIN / TERMOS DE USO      -->
+    <!-- ============================================== -->
+    <div id="modal-auth" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="fecharModalAuth()">&times;</span>
+            <div id="auth-forms">
+                <h3>Solicitar Cadastro de Membro</h3>
+                <p>Preencha seus dados para análise da moderação.</p>
+                <form id="form-registro" onsubmit="registrarUsuario(event)">
+                    <input type="text" id="reg-nome" placeholder="Nome de Exibição" required>
+                    <input type="tel" id="reg-numero" placeholder="Número de Telefone / WhatsApp" required>
+                    <input type="text" id="reg-twitter" placeholder="Twitter / X (@usuario)">
+                    <input type="text" id="reg-telegram" placeholder="Telegram (@usuario)">
+                    
+                    <!-- Termos de Política e Privacidade -->
+                    <div class="termos-box">
+                        <input type="checkbox" id="reg-termos" required>
+                        <label for="reg-termos">
+                            Declaro ciência e concordo com a coleta das informações acima apenas para funcionamento da plataforma. Declaro total responsabilidade pela veracidade dos dados inseridos, isentando a plataforma de qualquer responsabilidade sobre o conteúdo cadastrado. Posso solicitar exclusão ao encerrar minha conta.
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn-primary">Enviar Solicitação</button>
+                </form>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+                
+                <!-- Acesso Administrativo Direto -->
+                <h4>Acesso com Chave / Token (Membros e ADM)</h4>
+                <form id="form-token-login" onsubmit="acessarComToken(event)">
+                    <input type="password" id="login-token" placeholder="Insira seu Token ou Senha ADM" required>
+                    <button type="submit" class="btn-secondary">Autenticar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script principal de lógica -->
+    <script src="app.js"></script>
+</body>
+</html>
