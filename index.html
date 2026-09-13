@@ -88,8 +88,8 @@
                 <button type="button" class="btn btn-primary" data-action="abrir-modal" data-modal="modal-cadastro">
                     Solicitar Cadastro de Membro
                 </button>
-                <p style="font-size: 0.8rem; color: #64748b; margin-top: 10px;">
-                    Já possui autorização do Administrador? Utilize o link completo fornecido por ele.
+                <p class="lock-hint">
+    Já possui autorização do Administrador? Utilize o link completo fornecido por ele.
                 </p>
             </div>
         </div>
@@ -249,8 +249,8 @@
                 </select>
 
                 <!-- Campo que surge apenas se escolher 'Personalizado' -->
-                <input type="number" id="input-duracao-personalizada" class="hidden"
-                       placeholder="Minutos (ex: 45)" min="1" max="10080" style="max-width: 140px; margin-bottom: 0;">
+               <input type="number" id="input-duracao-personalizada" class="hidden input-inline"
+       placeholder="Minutos (ex: 45)" min="1" max="10080">
 
                 <button type="button" class="btn btn-primary" data-action="gerar-link">
                     Gerar Link
@@ -340,7 +340,7 @@
             </div>
 
             <div id="adm-editor-faq-area" class="adm-faq-editor hidden">
-                <hr style="margin: 15px 0; border: none; border-top: 1px dashed #cbd5e1;">
+                <hr class="adm-editor-hr">
                 <h4>⚙️ Gestão de Dúvidas Rápidas (Apenas ADM)</h4>
                 <form id="form-novo-faq" data-action="adicionar-faq">
                     <div class="form-group">
@@ -451,7 +451,7 @@
         <div class="modal-body">
             <h3 id="confirmar-titulo">Confirmar</h3>
             <div id="confirmar-mensagem">Tem certeza?</div>
-            <div class="modal-actions" style="margin-top: 15px;">
+            <div class="modal-actions">
                 <button type="button" class="btn btn-outline-dark" data-action="fechar-confirmacao">Fechar</button>
                 <button type="button" class="btn btn-danger" id="confirmar-btn-ok">Confirmar</button>
             </div>
