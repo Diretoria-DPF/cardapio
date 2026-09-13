@@ -1,21 +1,74 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v6 Definitiva e Consolidada)
+   app.js — Plataforma Comercial Segura (v9 — FRONTEND ALINHADO COM BACKEND)
    ============================================================================
-   RECURSOS CONSOLIDADOS:
-     • Acesso restrito: vitrine só abre com link temporário do ADM ou login ADM.
-     • Temporizador 100% invisível em background (sem ansiedade para o cliente).
-     • Limpeza total (purge): apaga cookies, localStorage e tranca a tela ao expirar.
-     • Emissão de links com 10, 15, 30 min ou tempo personalizado (ADM).
-     • Vitrine limpa: visibilidade controlada exclusivamente pelo Administrador.
-     • Central de Dúvidas e Sugestões privada para membros e editável pelo ADM.
-     • Pagamentos integrados (QR Code PIX dinâmico, Criptomoedas e Cartão).
-     • Chat temporário por pedido com atualização a cada 5s.
-     • Auto-refresh e badge no Painel ADM a cada 20s.
-     • Total conformidade com CSP e bindings.js. 
+   CORREÇÕES DESTA VERSÃO:
+     • executarRequisicaoAPI() envia { acao, payload, ts, fingerprint, hmac, token }
+       → formato exigido pelo code.gs (FASE 1)
+     • Fingerprint do dispositivo gerado e preservado em todas as operações
+     • HMAC-SHA256 assinado a cada requisição autenticada
+     • Auto-refresh: renova access token (15min) via refresh token (7 dias)
+     • Logout preserva o fingerprint (para rate-limit funcionar)
+     • Removida duplicação de window.executarLogout
+     • TODAS as funções originais preservadas — nada foi removido
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
-const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbw3a-97OX8Vz35xJsaKqrpps6H9yXROTCIcWykpwVlAiJP2gqDTK7sa2CyoQ8D0TgaK/exec";
+const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbyXUcaPSpe5nXhicDVcZlq7Lm_KF7sp63y6VrPychDsfF7ffsrSVGaSBriV5DSWn6rQ/exec";
+
+// ============================================================================
+// 0. FASE 1 — FINGERPRINT, HMAC E REFRESH
+// ============================================================================
+
+/** Gera fingerprint estável do dispositivo (hash simples). */
+function gerarFingerprint() {
+    let fp = localStorage.getItem('plataforma_fingerprint');
+    if (fp) return fp;
+
+    const dados = [
+        navigator.userAgent || '',
+        navigator.language || '',
+        screen.width + 'x' + screen.height,
+        new Date().getTimezoneOffset(),
+        navigator.hardwareConcurrency || 0
+    ].join('|');
+
+    let hash = 0;
+    for (let i = 0; i < dados.length; i++) {
+        hash = ((hash << 5) - hash) + dados.charCodeAt(i);
+        hash |= 0;
+    }
+    fp = 'fp_' + Math.abs(hash).toString(36);
+    try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {}
+    return fp;
+}
+
+const FINGERPRINT = gerarFingerprint();
+
+/** Assina o corpo da requisição com HMAC-SHA256 usando a hmacKey da sessão. */
+async function assinarHmac(acao, payload, ts) {
+    const hmacKey = sessionStorage.getItem('plataforma_hmac_key');
+    if (!hmacKey) return null;
+
+    const bodyAssinado = JSON.stringify({ acao, payload, ts });
+    const enc = new TextEncoder();
+
+    try {
+        const key = await crypto.subtle.importKey(
+            'raw',
+            enc.encode(hmacKey),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['sign']
+        );
+        const assinatura = await crypto.subtle.sign('HMAC', key, enc.encode(bodyAssinado));
+        return [...new Uint8Array(assinatura)]
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+    } catch (e) {
+        console.warn('[HMAC] Falha ao assinar:', e);
+        return null;
+    }
+}
 
 // ============================================================================
 // 1. FUNÇÕES AUXILIARES (HELPERS)
@@ -84,7 +137,7 @@ const CacheLoja = {
 // 3. ESTADO GLOBAL DA APLICAÇÃO
 // ============================================================================
 const estadoSessao = {
-    papel: 'visitante',          // 'visitante' | 'membro' | 'entregador' | 'adm'
+    papel: 'visitante',
     token: null,
     nomeUsuario: 'Visitante'
 };
@@ -96,24 +149,21 @@ let fotoBase64Temporaria = "";
 let identificadorEmTentativa = "";
 let pedidoChatAberto = null;
 
-// Controle de acesso exclusivo por link
 let _linkAutorizadoValido = false;
 
-// Timers de segundo plano
 let _timerSilencioso = null;
 let _segundosRestantesLink = 0;
 let _timerPainelAdm = null;
 let _timerChat = null;
 
 // ============================================================================
-// 4. INICIALIZAÇÃO, REDE BLINDADA E ACESSO EXCLUSIVO
+// 4. INICIALIZAÇÃO
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     restaurarSessaoLocal();
     await verificarTokenUrl();
     atualizarInterfaceSessao();
 
-    // Se estiver liberado (via link ou login de ADM), carrega os produtos
     if (_linkAutorizadoValido || estadoSessao.papel === 'adm') {
         const produtosEmCache = CacheLoja.obter('produtos_' + estadoSessao.papel);
         if (produtosEmCache && produtosEmCache.length > 0) {
@@ -136,14 +186,11 @@ async function verificarTokenUrl() {
     const params = new URLSearchParams(window.location.search);
     const tokenAcesso = params.get('token');
 
-    // Se não há token na URL:
     if (!tokenAcesso) {
-        // Se for o ADM já logado, tem passe livre
         if (estadoSessao.papel === 'adm') {
             _linkAutorizadoValido = true;
             return;
         }
-        // Caso contrário, bloqueia a loja
         _linkAutorizadoValido = false;
         return;
     }
@@ -156,9 +203,9 @@ async function verificarTokenUrl() {
 
         if (res.valido) {
             _linkAutorizadoValido = true;
-            estadoSessao.token = tokenAcesso;
+            // Salva o token do link SEPARADAMENTE (não substitui o token de sessão)
+            sessionStorage.setItem('plataforma_link_token', tokenAcesso);
 
-            // Inicia a contagem regressiva 100% silenciosa nos bastidores
             const segundos = res.segundosRestantes || (15 * 60);
             iniciarTemporizadorSilencioso(segundos);
         } else {
@@ -174,9 +221,6 @@ async function verificarTokenUrl() {
     }
 }
 
-/**
- * Temporizador totalmente invisível (sem relógio na tela)
- */
 function iniciarTemporizadorSilencioso(segundosTotais) {
     pararTemporizadorSilencioso();
     _segundosRestantesLink = segundosTotais;
@@ -201,13 +245,16 @@ function pararTemporizadorSilencioso() {
 
 /**
  * Limpeza Completa (Purge): apaga cookies, storage e tranca a tela
+ * Preserva o fingerprint do dispositivo.
  */
 function executarLimpezaTotalESaida(silencioso = false) {
     pararTemporizadorSilencioso();
     pararAutoRefreshChat();
     desligarAutoRefreshAdm();
 
-    // 1. Limpa todas as memórias locais
+    // Preserva o fingerprint antes de limpar
+    const fp = localStorage.getItem('plataforma_fingerprint');
+
     try {
         localStorage.clear();
         sessionStorage.clear();
@@ -215,19 +262,18 @@ function executarLimpezaTotalESaida(silencioso = false) {
         console.warn("Storage limpo:", e);
     }
 
-    // 2. Elimina todos os cookies do domínio
+    if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {} }
+
     document.cookie.split(";").forEach(c => {
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
 
-    // 3. Reinicia variáveis de estado
     estadoSessao.papel = 'visitante';
     estadoSessao.token = null;
     estadoSessao.nomeUsuario = 'Visitante';
     cestaCompras = [];
     _linkAutorizadoValido = false;
 
-    // 4. Remove o parâmetro ?token=... da barra de endereços
     const urlLimpa = window.location.origin + window.location.pathname;
     window.history.replaceState({}, document.title, urlLimpa);
 
@@ -235,13 +281,10 @@ function executarLimpezaTotalESaida(silencioso = false) {
         exibirToast("Sessão finalizada. Todos os dados foram reiniciados.", "info");
     }
 
-    // Atualiza a tela: tranca na tela de bloqueio
     atualizarInterfaceSessao();
 }
 
-/**
- * Comunicação fetch com timeout, redirects e modo CORS
- */
+/** Fetch com timeout, redirects e modo CORS. */
 async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
     const controladorAborto = new AbortController();
     const temporizador = setTimeout(() => controladorAborto.abort(), limiteTempoMs);
@@ -261,24 +304,74 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
     }
 }
 
-async function executarRequisicaoAPI(acao, dadosExtras = {}) {
+/**
+ * [CORRIGIDO] Requisição API no formato exigido pelo code.gs (FASE 1):
+ *   { acao, payload, ts, fingerprint, hmac, token }
+ *
+ * • ts           → timestamp atual (anti-replay)
+ * • fingerprint  → identidade do dispositivo (rate-limit)
+ * • hmac         → assinatura HMAC-SHA256 (se houver sessão)
+ * • token        → access token (se houver sessão)
+ *
+ * Auto-refresh: se o backend devolver SESSION_EXPIRED, tenta renovar
+ * com o refresh token. Se falhar, faz logout.
+ */
+async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
     try {
-        const corpoEnvio = JSON.stringify({ acao, ...dadosExtras });
+        const ts = Date.now();
+        const payload = dadosExtras;
+
+        const corpo = {
+            acao,
+            payload,
+            ts,
+            fingerprint: FINGERPRINT
+        };
+
+        // Anexa token + HMAC se houver sessão
+        if (estadoSessao.token) {
+            corpo.token = estadoSessao.token;
+            try {
+                const hmac = await assinarHmac(acao, payload, ts);
+                if (hmac) corpo.hmac = hmac;
+            } catch (e) {
+                console.warn('[HMAC] Não foi possível assinar:', e);
+            }
+        }
 
         const resposta = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 25000, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: corpoEnvio
+            body: JSON.stringify(corpo)
         });
 
         const textoResposta = await resposta.text();
-
+        let json;
         try {
-            return JSON.parse(textoResposta);
+            json = JSON.parse(textoResposta);
         } catch (erroParse) {
-            console.error("[API] Resposta não-JSON:", textoResposta);
+            console.error("[API] Resposta não-JSON:", textoResposta.substring(0, 300));
             return { sucesso: false, mensagem: "Resposta inesperada do servidor." };
         }
+
+        // ─── Auto-refresh: access token expirou ─────────────────
+        if (!json.sucesso && json.codigo === 'SESSION_EXPIRED' && tentarRefresh) {
+            const rt = sessionStorage.getItem('plataforma_refresh_token');
+            if (rt) {
+                console.log('[Sessão] Access expirou. Renovando...');
+                const ok = await tentarRenovarSessao(rt);
+                if (ok) {
+                    // Retenta a requisição original com o novo token
+                    return executarRequisicaoAPI(acao, dadosExtras, false);
+                }
+                exibirToast("Sua sessão expirou. Faça login novamente.", "error");
+                executarLogout();
+                return { sucesso: false, mensagem: "Sessão expirada." };
+            }
+        }
+
+        return json;
+
     } catch (erroRede) {
         console.error("[API] Falha de comunicação:", erroRede);
         const semInternet = !navigator.onLine;
@@ -287,6 +380,35 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}) {
             "error"
         );
         return { sucesso: false, mensagem: erroRede.toString() };
+    }
+}
+
+/** Renova o access token usando o refresh token. */
+async function tentarRenovarSessao(refreshToken) {
+    try {
+        const resposta = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 15000, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                acao: 'refresh',
+                payload: { refreshToken },
+                ts: Date.now(),
+                fingerprint: FINGERPRINT
+            })
+        });
+        const json = await resposta.json();
+
+        if (json.sucesso && json.token) {
+            estadoSessao.token = json.token;
+            sessionStorage.setItem('plataforma_hmac_key', json.hmacKey);
+            localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
+            console.log('[Sessão] Renovada com sucesso.');
+            return true;
+        }
+        return false;
+    } catch (e) {
+        console.error('[Refresh] Falha:', e);
+        return false;
     }
 }
 
@@ -369,6 +491,9 @@ async function sincronizarProdutosServidor() {
     let url = `${URL_BACKEND_APPS_SCRIPT}?acao=listar_produtos`;
     if (estadoSessao.token) {
         url += `&token=${encodeURIComponent(estadoSessao.token)}`;
+    } else {
+        const linkToken = sessionStorage.getItem('plataforma_link_token');
+        if (linkToken) url += `&token=${encodeURIComponent(linkToken)}`;
     }
 
     try {
@@ -434,16 +559,13 @@ function renderizarVitrine() {
 
         body.append(t, pr);
 
-        // 1. Membros e Entregadores têm acesso à compra (SEM RÓTULOS DE PÚBLICO/MEMBRO)
         if (estadoSessao.papel === 'membro' || estadoSessao.papel === 'entregador') {
             const btn = document.createElement('button');
             btn.className = 'btn btn-primary btn-block';
             btn.textContent = 'Adicionar à Cesta';
             btn.onclick = () => adicionarAoCarrinho(p);
             body.appendChild(btn);
-        }
-        // 2. Administrador: Vê o CONTROLE DE VISIBILIDADE dinâmico
-        else if (estadoSessao.papel === 'adm') {
+        } else if (estadoSessao.papel === 'adm') {
             const painelAdm = document.createElement('div');
             painelAdm.className = 'adm-visib-controls';
 
@@ -462,9 +584,7 @@ function renderizarVitrine() {
 
             painelAdm.append(tag, selectVisib);
             body.appendChild(painelAdm);
-        }
-        // 3. Visitante com link ativo: Vê nota discreta (SEM rótulos de público/membro)
-        else {
+        } else {
             const aviso = document.createElement('small');
             aviso.className = 'visitor-note';
             aviso.textContent = 'Cadastre-se para comprar.';
@@ -480,7 +600,6 @@ function renderizarVitrine() {
 async function alterarVisibilidadeProdutoAdm(idProduto, novaVisib) {
     mostrarLoader("Alterando visibilidade...");
     const res = await executarRequisicaoAPI("alterar_visibilidade_produto", {
-        tokenAdm: estadoSessao.token,
         idProduto: idProduto,
         novaVisibilidade: novaVisib
     });
@@ -522,7 +641,6 @@ function carregarFaqMemoria() {
 carregarFaqMemoria();
 
 function abrirCentralDuvidas() {
-    // Apenas Membros e ADM têm acesso às dúvidas e sugestões
     if (estadoSessao.papel === 'visitante') {
         exibirToast("A Central de Dúvidas e Sugestões é exclusiva para membros.", "info");
         abrirModal('modal-login');
@@ -561,7 +679,6 @@ function renderizarListaFaq() {
         resposta.className = 'faq-answer';
         resposta.textContent = item.resposta;
 
-        // Se for ADM, dá a opção de excluir a pergunta
         if (estadoSessao.papel === 'adm') {
             const btnExcluir = document.createElement('button');
             btnExcluir.className = 'btn btn-danger-outline btn-sm';
@@ -671,7 +788,6 @@ async function tratarLogin(evento) {
     identificadorEmTentativa = usuario;
 
     botaoCarregando('btn-entrar', true);
-    exibirToast("A autenticar...", "info");
 
     const resposta = await executarRequisicaoAPI("login", { identificador: usuario, senha });
 
@@ -682,7 +798,10 @@ async function tratarLogin(evento) {
         estadoSessao.token       = resposta.token;
         estadoSessao.nomeUsuario = resposta.nome;
 
-        // Se for o Administrador, ele tem passe livre permanente
+        // Guarda refresh token + hmacKey da sessão
+        if (resposta.refreshToken) sessionStorage.setItem('plataforma_refresh_token', resposta.refreshToken);
+        if (resposta.hmacKey)      sessionStorage.setItem('plataforma_hmac_key', resposta.hmacKey);
+
         if (resposta.papel === 'adm') {
             _linkAutorizadoValido = true;
         }
@@ -719,19 +838,11 @@ function confirmarLogout() {
 }
 
 /**
- * LOGOUT COMPLETO:
- *   1. Invalida o link temporário no servidor (se houver um na URL).
- *   2. Limpa sessão, cookies, cache local e todos os timers.
- *   3. Remove o ?token= da URL.
- *   4. Recarrega a página → mostra a tela de bloqueio 🔒.
- *      O usuário PRECISA de um novo link para voltar.
+ * LOGOUT: invalida link no servidor, limpa tudo, preserva fingerprint.
  */
 async function executarLogout() {
-    // ─── 1. Captura o token do link ANTES de qualquer limpeza ──
-    const params = new URLSearchParams(window.location.search);
-    const tokenLink = params.get('token');
+    const tokenLink = sessionStorage.getItem('plataforma_link_token');
 
-    // ─── 2. Invalida no servidor + feedback visual ─────────────
     if (tokenLink) {
         mostrarLoader("Encerrando sessão e revogando link...");
         try {
@@ -743,12 +854,13 @@ async function executarLogout() {
         mostrarLoader("Encerrando sessão...");
     }
 
-    // ─── 3. Para TODOS os timers em segundo plano ──────────────
     pararTemporizadorSilencioso();
     pararAutoRefreshChat();
     desligarAutoRefreshAdm();
 
-    // ─── 4. Limpa storages locais ──────────────────────────────
+    // Preserva o fingerprint
+    const fp = localStorage.getItem('plataforma_fingerprint');
+
     try {
         localStorage.clear();
         sessionStorage.clear();
@@ -756,7 +868,8 @@ async function executarLogout() {
         console.warn("[Logout] Erro ao limpar storage:", erro);
     }
 
-    // ─── 5. Elimina cookies do domínio ─────────────────────────
+    if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {} }
+
     try {
         document.cookie.split(";").forEach(c => {
             document.cookie = c.replace(/^ +/, "")
@@ -766,7 +879,6 @@ async function executarLogout() {
         console.warn("[Logout] Erro ao limpar cookies:", erro);
     }
 
-    // ─── 6. Reinicia variáveis de estado ───────────────────────
     estadoSessao.papel       = 'visitante';
     estadoSessao.token       = null;
     estadoSessao.nomeUsuario = 'Visitante';
@@ -775,15 +887,10 @@ async function executarLogout() {
     catalogoFiltrado         = [];
     _linkAutorizadoValido    = false;
 
-    // ─── 7. Remove ?token=... da barra de endereços ────────────
     const urlLimpa = window.location.origin + window.location.pathname;
     window.history.replaceState({}, document.title, urlLimpa);
 
     esconderLoader();
-
-    // ─── 8. Recarrega do zero → cai na tela de bloqueio ────────
-    //   Usa replace() para o usuário não conseguir voltar com "Back"
-    //   e reencontrar o token antigo.
     window.location.replace(urlLimpa);
 }
 
@@ -834,31 +941,22 @@ function atualizarInterfaceSessao() {
     [tabCarrinho, tabMeusPedidos, tabNovoProduto, tabPedidosAdm, tabAdm].forEach(esconder);
     esconder(containerDuvidas);
 
-    // ─── REGRA DE OURO: BLOQUEIA SE NÃO POSSUIR LINK E NÃO FOR ADM ───
     if (!_linkAutorizadoValido && estadoSessao.papel !== 'adm') {
         esconder(navBar);
-
-        // Esconde TODOS os painéis (remove 'active' também, não só adiciona 'hidden')
         document.querySelectorAll('.view-panel').forEach(painel => {
             painel.classList.add('hidden');
             painel.classList.remove('active');
         });
-
-        // ⚠️ CORREÇÃO: a tela de bloqueio precisa ficar ATIVA também
         if (viewBloqueado) {
             viewBloqueado.classList.remove('hidden');
             viewBloqueado.classList.add('active');
         }
-
         mostrar(anonBox);
         esconder(authBox);
         return;
     }
 
-    // ─── ESTAMOS LIBERADOS (link válido ou ADM logado) ──────────────
     mostrar(navBar);
-
-    // Esconde a tela de bloqueio por completo
     if (viewBloqueado) {
         viewBloqueado.classList.add('hidden');
         viewBloqueado.classList.remove('active');
@@ -870,12 +968,12 @@ function atualizarInterfaceSessao() {
         esconder(anonBox); mostrar(authBox);
         if (userLabel) userLabel.textContent = `Olá, ${estadoSessao.nomeUsuario}`;
         mostrar(tabCarrinho); mostrar(tabMeusPedidos);
-       mostrar(containerDuvidas);
+        mostrar(containerDuvidas);
     } else if (estadoSessao.papel === 'entregador') {
         esconder(anonBox); mostrar(authBox);
         if (userLabel) userLabel.textContent = `Entregador: ${estadoSessao.nomeUsuario}`;
         mostrar(tabMeusPedidos); mostrar(tabPedidosAdm);
-       mostrar(containerDuvidas);
+        mostrar(containerDuvidas);
     } else if (estadoSessao.papel === 'adm') {
         esconder(anonBox); mostrar(authBox);
         if (userLabel) userLabel.textContent = `ADM: ${estadoSessao.nomeUsuario}`;
@@ -883,8 +981,6 @@ function atualizarInterfaceSessao() {
         mostrar(containerDuvidas);
     }
 
-    // ⚠️ CORREÇÃO CRÍTICA: garante que SEMPRE haja um painel visível
-    // (evita "tela em branco" mesmo se o painel atual ficou com .hidden)
     const algumPainelVisivel = document.querySelector('.view-panel.active:not(.hidden)');
     if (!algumPainelVisivel) {
         navegarPara('vitrine');
@@ -897,6 +993,7 @@ function atualizarInterfaceSessao() {
         atualizarBadgePendentesAdm(0);
     }
 }
+
 // ============================================================================
 // 11. NAVEGAÇÃO ENTRE TELAS
 // ============================================================================
@@ -909,7 +1006,6 @@ function navegarPara(nomeAba) {
 
     if (botaoAtivo && painelAtivo) {
         botaoAtivo.classList.add('active');
-        // ⚠️ CORREÇÃO: remove 'hidden' ANTES de adicionar 'active'
         painelAtivo.classList.remove('hidden');
         painelAtivo.classList.add('active');
     }
@@ -923,6 +1019,7 @@ function navegarPara(nomeAba) {
         consultarPendentesAdm();
     }
 }
+
 // ============================================================================
 // 12. CESTA DE COMPRAS E CRIAÇÃO DE PEDIDOS
 // ============================================================================
@@ -1012,7 +1109,6 @@ async function tratarCriacaoPedido() {
     const metodo = document.getElementById('metodo-pagamento').value;
 
     const resposta = await executarRequisicaoAPI("criar_pedido", {
-        tokenMembro: estadoSessao.token,
         itens: cestaCompras.map(item => ({ id: item.id, quantidade: item.quantidade })),
         metodoPagamento: metodo
     });
@@ -1020,7 +1116,6 @@ async function tratarCriacaoPedido() {
     esconderLoader();
     botaoCarregando('btn-confirmar-pedido', false);
 
-    // FLUXO NORMAL: Pedido gerado
     if (resposta.sucesso) {
         exibirToast(`Pedido ${resposta.idPedido} gerado com sucesso!`, "success");
 
@@ -1031,9 +1126,7 @@ async function tratarCriacaoPedido() {
 
         navegarPara('meus-pedidos');
         abrirCobrancaPedido(resposta.idPedido, metodoEscolhido);
-    }
-    // FLUXO DE CONTINGÊNCIA: Falha no servidor ou bloqueio de conta
-    else {
+    } else {
         exibirToast(resposta.mensagem || "Não foi possível gerar o pedido automaticamente.", "error");
         exibirContingenciaSuporteAdm(resposta.mensagem, metodo);
     }
@@ -1090,7 +1183,7 @@ async function carregarMeusPedidos() {
     if (!container) return;
     container.innerHTML = '<div class="loading-slot">Carregando os seus pedidos...</div>';
 
-    const resposta = await executarRequisicaoAPI("listar_meus_pedidos", { tokenMembro: estadoSessao.token });
+    const resposta = await executarRequisicaoAPI("listar_meus_pedidos");
     container.innerHTML = '';
 
     if (!resposta.sucesso || !resposta.pedidos || resposta.pedidos.length === 0) {
@@ -1142,7 +1235,6 @@ async function carregarMeusPedidos() {
 async function abrirCobrancaPedido(idPedido, metodo) {
     mostrarLoader("Gerando instruções de pagamento...");
     const resposta = await executarRequisicaoAPI("gerar_pagamento", {
-        tokenMembro: estadoSessao.token,
         idPedido: idPedido,
         metodo: metodo || "PIX"
     });
@@ -1277,7 +1369,6 @@ async function renderizarChat(silencioso = false) {
     if (!caixaMensagens) return;
 
     const resposta = await executarRequisicaoAPI("chat_listar", {
-        tokenMembro: estadoSessao.token,
         idPedido: pedidoChatAberto
     });
 
@@ -1320,7 +1411,6 @@ async function enviarMensagemChat() {
 
     botaoCarregando('btn-chat-enviar', true);
     const resposta = await executarRequisicaoAPI("chat_enviar", {
-        tokenMembro: estadoSessao.token,
         idPedido: pedidoChatAberto,
         autorNome: estadoSessao.nomeUsuario,
         texto
@@ -1341,11 +1431,10 @@ async function enviarMensagemChat() {
 async function carregarPainelCentralAdm() {
     if (estadoSessao.papel !== 'adm') return;
 
-    // 1. Solicitações de novos membros
     const divSolicitacoes = document.getElementById('adm-solicitacoes-lista');
     if (divSolicitacoes) divSolicitacoes.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
 
-    const respostaSolic = await executarRequisicaoAPI("listar_solicitacoes_adm", { tokenAdm: estadoSessao.token });
+    const respostaSolic = await executarRequisicaoAPI("listar_solicitacoes_adm");
     const totalPendentes = (respostaSolic.sucesso && Array.isArray(respostaSolic.solicitacoes)) ? respostaSolic.solicitacoes.length : 0;
 
     atualizarBadgePendentesAdm(totalPendentes);
@@ -1378,8 +1467,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 2. Métricas de vendas consolidadas
-    const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas", { tokenAdm: estadoSessao.token });
+    const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas");
     if (respostaMetricas.sucesso) {
         const elementoFaturamento = document.getElementById('metric-faturamento');
         const elementoPedidos = document.getElementById('metric-pedidos');
@@ -1401,8 +1489,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 3. Contas bloqueadas com pedido de liberação
-    const respostaBloqueados = await executarRequisicaoAPI("listar_bloqueados_adm", { tokenAdm: estadoSessao.token });
+    const respostaBloqueados = await executarRequisicaoAPI("listar_bloqueados_adm");
     const divBloqueados = document.getElementById('adm-bloqueados-lista');
     if (divBloqueados) {
         divBloqueados.innerHTML = '';
@@ -1425,8 +1512,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 4. Comentários recebidos
-    const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm", { tokenAdm: estadoSessao.token });
+    const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm");
     const divComentarios = document.getElementById('adm-comentarios-lista');
     if (divComentarios) {
         divComentarios.innerHTML = '';
@@ -1446,10 +1532,7 @@ async function carregarPainelCentralAdm() {
 
 async function aprovarMembroAdm(idSolicitacao) {
     mostrarLoader("Aprovando membro...");
-    const resposta = await executarRequisicaoAPI("aprovar_cadastro", {
-        tokenAdm: estadoSessao.token,
-        idSolicitacao
-    });
+    const resposta = await executarRequisicaoAPI("aprovar_cadastro", { idSolicitacao });
     esconderLoader();
 
     if (resposta.sucesso) {
@@ -1462,17 +1545,13 @@ async function aprovarMembroAdm(idSolicitacao) {
 }
 
 async function liberarContaUsuarioAdm(identificador) {
-    const resposta = await executarRequisicaoAPI("liberar_conta_adm", {
-        tokenAdm: estadoSessao.token,
-        identificador: identificador
-    });
+    const resposta = await executarRequisicaoAPI("liberar_conta_adm", { identificador });
     if (resposta.sucesso) {
         exibirToast(resposta.mensagem || "Conta liberada com sucesso.", "success");
         await carregarPainelCentralAdm();
     }
 }
 
-// ─── BADGE E AUTO-REFRESH DO PAINEL ADM ─────────────────────
 function atualizarBadgePendentesAdm(quantidade) {
     const botaoAdm = document.getElementById('tab-btn-adm');
     if (!botaoAdm) return;
@@ -1495,12 +1574,10 @@ function atualizarBadgePendentesAdm(quantidade) {
 async function consultarPendentesAdm() {
     if (estadoSessao.papel !== 'adm') return;
     try {
-        const resposta = await executarRequisicaoAPI("listar_solicitacoes_adm", { tokenAdm: estadoSessao.token });
+        const resposta = await executarRequisicaoAPI("listar_solicitacoes_adm");
         const total = (resposta.sucesso && Array.isArray(resposta.solicitacoes)) ? resposta.solicitacoes.length : 0;
         atualizarBadgePendentesAdm(total);
-    } catch {
-        /* Silencioso para não interromper navegação */
-    }
+    } catch {}
 }
 
 function ligarAutoRefreshAdm() {
@@ -1537,7 +1614,7 @@ async function carregarPedidosAdm() {
         if (coluna) coluna.innerHTML = '<div class="loading-slot">…</div>';
     });
 
-    const resposta = await executarRequisicaoAPI("listar_pedidos_adm", { tokenAdm: estadoSessao.token });
+    const resposta = await executarRequisicaoAPI("listar_pedidos_adm");
     if (colunaAnalise)     colunaAnalise.innerHTML = '';
     if (colunaSolicitados) colunaSolicitados.innerHTML = '';
     if (colunaViagem)      colunaViagem.innerHTML = '';
@@ -1581,7 +1658,7 @@ async function carregarPedidosAdm() {
         });
     }
 
-    [[colunaAnalise, 'Em análise'], [colunaSolicitados, 'Solicitados'], [colunaViagem, 'Em viagem'], [colunaConcluido, 'Concluídos']].forEach(([coluna]) => {
+    [[colunaAnalise], [colunaSolicitados], [colunaViagem], [colunaConcluido]].forEach(([coluna]) => {
         if (coluna && !coluna.children.length) {
             coluna.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem pedidos</div>`;
         }
@@ -1594,7 +1671,6 @@ async function avancarStatusAdm(idPedido, statusAtual) {
     if (statusAtual === 'viagem')      proximoStatus = 'concluido';
 
     const resposta = await executarRequisicaoAPI("atualizar_status_pedido", {
-        tokenAdm: estadoSessao.token,
         idPedido: idPedido,
         novoStatus: proximoStatus
     });
@@ -1608,7 +1684,7 @@ async function avancarStatusAdm(idPedido, statusAtual) {
 }
 
 // ============================================================================
-// 16. LINK TEMPORÁRIO COM TEMPO FLEXÍVEL (10, 15, 30 OU PERSONALIZADO)
+// 16. LINK TEMPORÁRIO COM TEMPO FLEXÍVEL
 // ============================================================================
 async function gerarLinkTemporarioAdm() {
     const selectDuracao = document.getElementById('select-duracao-link');
@@ -1628,7 +1704,6 @@ async function gerarLinkTemporarioAdm() {
     mostrarLoader(`Gerando link para ${minutosFinais} minutos...`);
 
     const resposta = await executarRequisicaoAPI("gerar_link_temporario", {
-        tokenAdm: estadoSessao.token,
         duracaoMinutos: minutosFinais
     });
     esconderLoader();
@@ -1679,7 +1754,6 @@ async function tratarCadastroProduto(evento) {
     exibirToast("A guardar produto na planilha...", "info");
 
     const resposta = await executarRequisicaoAPI("cadastrar_produto", {
-        tokenAdm: estadoSessao.token,
         produto: { nome, preco, foto: fotoFinal, visibilidade }
     });
 
@@ -1775,7 +1849,6 @@ function exibirToast(mensagem, tipo = 'info') {
     setTimeout(() => toast.remove(), 3500);
 }
 
-// Fechamento de modais ao clicar no fundo escuro
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', evento => {
         if (evento.target === overlay) {
@@ -1816,4 +1889,3 @@ window.abrirCentralDuvidas        = abrirCentralDuvidas;
 window.tratarEnvioSugestao        = tratarEnvioSugestao;
 window.tratarAdicionarFaq         = tratarAdicionarFaq;
 window.executarLimpezaTotalESaida = executarLimpezaTotalESaida;
-window.executarLogout = executarLogout;
