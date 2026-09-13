@@ -65,20 +65,7 @@
         break;
 
       /* Sessão e contas ----------------------------------------- */
-      case 'confirmar-logout':
-        e.preventDefault();
-        if (typeof window.exibirConfirmacao === 'function') {
-          window.exibirConfirmacao(
-            'Encerrar Sessão',
-            'Tem a certeza de que deseja sair da sua conta?',
-            () => chamarComSeguranca('executarLogout')
-          );
-        } else {
-          chamarComSeguranca('executarLogout');
-        }
-        break;
-
-      case 'pedir-desbloqueio':
+       case 'confirmar-logout':
         e.preventDefault();
         chamarComSeguranca('enviarPedidoDesbloqueio');
         break;
