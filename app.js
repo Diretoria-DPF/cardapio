@@ -310,67 +310,249 @@ function aplicarFiltroVitrine(termoManual = null) {
     renderizarVitrine();
 }
 
+// ============================================================================
+// VITRINE LIMPA: VISIBILIDADE CONTROLADA APENAS PELO ADMINISTRADOR
+// ============================================================================
+
 function renderizarVitrine() {
-    const grade = document.getElementById('produtos-container');
-    if (!grade) return;
-    grade.innerHTML = '';
+    const grid = document.getElementById('produtos-container');
+    if (!grid) return;
+    grid.innerHTML = '';
 
     if (!catalogoFiltrado || catalogoFiltrado.length === 0) {
         const termo = document.getElementById('filtro-produtos')?.value.trim();
-        grade.innerHTML = `
+        grid.innerHTML = `
             <div class="empty-state">
                 <strong>${termo ? 'Nenhum produto encontrado' : 'Vitrine vazia'}</strong>
-                ${termo ? `Nada corresponde a "${escaparHtml(termo)}".` : 'Aguarde novos produtos da administração.'}
+                ${termo ? `Nada corresponde a "${escaparHtml(termo)}".` : 'Aguarde novos produtos.'}
             </div>`;
         return;
     }
 
-    catalogoFiltrado.forEach(produto => {
-        const cartao = document.createElement('div');
-        cartao.className = 'product-card';
+    catalogoFiltrado.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'product-card';
 
-        const imagem = document.createElement('img');
-        imagem.className = 'product-thumb';
-        imagem.src = produto.foto || 'https://via.placeholder.com/300x200?text=Sem+Foto';
-        imagem.alt = produto.nome || 'Produto';
-        imagem.loading = 'lazy';
+        const img = document.createElement('img');
+        img.className = 'product-thumb';
+        img.src = p.foto || 'https://via.placeholder.com/300x200?text=Sem+Foto';
+        img.alt = p.nome || 'Produto';
+        img.loading = 'lazy';
 
-        const corpo = document.createElement('div');
-        corpo.className = 'product-details';
+        const body = document.createElement('div');
+        body.className = 'product-details';
 
-        const titulo = document.createElement('h3');
-        titulo.className = 'product-name';
-        titulo.textContent = produto.nome || 'Sem nome';
+        const t = document.createElement('h3');
+        t.className = 'product-name';
+        t.textContent = p.nome || 'Sem nome';
 
-        const preco = document.createElement('p');
-        preco.className = 'product-price';
-        preco.textContent = fmtPreco(produto.preco);
+        const pr = document.createElement('p');
+        pr.className = 'product-price';
+        pr.textContent = fmtPreco(p.preco);
 
-        corpo.append(titulo, preco);
+        body.append(t, pr);
 
+        // 1. Membros e Entregadores têm acesso à compra (SEM NENHUM RÓTULO DE VISIBILIDADE)
         if (estadoSessao.papel === 'membro' || estadoSessao.papel === 'entregador') {
-            const botaoComprar = document.createElement('button');
-            botaoComprar.className = 'btn btn-primary btn-block';
-            botaoComprar.textContent = 'Adicionar à Cesta';
-            botaoComprar.onclick = () => adicionarAoCarrinho(produto);
-            corpo.appendChild(botaoComprar);
-        } else if (estadoSessao.papel === 'adm') {
-            const avisoAdm = document.createElement('small');
-            avisoAdm.style.color = '#ef4444';
-            avisoAdm.textContent = `Visibilidade: ${String(produto.visibilidade || '').toUpperCase()}`;
-            corpo.appendChild(avisoAdm);
-        } else {
-            const avisoVisitante = document.createElement('small');
-            avisoVisitante.className = 'visitor-note';
-            avisoVisitante.textContent = 'Acesso exclusivo para membros.';
-            corpo.appendChild(avisoVisitante);
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-primary btn-block';
+            btn.textContent = 'Adicionar à Cesta';
+            btn.onclick = () => adicionarAoCarrinho(p);
+            body.appendChild(btn);
+        }
+        // 2. Administrador: Vê o botão de teste e o CONTROLO DE VISIBILIDADE
+        else if (estadoSessao.papel === 'adm') {
+            const painelAdm = document.createElement('div');
+            painelAdm.className = 'adm-visib-controls';
+
+            const tag = document.createElement('span');
+            tag.style.fontWeight = 'bold';
+            tag.style.color = p.visibilidade === 'adm' ? '#dc2626' : (p.visibilidade === 'registrado' ? '#2563eb' : '#16a34a');
+            tag.textContent = `[${String(p.visibilidade).toUpperCase()}]`;
+
+            const selectVisib = document.createElement('select');
+            selectVisib.innerHTML = `
+                <option value="publico" ${p.visibilidade === 'publico' ? 'selected' : ''}>Público</option>
+                <option value="registrado" ${p.visibilidade === 'registrado' ? 'selected' : ''}>Membro</option>
+                <option value="adm" ${p.visibilidade === 'adm' ? 'selected' : ''}>Oculto ADM</option>
+            `;
+            selectVisib.onchange = () => alterarVisibilidadeProdutoAdm(p.id, selectVisib.value);
+
+            painelAdm.append(tag, selectVisib);
+            body.appendChild(painelAdm);
+        }
+        // 3. Visitante: Vê apenas a nota discreta de convite (SEM rótulos de público/membro)
+        else {
+            const aviso = document.createElement('small');
+            aviso.className = 'visitor-note';
+            aviso.textContent = 'Cadastre-se para comprar.';
+            body.appendChild(aviso);
         }
 
-        cartao.append(imagem, corpo);
-        grade.appendChild(cartao);
+        card.append(img, body);
+        grid.appendChild(card);
     });
 }
 
+/** Permite ao Administrador trocar a visibilidade do produto na hora */
+async function alterarVisibilidadeProdutoAdm(idProduto, novaVisib) {
+    mostrarLoader("Alterando visibilidade...");
+    const res = await executarRequisicaoAPI("alterar_visibilidade_produto", {
+        tokenAdm: estadoSessao.token,
+        idProduto: idProduto,
+        novaVisibilidade: novaVisib
+    });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast(res.mensagem || "Visibilidade atualizada!", "success");
+        await sincronizarProdutosServidor();
+    } else {
+        exibirToast(res.mensagem || "Erro ao alterar visibilidade.", "error");
+    }
+}
+
+// ============================================================================
+// CENTRAL DE DÚVIDAS RÁPIDAS (FAQ) E SUGESTÕES EXCLUSIVAS PARA MEMBROS
+// ============================================================================
+
+// Base de dúvidas rápidas padrão (armazenada de forma leve no navegador)
+let listaDuvidasFaq = [
+    {
+        pergunta: "Como funciona a retirada e entrega do produto?",
+        resposta: "Após a confirmação do pagamento, um chat exclusivo é aberto no seu pedido com todas as orientações de retirada ou envio pelo entregador."
+    },
+    {
+        pergunta: "Quais são as formas de pagamento aceitas?",
+        resposta: "Aceitamos PIX com confirmação dinâmica imediata, Cartão de Crédito e Criptomoedas (Bitcoin, Ethereum e Tether USDT)."
+    },
+    {
+        pergunta: "Quanto tempo dura o chat temporário do pedido?",
+        resposta: "O chat temporário permanece ativo enquanto a entrega estiver em andamento. Ao ser concluído pelo Administrador, o canal é finalizado com segurança."
+    }
+];
+
+function carregarFaqMemoria() {
+    const salvo = localStorage.getItem('loja_faq_dados');
+    if (salvo) {
+        try { listaDuvidasFaq = JSON.parse(salvo); } catch(e) {}
+    }
+}
+carregarFaqMemoria();
+
+/** Abre a Central de Dúvidas com proteção de acesso */
+function abrirCentralDuvidas() {
+    // REGRA: Apenas Membros e ADM têm acesso às dúvidas e sugestões
+    if (estadoSessao.papel === 'visitante') {
+        exibirToast("A Central de Dúvidas e Sugestões é exclusiva para membros.", "info");
+        abrirModal('modal-login');
+        return;
+    }
+
+    renderizarListaFaq();
+
+    // Se for Administrador, exibe o mini editor de FAQ
+    const editorAdm = document.getElementById('adm-editor-faq-area');
+    if (editorAdm) {
+        if (estadoSessao.papel === 'adm') {
+            editorAdm.classList.remove('hidden');
+        } else {
+            editorAdm.classList.add('hidden');
+        }
+    }
+
+    abrirModal('modal-duvidas-central');
+}
+
+function renderizarListaFaq() {
+    const container = document.getElementById('lista-faq-perguntas');
+    if (!container) return;
+    container.innerHTML = '';
+
+    listaDuvidasFaq.forEach((item, index) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'faq-item';
+
+        const questao = document.createElement('div');
+        questao.className = 'faq-question';
+        questao.setAttribute('data-action', 'toggle-faq');
+        questao.innerHTML = `<span>${escaparHtml(item.pergunta)}</span> <small>▼</small>`;
+
+        const resposta = document.createElement('div');
+        resposta.className = 'faq-answer';
+        resposta.textContent = item.resposta;
+
+        // Se for ADM, dá a opção de excluir a pergunta
+        if (estadoSessao.papel === 'adm') {
+            const btnExcluir = document.createElement('button');
+            btnExcluir.className = 'btn btn-danger-outline btn-sm';
+            btnExcluir.style.cssText = 'margin-top:6px;font-size:0.65rem;padding:2px 6px;';
+            btnExcluir.textContent = 'Excluir Dúvida';
+            btnExcluir.onclick = (e) => {
+                e.stopPropagation();
+                listaDuvidasFaq.splice(index, 1);
+                localStorage.setItem('loja_faq_dados', JSON.stringify(listaDuvidasFaq));
+                renderizarListaFaq();
+                exibirToast("Dúvida removida com sucesso.", "info");
+            };
+            resposta.appendChild(btnExcluir);
+        }
+
+        itemDiv.append(questao, resposta);
+        container.appendChild(itemDiv);
+    });
+}
+
+/** Envio de Sugestão Exclusivo para Membros (grava na aba Comentários do ADM) */
+async function tratarEnvioSugestao(e) {
+    if (e && e.preventDefault) e.preventDefault();
+
+    const campo = document.getElementById('campo-sugestao-texto');
+    const texto = campo ? campo.value.trim() : '';
+    if (!texto) return;
+
+    mostrarLoader("A enviar sugestão...");
+    const res = await executarRequisicaoAPI("enviar_comentario", {
+        nome: `[SUGESTÃO] ${estadoSessao.nomeUsuario}`,
+        mensagem: texto
+    });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast("Sugestão enviada com sucesso à administração!", "success");
+        if (campo) campo.value = '';
+        fecharModal('modal-duvidas-central');
+    } else {
+        exibirToast(res.mensagem || "Erro ao enviar sugestão.", "error");
+    }
+}
+
+/** Adição de Nova Pergunta pelo Administrador */
+function tratarAdicionarFaq(e) {
+    if (e && e.preventDefault) e.preventDefault();
+
+    const inputP = document.getElementById('faq-nova-pergunta');
+    const inputR = document.getElementById('faq-nova-resposta');
+
+    const pergunta = inputP.value.trim();
+    const resposta = inputR.value.trim();
+
+    if (!pergunta || !resposta) return;
+
+    listaDuvidasFaq.push({ pergunta, resposta });
+    localStorage.setItem('loja_faq_dados', JSON.stringify(listaDuvidasFaq));
+
+    inputP.value = '';
+    inputR.value = '';
+
+    renderizarListaFaq();
+    exibirToast("Nova dúvida adicionada ao FAQ!", "success");
+}
+
+// Exportações globais para comunicação com o bindings.js
+window.abrirCentralDuvidas = abrirCentralDuvidas;
+window.tratarEnvioSugestao = tratarEnvioSugestao;
+window.tratarAdicionarFaq = tratarAdicionarFaq;
 // ============================================================================
 // 7. SOLICITAÇÃO DE CADASTRO
 // ============================================================================
