@@ -81,15 +81,15 @@
     <section id="view-bloqueado" class="view-panel hidden">
         <div class="lock-screen-card">
             <div class="lock-icon">🔒</div>
-            <h2>Plataforma Exclusiva</h2>
-            <p>O acesso a esta vitrine é restrito e temporário. Para navegar, conhecer os produtos disponíveis e solicitar pedidos, é necessário possuir um <strong>link de acesso autorizado</strong> emitido pela administração.</p>
+            <h2>Link expirou</h2>
+            <p>O acesso a esta vitrine é temporário. Para navegar, conhecer os produtos disponíveis e solicitar pedidos, é necessário possuir um <strong>link de acesso autorizado</strong> solicite um novo</p>
             
             <div class="lock-actions">
                 <button type="button" class="btn btn-primary" data-action="abrir-modal" data-modal="modal-cadastro">
-                    Solicitar Cadastro de Membro
+                    Realizar Cadastro
                 </button>
                 <p class="lock-hint">
-    Já possui autorização do Administrador? Utilize o link completo fornecido por ele.
+     Entre em contato para solicitar um novo acesso.
                 </p>
             </div>
         </div>
@@ -113,7 +113,7 @@
 
         <div class="duvidas-container-discreto">
             <button type="button" class="btn-duvidas-discreto" data-action="abrir-central-duvidas">
-                💡 Central de Dúvidas & Sugestões
+                💡 Dúvidas frequentes
             </button>
         </div>
     </section>
@@ -136,10 +136,8 @@
             <div class="form-group">
                 <label for="metodo-pagamento">Forma de Pagamento:</label>
                 <select id="metodo-pagamento">
-                    <option value="PIX">PIX (Chave Dinâmica / QR Code)</option>
-                    <option value="CARTAO">Cartão de Crédito</option>
-                    <option value="BTC">Bitcoin (BTC)</option>
-                    <option value="USDT">Tether USD (USDT)</option>
+                    <option value="PIX">PIX (Chave / QR Code)</option>
+                    <option value="CARTAO">Cartão de Crédito</option>                  
                 </select>
             </div>
 
@@ -329,7 +327,7 @@
 
             <div class="sugestao-box-sutil">
                 <h4>Enviar uma Sugestão:</h4>
-                <p>Tem alguma recomendação? Deixe a sua ideia abaixo:</p>
+                <p>Tem alguma recomendação? Deixe a abaixo:</p>
                 <form id="form-sugestao" data-action="enviar-sugestao">
                     <div class="form-group">
                         <textarea id="campo-sugestao-texto" rows="3"
@@ -362,10 +360,10 @@
         <button type="button" class="btn-close" data-action="fechar-modal" data-modal="modal-cadastro" aria-label="Fechar">&times;</button>
         <div class="modal-body">
             <h3>Solicitar Cadastro de Membro</h3>
-            <p class="modal-subtitle">Preencha os seus dados para análise da moderação:</p>
+            <p class="modal-subtitle">Preencha os seus dados:</p>
             <form id="form-registro" data-action="enviar-cadastro">
                 <div class="form-group">
-                    <label for="cad-nome">Nome Completo ou Exibição:</label>
+                    <label for="cad-nome">Nome ou Exibição:</label>
                     <input type="text" id="cad-nome" required placeholder="Ex: Maria Silva">
                 </div>
                 <div class="form-group">
