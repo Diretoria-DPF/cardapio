@@ -1,25 +1,37 @@
 <!DOCTYPE html>
 <!-- ============================================================
-     index.html  —  Plataforma Comercial Segura (v2 melhorada)
-     Melhorias: CSP, noindex, busca na vitrine, modal de chat,
-                overlay de loading, modal de confirmação genérico,
-                modal de detalhes do pedido, acessibilidade aria-*.
-     IMPORTANTE: mantém TODOS os IDs originais para não quebrar
-                 o app.js e o Code.gs.
+     index.html — Plataforma Comercial Segura (v3 refatorada)
+     ============================================================
+     MUDANÇAS DESTA VERSÃO:
+       • ZERO handlers inline (onclick/onsubmit/oninput/onchange)
+       • Todos os eventos usam data-action="..." + bindings.js
+       • CSP estrita (script-src 'self', sem unsafe-inline)
+       • Todos os IDs originais preservados (compatível com app.js)
+       • Acessibilidade: aria-label, aria-live, type="button"
+       • Sem estilos inline (style="...") no HTML
      ============================================================ -->
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <!-- bloqueia indexação em buscadores (links temporários) -->
+
+    <!-- Bloqueia indexação em buscadores (links temporários) -->
     <meta name="robots" content="noindex, nofollow">
-    <!-- CSP: só permite scripts/estilos do próprio domínio e conexões ao Apps Script -->
+
+    <!-- ═══════════════════════════════════════════════════════
+         CSP ESTRITA (sem unsafe-inline) — possível porque
+         NÃO existem mais handlers inline no HTML.
+         ═══════════════════════════════════════════════════════ -->
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'self';
                    img-src 'self' data: https:;
                    style-src 'self';
                    script-src 'self';
-                   connect-src 'self' https://script.google.com https://script.googleusercontent.com;">
+                   connect-src 'self' https://script.google.com https://script.googleusercontent.com;
+                   form-action 'self';
+                   base-uri 'self';
+                   frame-ancestors 'none';">
+
     <title>Plataforma Comercial Segura</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -35,33 +47,53 @@
         <div class="auth-actions">
             <span id="role-badge" class="badge badge-visitor">Visitante</span>
 
-            <!-- botões mostrados apenas para visitantes -->
+            <!-- Botões mostrados apenas para visitantes -->
             <div id="anon-buttons" class="button-group">
-                <button class="btn btn-outline" onclick="abrirModal('modal-cadastro')">Cadastre-se</button>
-                <button class="btn btn-primary" onclick="abrirModal('modal-login')">Entrar</button>
+                <button type="button" class="btn btn-outline"
+                        data-action="abrir-modal" data-modal="modal-cadastro">
+                    Cadastre-se
+                </button>
+                <button type="button" class="btn btn-primary"
+                        data-action="abrir-modal" data-modal="modal-login">
+                    Entrar
+                </button>
             </div>
 
-            <!-- botões mostrados quando logado (membro/adm/entregador) -->
+            <!-- Botões mostrados quando logado -->
             <div id="auth-buttons" class="button-group hidden">
                 <span id="user-display-name" class="user-greeting">Olá</span>
-                <button class="btn btn-danger-outline" onclick="confirmarLogout()">Sair</button>
+                <button type="button" class="btn btn-danger-outline"
+                        data-action="confirmar-logout">
+                    Sair
+                </button>
             </div>
         </div>
     </div>
 </header>
 
 <!-- ═══════════════════════════════════════════════════════════
-     NAVEGAÇÃO — abas controladas por papel (atualizarInterfaceSessao)
+     NAVEGAÇÃO — cada aba tem data-action="navegar" + data-view
      ═══════════════════════════════════════════════════════════ -->
 <nav class="app-nav" aria-label="Navegação principal">
-    <button class="nav-tab active" id="tab-btn-vitrine" onclick="navegarPara('vitrine')">Vitrine</button>
-    <button class="nav-tab hidden"    id="tab-btn-carrinho" onclick="navegarPara('carrinho')">
+    <button type="button" class="nav-tab active" id="tab-btn-vitrine"
+            data-action="navegar" data-view="vitrine">Vitrine</button>
+
+    <button type="button" class="nav-tab hidden" id="tab-btn-carrinho"
+            data-action="navegar" data-view="carrinho">
         Cesta (<span id="cart-counter">0</span>)
     </button>
-    <button class="nav-tab hidden"    id="tab-btn-meus-pedidos" onclick="navegarPara('meus-pedidos')">Meus Pedidos</button>
-    <button class="nav-tab hidden"    id="tab-btn-novo-produto" onclick="navegarPara('novo-produto')">Cadastrar Produto</button>
-    <button class="nav-tab hidden"    id="tab-btn-pedidos-adm"  onclick="navegarPara('pedidos-adm')">Pedidos</button>
-    <button class="nav-tab hidden"    id="tab-btn-adm"          onclick="navegarPara('adm')">Painel ADM</button>
+
+    <button type="button" class="nav-tab hidden" id="tab-btn-meus-pedidos"
+            data-action="navegar" data-view="meus-pedidos">Meus Pedidos</button>
+
+    <button type="button" class="nav-tab hidden" id="tab-btn-novo-produto"
+            data-action="navegar" data-view="novo-produto">Cadastrar Produto</button>
+
+    <button type="button" class="nav-tab hidden" id="tab-btn-pedidos-adm"
+            data-action="navegar" data-view="pedidos-adm">Pedidos</button>
+
+    <button type="button" class="nav-tab hidden" id="tab-btn-adm"
+            data-action="navegar" data-view="adm">Painel ADM</button>
 </nav>
 
 <main class="app-main">
@@ -75,21 +107,23 @@
             <p class="section-desc">Itens selecionados disponíveis para o seu perfil.</p>
         </header>
 
-        <!-- NOVO: barra de busca/filtro (client-side) -->
+        <!-- Barra de busca (filtragem em tempo real via input) -->
         <div class="search-bar">
             <input type="search" id="filtro-produtos"
                    placeholder="🔍 Buscar produto pelo nome..."
-                   oninput="aplicarFiltroVitrine()">
+                   data-action="filtro-vitrine"
+                   aria-label="Filtrar produtos por nome">
         </div>
 
-        <!-- grade de produtos preenchida por renderizarVitrine() -->
+        <!-- Grade preenchida por renderizarVitrine() -->
         <div id="produtos-container" class="cards-grid"></div>
 
-        <!-- formulário de comentário (agora com nome do autor) -->
+        <!-- Formulário de comentário -->
         <section class="feedback-card">
             <h3>Dúvidas ou Sugestões</h3>
             <p>Envie uma mensagem direta para a administração:</p>
-            <form id="form-comentario" onsubmit="tratarEnvioComentario(event)">
+
+            <form id="form-comentario" data-action="enviar-comentario">
                 <div class="form-group">
                     <label for="campo-comentario-nome">Seu nome (ou apelido):</label>
                     <input type="text" id="campo-comentario-nome"
@@ -98,7 +132,8 @@
                 <div class="form-group">
                     <label for="campo-comentario">Mensagem:</label>
                     <textarea id="campo-comentario" rows="3"
-                              placeholder="Escreva a sua mensagem..." maxlength="500" required></textarea>
+                              placeholder="Escreva a sua mensagem..."
+                              maxlength="500" required></textarea>
                 </div>
                 <button type="submit" class="btn btn-primary">Enviar Mensagem</button>
             </form>
@@ -113,12 +148,15 @@
             <h2>Cesta de Compras</h2>
             <p class="section-desc">Revise os seus produtos antes de confirmar o pedido.</p>
         </header>
+
         <div id="carrinho-itens-lista" class="cart-items-wrapper"></div>
+
         <div class="cart-summary-card">
             <div class="cart-total-row">
                 <span>Total Estimado:</span>
                 <strong id="carrinho-total-valor">R$ 0,00</strong>
             </div>
+
             <div class="form-group">
                 <label for="metodo-pagamento">Forma de Pagamento:</label>
                 <select id="metodo-pagamento">
@@ -128,8 +166,12 @@
                     <option value="USDT">Tether USD (USDT)</option>
                 </select>
             </div>
-            <button class="btn btn-success btn-block" id="btn-confirmar-pedido"
-                    onclick="tratarCriacaoPedido()">Solicitar Pedido</button>
+
+            <button type="button" class="btn btn-success btn-block"
+                    id="btn-confirmar-pedido"
+                    data-action="criar-pedido">
+                Solicitar Pedido
+            </button>
         </div>
     </section>
 
@@ -152,35 +194,42 @@
             <h2>Cadastrar Novo Produto na Vitrine</h2>
             <p class="section-desc">Adicione produtos com foto/GIF do seu telemóvel ou computador.</p>
         </header>
+
         <div class="adm-card">
-            <form id="form-novo-produto" onsubmit="tratarCadastroProduto(event)">
+            <form id="form-novo-produto" data-action="cadastrar-produto">
                 <div class="form-group">
                     <label for="adm-prod-nome">Nome do Produto:</label>
-                    <input type="text" id="adm-prod-nome" required placeholder="Ex: Produto Especial">
-                </div>
-                <div class="form-group">
-                    <label for="adm-prod-preco">Preço Base (R$):</label>
-                    <input type="number" id="adm-prod-preco" step="0.01" min="0.01" required placeholder="99.90">
+                    <input type="text" id="adm-prod-nome" required
+                           placeholder="Ex: Produto Especial">
                 </div>
 
-                <!-- Upload de foto/GIF do dispositivo -->
+                <div class="form-group">
+                    <label for="adm-prod-preco">Preço Base (R$):</label>
+                    <input type="number" id="adm-prod-preco" step="0.01" min="0.01"
+                           required placeholder="99.90">
+                </div>
+
+                <!-- Upload de foto/GIF do dispositivo (change) -->
                 <div class="form-group">
                     <label for="adm-prod-arquivo">Fotografia ou GIF do Produto:</label>
                     <input type="file" id="adm-prod-arquivo" accept="image/*,.gif"
-                           onchange="processarUploadImagem(event)">
+                           data-action="upload-imagem">
                     <input type="hidden" id="adm-prod-foto-final">
 
-                    <!-- preview controlado por JS (classe .hidden) -->
+                    <!-- Preview (controlado por JS via classe .hidden) -->
                     <div id="preview-container" class="preview-box hidden">
                         <img id="img-preview" src="" alt="Pré-visualização">
                         <button type="button" class="btn btn-danger-outline btn-sm"
-                                onclick="removerFotoCarregada()">Remover Foto</button>
+                                data-action="remover-foto">
+                            Remover Foto
+                        </button>
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label for="adm-prod-foto-url">Ou insira o Link Externo da Foto (Opcional):</label>
-                    <input type="url" id="adm-prod-foto-url" placeholder="https://exemplo.com/foto.jpg">
+                    <input type="url" id="adm-prod-foto-url"
+                           placeholder="https://exemplo.com/foto.jpg">
                 </div>
 
                 <div class="form-group">
@@ -199,13 +248,14 @@
     </section>
 
     <!-- ═══════════════════════════════════════════════════
-         ABA 5 — PEDIDOS GERAL (ADM)
+         ABA 5 — PIPELINE DE PEDIDOS (ADM)
          ═══════════════════════════════════════════════════ -->
     <section id="view-pedidos-adm" class="view-panel">
         <header class="section-header">
             <h2>Esteira Geral de Pedidos</h2>
             <p class="section-desc">Gerencie o progresso das entregas dos clientes.</p>
         </header>
+
         <div class="pipeline-grid">
             <div class="pipeline-col"><h4>Em Análise</h4>  <div id="pipe-analise"></div></div>
             <div class="pipeline-col"><h4>Solicitados</h4> <div id="pipe-solicitados"></div></div>
@@ -223,56 +273,76 @@
             <p class="section-desc">Aprovações de membros, links temporários e métricas.</p>
         </header>
 
-        <!-- gerador de link temporário -->
+        <!-- Card: gerador de link temporário -->
         <div class="adm-card">
             <h3>Emitir Link de Acesso com Token Temporário</h3>
             <p class="modal-subtitle">Gere um link temporário para permitir acesso a convidados:</p>
+
             <div class="row-inline">
-                <select id="select-duracao-link">
+                <select id="select-duracao-link" aria-label="Duração do link">
                     <option value="15">15 Minutos</option>
                     <option value="60" selected>1 Hora (60 min)</option>
                     <option value="180">3 Horas</option>
                     <option value="1440">24 Horas</option>
                 </select>
-                <button class="btn btn-primary" onclick="gerarLinkTemporarioAdm()">Gerar Link</button>
+                <button type="button" class="btn btn-primary"
+                        data-action="gerar-link">
+                    Gerar Link
+                </button>
             </div>
 
             <div id="area-link-gerado" class="link-display-box hidden">
-                <label class="link-label">Link Gerado com Sucesso:</label>
+                <label class="link-label" for="campo-link-gerado">
+                    Link Gerado com Sucesso:
+                </label>
                 <div class="row-inline">
                     <input type="text" id="campo-link-gerado" readonly>
-                    <button class="btn btn-success" onclick="copiarLinkGerado()">Copiar</button>
+                    <button type="button" class="btn btn-success"
+                            data-action="copiar-link">
+                        Copiar
+                    </button>
                 </div>
                 <small class="link-hint">Partilhe este link com quem deseja autorizar.</small>
             </div>
         </div>
 
-        <!-- validação de novos cadastros -->
+        <!-- Card: validação de cadastros -->
         <div class="adm-card">
             <div class="adm-card-head">
                 <h3>Validação de Novos Cadastros</h3>
-                <button class="btn btn-outline btn-sm" onclick="carregarPainelCentralAdm()">Atualizar Lista</button>
+                <button type="button" class="btn btn-outline btn-sm"
+                        data-action="carregar-painel-adm">
+                    Atualizar Lista
+                </button>
             </div>
-            <div id="adm-solicitacoes-lista" class="loading-slot">Carregando solicitações...</div>
+            <div id="adm-solicitacoes-lista" class="loading-slot">
+                Carregando solicitações...
+            </div>
         </div>
 
-        <!-- métricas -->
+        <!-- Card: métricas -->
         <div class="adm-card">
             <h3>Planilha de Vendas Consolidadas</h3>
             <div class="metrics-summary">
-                <div class="metric-box"><span>Faturamento</span><strong id="metric-faturamento">R$ 0,00</strong></div>
-                <div class="metric-box"><span>Total Pedidos</span><strong id="metric-pedidos">0</strong></div>
+                <div class="metric-box">
+                    <span>Faturamento</span>
+                    <strong id="metric-faturamento">R$ 0,00</strong>
+                </div>
+                <div class="metric-box">
+                    <span>Total Pedidos</span>
+                    <strong id="metric-pedidos">0</strong>
+                </div>
             </div>
             <div id="tabela-metricas-produtos"></div>
         </div>
 
-        <!-- contas bloqueadas -->
+        <!-- Card: contas bloqueadas -->
         <div class="adm-card">
             <h3>Contas Bloqueadas</h3>
             <div id="adm-bloqueados-lista"></div>
         </div>
 
-        <!-- comentários -->
+        <!-- Card: comentários -->
         <div class="adm-card">
             <h3>Mensagens Recebidas</h3>
             <div id="adm-comentarios-lista"></div>
@@ -284,38 +354,51 @@
 <!-- ═══════════════════════════════════════════════════════════
      MODAL 1 — CADASTRO
      ═══════════════════════════════════════════════════════════ -->
-<div id="modal-cadastro" class="modal-overlay">
+<div id="modal-cadastro" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
-        <button class="btn-close" onclick="fecharModal('modal-cadastro')" aria-label="Fechar">&times;</button>
+        <button type="button" class="btn-close"
+                data-action="fechar-modal" data-modal="modal-cadastro"
+                aria-label="Fechar">&times;</button>
+
         <div class="modal-body">
             <h3>Solicitar Cadastro de Membro</h3>
             <p class="modal-subtitle">Preencha com os seus dados e crie uma senha segura:</p>
 
-            <form id="form-registro" onsubmit="tratarSolicitacaoCadastro(event)">
+            <form id="form-registro" data-action="enviar-cadastro">
                 <div class="form-group">
                     <label for="cad-nome">Nome Completo ou Exibição:</label>
-                    <input type="text" id="cad-nome" required placeholder="Ex: Maria Silva">
+                    <input type="text" id="cad-nome" required
+                           placeholder="Ex: Maria Silva">
                 </div>
+
                 <div class="form-group">
                     <label for="cad-telefone">Telefone / WhatsApp (Será o seu Login):</label>
-                    <input type="tel" id="cad-telefone" required placeholder="Ex: 71999999999">
+                    <input type="tel" id="cad-telefone" required
+                           placeholder="Ex: 71999999999">
                 </div>
+
                 <div class="form-group">
                     <label for="cad-senha">Criar Senha (mínimo 6 caracteres):</label>
-                    <input type="password" id="cad-senha" required minlength="6" placeholder="******">
+                    <input type="password" id="cad-senha" required minlength="6"
+                           placeholder="******">
                 </div>
+
                 <div class="form-group">
                     <label for="cad-senha-conf">Confirmar Senha:</label>
-                    <input type="password" id="cad-senha-conf" required minlength="6" placeholder="******">
+                    <input type="password" id="cad-senha-conf" required minlength="6"
+                           placeholder="******">
                 </div>
+
                 <div class="form-group">
                     <label for="cad-twitter">Twitter / X (opcional):</label>
                     <input type="text" id="cad-twitter" placeholder="@utilizador">
                 </div>
+
                 <div class="form-group">
                     <label for="cad-telegram">Telegram (opcional):</label>
                     <input type="text" id="cad-telegram" placeholder="@utilizador">
                 </div>
+
                 <div class="terms-container">
                     <input type="checkbox" id="cad-termos" required>
                     <label for="cad-termos">
@@ -323,6 +406,7 @@
                         funcionamento na plataforma. Posso solicitar exclusão ao encerrar a conta.
                     </label>
                 </div>
+
                 <button type="submit" class="btn btn-primary btn-block" id="btn-enviar-cadastro">
                     Enviar Pedido de Cadastro
                 </button>
@@ -334,29 +418,39 @@
 <!-- ═══════════════════════════════════════════════════════════
      MODAL 2 — LOGIN
      ═══════════════════════════════════════════════════════════ -->
-<div id="modal-login" class="modal-overlay">
+<div id="modal-login" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
-        <button class="btn-close" onclick="fecharModal('modal-login')" aria-label="Fechar">&times;</button>
+        <button type="button" class="btn-close"
+                data-action="fechar-modal" data-modal="modal-login"
+                aria-label="Fechar">&times;</button>
+
         <div class="modal-body">
             <h3>Acessar Conta</h3>
             <p class="modal-subtitle">Informe o seu telefone/usuário e senha:</p>
 
-            <form id="form-login" onsubmit="tratarLogin(event)">
+            <form id="form-login" data-action="login">
                 <div class="form-group">
                     <label for="login-usuario">Telefone ou Usuário:</label>
-                    <input type="text" id="login-usuario" required placeholder="Seu identificador">
+                    <input type="text" id="login-usuario" required
+                           placeholder="Seu identificador">
                 </div>
+
                 <div class="form-group">
                     <label for="login-senha">Senha:</label>
-                    <input type="password" id="login-senha" required placeholder="Sua senha secreta">
+                    <input type="password" id="login-senha" required
+                           placeholder="Sua senha secreta">
                 </div>
-                <button type="submit" class="btn btn-primary btn-block" id="btn-entrar">Entrar</button>
+
+                <button type="submit" class="btn btn-primary btn-block" id="btn-entrar">
+                    Entrar
+                </button>
             </form>
 
             <div id="box-desbloqueio-conta" class="alert-danger hidden">
                 <p>Conta suspensa por exceder tentativas. Clique para solicitar desbloqueio:</p>
-                <button id="btn-solicitar-desbloqueio" class="btn btn-danger-outline btn-block"
-                        onclick="enviarPedidoDesbloqueio()">
+                <button type="button" id="btn-solicitar-desbloqueio"
+                        class="btn btn-danger-outline btn-block"
+                        data-action="pedir-desbloqueio">
                     Pedir Liberação ao Administrador
                 </button>
             </div>
@@ -365,53 +459,75 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
-     MODAL 3 — CHAT DO PEDIDO (NOVO)
+     MODAL 3 — CHAT DO PEDIDO
      ═══════════════════════════════════════════════════════════ -->
-<div id="modal-chat" class="modal-overlay">
+<div id="modal-chat" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
-        <button class="btn-close" onclick="fecharModal('modal-chat')" aria-label="Fechar">&times;</button>
+        <button type="button" class="btn-close"
+                data-action="fechar-modal" data-modal="modal-chat"
+                aria-label="Fechar">&times;</button>
+
         <div class="modal-body">
             <h3>Chat do Pedido <span id="chat-pedido-id" class="chat-id"></span></h3>
             <p class="modal-subtitle">Canal temporário com a administração.</p>
 
-            <!-- lista de mensagens preenchida por renderizarChat() -->
+            <!-- Lista de mensagens (preenchida por renderizarChat) -->
             <div id="chat-mensagens" class="chat-wrapper" aria-live="polite"></div>
 
             <div class="chat-input-row">
-                <input type="text" id="chat-input" placeholder="Escreva uma mensagem..." maxlength="300">
-                <button class="btn btn-primary" onclick="enviarMensagemChat()" id="btn-chat-enviar">Enviar</button>
+                <input type="text" id="chat-input"
+                       placeholder="Escreva uma mensagem..." maxlength="300">
+                <button type="button" class="btn btn-primary"
+                        id="btn-chat-enviar"
+                        data-action="enviar-chat">
+                    Enviar
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
-     MODAL 4 — CONFIRMAÇÃO GENÉRICA (NOVO)
+     MODAL 4 — CONFIRMAÇÃO GENÉRICA
      ═══════════════════════════════════════════════════════════ -->
-<div id="modal-confirmar" class="modal-overlay">
+<div id="modal-confirmar" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog modal-sm">
         <div class="modal-body">
             <h3 id="confirmar-titulo">Confirmar</h3>
             <p id="confirmar-mensagem">Tem certeza?</p>
+
             <div class="modal-actions">
-                <button class="btn btn-outline-dark" onclick="fecharConfirmacao()">Cancelar</button>
-                <button class="btn btn-danger" id="confirmar-btn-ok">Sim</button>
+                <button type="button" class="btn btn-outline-dark"
+                        data-action="fechar-confirmacao">
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmar-btn-ok">
+                    Sim
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
-     OVERLAY DE LOADING (NOVO)
+     OVERLAY DE LOADING GLOBAL
      ═══════════════════════════════════════════════════════════ -->
-<div id="loader-overlay" class="loader-overlay hidden">
+<div id="loader-overlay" class="loader-overlay hidden"
+     role="status" aria-live="polite">
     <div class="spinner"></div>
     <span id="loader-text">Carregando...</span>
 </div>
 
-<!-- container de toasts -->
+<!-- Container de toasts -->
 <div id="toast-container" class="toast-wrapper" aria-live="polite"></div>
 
+<!-- ═══════════════════════════════════════════════════════════
+     SCRIPTS
+     ORDEM IMPORTA:
+       1. app.js       → declara todas as funções (abrirModal, etc.)
+       2. bindings.js  → amarra data-action às funções
+     ═══════════════════════════════════════════════════════════ -->
 <script src="app.js"></script>
+<script src="bindings.js"></script>
 </body>
 </html>
