@@ -1,6 +1,11 @@
 /* ==========================================================================
-   1. RESET E TIPOGRAFIA BASE (MOBILE-FIRST)
+   style.css — Plataforma Comercial Segura (v2 melhorada)
+   Novidades: utils (.hidden), busca, chat, loader, empty-state,
+              alert-danger, modal-sm, skeleton, botões com estado loading.
+   Mantém todo o CSS original e adiciona blocos novos marcados com [NOVO].
    ========================================================================== */
+
+/* ─── 1. RESET E TIPOGRAFIA BASE ────────────────────────────── */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -9,23 +14,25 @@
 }
 
 body {
-    background-color: #f8fafc; /* Fundo suave acinzentado */
+    background-color: #f8fafc;
     color: #1e293b;
     line-height: 1.5;
     padding-bottom: 40px;
 }
 
-/* ==========================================================================
-   2. CABEÇALHO E CONTROLES DE ACESSO
-   ========================================================================== */
+/* [NOVO] utilidade universal: esconder de verdade (vence display:flex etc) */
+.hidden { display: none !important; }
+
+/* ─── 2. CABEÇALHO ──────────────────────────────────────────── */
 .app-header {
-    background-color: #0f172a; /* Slate 900 elegante */
+    background-color: #0f172a;
     color: #ffffff;
     padding: 12px 16px;
     position: sticky;
     top: 0;
     z-index: 100;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    padding-top: max(12px, env(safe-area-inset-top));
 }
 
 .header-content {
@@ -38,31 +45,14 @@ body {
     gap: 10px;
 }
 
-.logo {
-    font-size: 1.2rem;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-}
+.logo { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.5px; }
 
-.auth-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
+.auth-actions { display: flex; align-items: center; gap: 8px; }
+.button-group { display: flex; align-items: center; gap: 6px; }
 
-.button-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
+.user-greeting { font-size: 0.85rem; color: #cbd5e1; margin-right: 6px; }
 
-.user-greeting {
-    font-size: 0.85rem;
-    color: #cbd5e1;
-    margin-right: 6px;
-}
-
-/* Distintivos (Badges) */
+/* badges de papel */
 .badge {
     padding: 4px 8px;
     border-radius: 12px;
@@ -70,14 +60,12 @@ body {
     font-weight: 700;
     text-transform: uppercase;
 }
+.badge-visitor   { background-color: #64748b; color: #ffffff; }
+.badge-membro    { background-color: #10b981; color: #ffffff; }
+.badge-adm       { background-color: #ef4444; color: #ffffff; }
+.badge-entregador{ background-color: #f59e0b; color: #ffffff; }
 
-.badge-visitor { background-color: #64748b; color: #ffffff; }
-.badge-member  { background-color: #10b981; color: #ffffff; }
-.badge-adm     { background-color: #ef4444; color: #ffffff; }
-
-/* ==========================================================================
-   3. BARRA DE NAVEGAÇÃO
-   ========================================================================== */
+/* ─── 3. NAVEGAÇÃO ──────────────────────────────────────────── */
 .app-nav {
     display: flex;
     background-color: #ffffff;
@@ -87,7 +75,6 @@ body {
     top: 57px;
     z-index: 90;
 }
-
 .nav-tab {
     flex: 1;
     min-width: 90px;
@@ -101,60 +88,43 @@ body {
     font-size: 0.85rem;
     text-align: center;
     white-space: nowrap;
+    min-height: 44px;   /* toque confortável */
 }
+.nav-tab.active { color: #2563eb; border-bottom-color: #2563eb; }
 
-.nav-tab.active {
-    color: #2563eb;
-    border-bottom-color: #2563eb;
-}
-
-/* ==========================================================================
-   4. CONTEÚDO PRINCIPAL E SEÇÕES DINÂMICAS
-   ========================================================================== */
+/* ─── 4. CONTEÚDO PRINCIPAL ─────────────────────────────────── */
 .app-main {
     max-width: 960px;
     margin: 16px auto;
     padding: 0 16px;
 }
-
-.view-panel {
-    display: none;
-}
-
-.view-panel.active {
-    display: block;
-    animation: fadeIn 0.25s ease-in-out;
-}
+.view-panel { display: none; }
+.view-panel.active { display: block; animation: fadeIn 0.25s ease-in-out; }
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
-.section-header {
-    margin-bottom: 16px;
+.section-header { margin-bottom: 16px; }
+.section-header h2 { font-size: 1.3rem; font-weight: 700; }
+.section-desc { font-size: 0.85rem; color: #64748b; }
+
+/* [NOVO] barra de busca na vitrine */
+.search-bar { margin-bottom: 12px; }
+.search-bar input {
+    padding: 12px 14px;
+    font-size: 1rem;   /* 16px: evita zoom no iOS */
+    border-radius: 10px;
 }
 
-.section-header h2 {
-    font-size: 1.3rem;
-    font-weight: 700;
-}
-
-.section-desc {
-    font-size: 0.85rem;
-    color: #64748b;
-}
-
-/* ==========================================================================
-   5. CARDS DE PRODUTOS
-   ========================================================================== */
+/* ─── 5. CARDS DE PRODUTOS ──────────────────────────────────── */
 .cards-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 16px;
     margin-bottom: 24px;
 }
-
 .product-card {
     background-color: #ffffff;
     border-radius: 8px;
@@ -163,83 +133,97 @@ body {
     display: flex;
     flex-direction: column;
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: transform .15s ease, box-shadow .15s ease;
 }
-
+.product-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
 .product-thumb {
     width: 100%;
     height: 150px;
     object-fit: cover;
     background-color: #f1f5f9;
 }
-
 .product-details {
     padding: 12px;
     display: flex;
     flex-direction: column;
     flex-grow: 1;
     justify-content: space-between;
+    gap: 6px;
 }
+.product-name { font-size: 1rem; font-weight: 600; }
+.product-price { font-size: 1.15rem; font-weight: 700; color: #15803d; }
+.visitor-note { font-size: 0.75rem; color: #64748b; }
 
-.product-name {
-    font-size: 1rem;
-    font-weight: 600;
-    margin-bottom: 4px;
-}
-
-.product-price {
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: #15803d;
-    margin-bottom: 10px;
-}
-
-.visitor-note {
-    font-size: 0.75rem;
+/* [NOVO] estado vazio bonito */
+.empty-state {
+    grid-column: 1 / -1;
+    padding: 32px 16px;
+    text-align: center;
     color: #64748b;
+    background: #ffffff;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
 }
+.empty-state strong { display: block; margin-bottom: 6px; color: #334155; }
 
-/* ==========================================================================
-   6. BOTÕES E FORMULÁRIOS
-   ========================================================================== */
+/* ─── 6. BOTÕES ─────────────────────────────────────────────── */
 .btn {
     cursor: pointer;
     border-radius: 6px;
     font-weight: 600;
     font-size: 0.85rem;
-    padding: 8px 14px;
+    padding: 10px 14px;
     border: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.15s ease;
+    min-height: 42px;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
 }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
 
-.btn-primary { background-color: #2563eb; color: #ffffff; }
-.btn-primary:hover { background-color: #1d4ed8; }
+.btn-primary        { background-color: #2563eb; color: #ffffff; }
+.btn-primary:hover:not(:disabled) { background-color: #1d4ed8; }
 
-.btn-outline {
-    background-color: transparent;
-    color: #ffffff;
-    border: 1px solid #475569;
-}
-.btn-outline:hover { background-color: #334155; }
+.btn-outline        { background-color: transparent; color: #ffffff; border: 1px solid #475569; }
+.btn-outline:hover:not(:disabled) { background-color: #334155; }
 
-.btn-danger-outline {
-    background-color: transparent;
-    color: #fca5a5;
-    border: 1px solid #ef4444;
-}
-.btn-danger-outline:hover { background-color: #7f1d1d; }
+.btn-outline-dark   { background-color: transparent; color: #334155; border: 1px solid #cbd5e1; }
+.btn-outline-dark:hover:not(:disabled) { background-color: #f1f5f9; }
 
-.btn-success { background-color: #16a34a; color: #ffffff; }
-.btn-success:hover { background-color: #15803d; }
+.btn-danger-outline { background-color: transparent; color: #fca5a5; border: 1px solid #ef4444; }
+.btn-danger-outline:hover:not(:disabled) { background-color: #7f1d1d; }
+
+.btn-danger         { background-color: #dc2626; color: #ffffff; }
+.btn-danger:hover:not(:disabled) { background-color: #b91c1c; }
+
+.btn-success        { background-color: #16a34a; color: #ffffff; }
+.btn-success:hover:not(:disabled) { background-color: #15803d; }
 
 .btn-block { width: 100%; }
+.btn-sm    { padding: 5px 10px; font-size: 0.75rem; min-height: 32px; }
 
-.form-group {
-    margin-bottom: 12px;
+/* [NOVO] botão em estado "carregando" (spinner inline) */
+.btn.loading {
+    position: relative;
+    color: transparent !important;
+    pointer-events: none;
+}
+.btn.loading::after {
+    content: "";
+    position: absolute;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.45);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
 }
 
+/* ─── 7. FORMULÁRIOS ───────────────────────────────────────── */
+.form-group { margin-bottom: 12px; }
 .form-group label {
     display: block;
     font-size: 0.8rem;
@@ -250,37 +234,36 @@ body {
 
 input, select, textarea {
     width: 100%;
-    padding: 9px 12px;
+    padding: 11px 12px;
     border: 1px solid #cbd5e1;
     border-radius: 6px;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     color: #0f172a;
     background-color: #ffffff;
 }
-
 input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: #2563eb;
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
-/* ==========================================================================
-   7. MODAIS INDEPENDENTES
-   ========================================================================== */
+/* [NOVO] linha com dois elementos lado a lado */
+.row-inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row-inline > input,
+.row-inline > select { flex: 1; min-width: 140px; }
+
+/* ─── 8. MODAIS ────────────────────────────────────────────── */
 .modal-overlay {
     display: none;
     position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
+    inset: 0;
     background-color: rgba(15, 23, 42, 0.65);
     z-index: 1000;
     align-items: center;
     justify-content: center;
     padding: 16px;
 }
-
-.modal-overlay.active {
-    display: flex;
-}
+.modal-overlay.active { display: flex; }
 
 .modal-dialog {
     background-color: #ffffff;
@@ -293,41 +276,31 @@ input:focus, select:focus, textarea:focus {
     padding: 24px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
+/* [NOVO] modal pequeno para confirmações */
+.modal-dialog.modal-sm { max-width: 340px; }
 
 .btn-close {
     position: absolute;
-    top: 12px;
-    right: 14px;
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    color: #94a3b8;
-    cursor: pointer;
+    top: 10px; right: 12px;
+    background: none; border: none;
+    font-size: 1.6rem; color: #94a3b8;
+    cursor: pointer; padding: 4px 8px;
+    line-height: 1;
 }
 
-.modal-subtitle {
-    font-size: 0.8rem;
-    color: #64748b;
-    margin-bottom: 16px;
-}
+.modal-subtitle { font-size: 0.8rem; color: #64748b; margin-bottom: 16px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
 
 .terms-container {
-    display: flex;
-    gap: 8px;
+    display: flex; gap: 8px;
     margin: 14px 0;
     font-size: 0.72rem;
     color: #475569;
     line-height: 1.4;
 }
+.terms-container input { width: auto; margin-top: 2px; flex-shrink: 0; }
 
-.terms-container input {
-    width: auto;
-    margin-top: 2px;
-}
-
-/* ==========================================================================
-   8. BLOCOS DO ADMINISTRADOR E CARDS AUXILIARES
-   ========================================================================== */
+/* ─── 9. CARDS DO ADM / AUXILIARES ─────────────────────────── */
 .adm-card, .feedback-card, .cart-summary-card {
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
@@ -336,13 +309,23 @@ input:focus, select:focus, textarea:focus {
     margin-bottom: 16px;
 }
 
+/* [NOVO] cabeçalho de card com botão alinhado à direita */
+.adm-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* ─── 10. PIPELINE DE PEDIDOS ──────────────────────────────── */
 .pipeline-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 10px;
     margin-top: 12px;
 }
-
 .pipeline-col {
     background: #f8fafc;
     border: 1px solid #cbd5e1;
@@ -350,7 +333,6 @@ input:focus, select:focus, textarea:focus {
     padding: 8px;
     min-height: 120px;
 }
-
 .pipeline-col h4 {
     font-size: 0.8rem;
     text-align: center;
@@ -360,20 +342,14 @@ input:focus, select:focus, textarea:focus {
     padding-bottom: 4px;
 }
 
-/* ==========================================================================
-   9. NOTIFICAÇÕES FLUTUANTES (TOASTS)
-   ========================================================================== */
+/* ─── 11. TOASTS ───────────────────────────────────────────── */
 .toast-wrapper {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    bottom: 20px; right: 20px;
     z-index: 2000;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    display: flex; flex-direction: column; gap: 8px;
     max-width: 90vw;
 }
-
 .toast {
     padding: 12px 16px;
     border-radius: 6px;
@@ -383,25 +359,22 @@ input:focus, select:focus, textarea:focus {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     animation: slideUp 0.3s ease-out forwards;
 }
-
 .toast-success { background-color: #10b981; }
 .toast-error   { background-color: #ef4444; }
 .toast-info    { background-color: #3b82f6; }
 
 @keyframes slideUp {
     from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-} 
-/* ==========================================================================
-   MÉTRICAS CONSOLIDADAS E CARDS DE ESTATÍSTICA
-   ========================================================================== */
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── 12. MÉTRICAS ─────────────────────────────────────────── */
 .metrics-summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 12px;
     margin: 12px 0;
 }
-
 .metric-box {
     background-color: #f1f5f9;
     border: 1px solid #cbd5e1;
@@ -409,7 +382,6 @@ input:focus, select:focus, textarea:focus {
     padding: 12px;
     text-align: center;
 }
-
 .metric-box span {
     display: block;
     font-size: 0.75rem;
@@ -417,12 +389,7 @@ input:focus, select:focus, textarea:focus {
     text-transform: uppercase;
     font-weight: 600;
 }
-
-.metric-box strong {
-    font-size: 1.25rem;
-    color: #0f172a;
-    font-weight: 700;
-}
+.metric-box strong { font-size: 1.25rem; color: #0f172a; font-weight: 700; }
 
 .tabela-metricas {
     width: 100%;
@@ -430,22 +397,14 @@ input:focus, select:focus, textarea:focus {
     margin-top: 8px;
     font-size: 0.85rem;
 }
-
 .tabela-metricas th, .tabela-metricas td {
     padding: 8px 12px;
     border: 1px solid #e2e8f0;
     text-align: left;
 }
+.tabela-metricas th { background-color: #f8fafc; font-weight: 600; color: #475569; }
 
-.tabela-metricas th {
-    background-color: #f8fafc;
-    font-weight: 600;
-    color: #475569;
-}
-
-/* ==========================================================================
-   PRÉ-VISUALIZAÇÃO DE UPLOAD E CAIXA DE LINK
-   ========================================================================== */
+/* ─── 13. UPLOAD E LINK GERADO ─────────────────────────────── */
 .preview-box {
     margin-top: 10px;
     padding: 10px;
@@ -456,19 +415,12 @@ input:focus, select:focus, textarea:focus {
     align-items: center;
     gap: 12px;
 }
-
 .preview-box img {
-    max-width: 90px;
-    max-height: 90px;
-    border-radius: 6px;
-    object-fit: cover;
+    max-width: 90px; max-height: 90px;
+    border-radius: 6px; object-fit: cover;
     border: 1px solid #cbd5e1;
 }
-
-.btn-sm {
-    padding: 4px 8px;
-    font-size: 0.75rem;
-}
+.btn-sm { padding: 4px 8px; font-size: 0.75rem; }
 
 .link-display-box {
     margin-top: 12px;
@@ -476,4 +428,92 @@ input:focus, select:focus, textarea:focus {
     background: #ecfdf5;
     border: 1px solid #10b981;
     border-radius: 6px;
+}
+.link-label { font-size: 0.8rem; font-weight: 600; color: #1e293b; display: block; margin-bottom: 4px; }
+.link-hint  { color: #64748b; margin-top: 4px; display: block; font-size: 0.75rem; }
+
+/* ─── 14. [NOVO] ALERTA DE ERRO (rate-limit) ───────────────── */
+.alert-danger {
+    margin-top: 15px;
+    padding: 12px;
+    background: #fef2f2;
+    border: 1px solid #f87171;
+    border-radius: 6px;
+}
+.alert-danger p {
+    font-size: 0.8rem;
+    color: #991b1b;
+    margin-bottom: 8px;
+}
+
+/* ─── 15. [NOVO] CHAT DO PEDIDO ───────────────────────────── */
+.chat-id { color: #2563eb; font-weight: 700; }
+
+.chat-wrapper {
+    max-height: 300px;
+    overflow-y: auto;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.chat-msg {
+    max-width: 78%;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    word-break: break-word;
+}
+/* mensagens recebidas (ADM) — alinhadas à esquerda */
+.chat-msg--in  { background: #ffffff; border: 1px solid #e2e8f0; align-self: flex-start; }
+/* mensagens enviadas (usuário) — alinhadas à direita */
+.chat-msg--out { background: #2563eb; color: #ffffff; align-self: flex-end; }
+/* meta info dentro da bolha */
+.chat-msg .meta { display: block; font-size: 0.65rem; opacity: .7; margin-top: 3px; }
+
+.chat-input-row { display: flex; gap: 8px; }
+.chat-input-row input { flex: 1; }
+
+/* ─── 16. [NOVO] LOADER GLOBAL ────────────────────────────── */
+.loader-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    color: #ffffff;
+    gap: 12px;
+}
+.spinner {
+    width: 42px; height: 42px;
+    border: 4px solid rgba(255,255,255,.25);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── 17. [NOVO] ESTADO DE CARREGAMENTO EM SLOTS ─────────── */
+.loading-slot {
+    padding: 12px;
+    color: #64748b;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+/* ─── 18. RESPONSIVO FINO ─────────────────────────────────── */
+@media (max-width: 400px) {
+    .header-content { gap: 6px; }
+    .logo { font-size: 1rem; }
+    .btn  { padding: 8px 10px; font-size: 0.78rem; }
+    .nav-tab { min-width: 76px; font-size: 0.78rem; }
+    .chat-msg { max-width: 88%; }
 }
