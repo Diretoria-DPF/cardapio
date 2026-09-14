@@ -13,22 +13,21 @@
                    connect-src 'self' https://script.google.com https://script.googleusercontent.com;
                    form-action 'self';
                    base-uri 'self';">
-    <title>LojaSegura</title>
+    <title>Loja</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <!-- ═══════════════════════════════════════════════════════════
-     HEADER — fixo no topo
-     Esquerda: logo · Direita: cesta (se logado) + avatar/perfil
+     INÍCIO: HEADER DA APLICAÇÃO
      ═══════════════════════════════════════════════════════════ -->
 <header class="app-header">
     <div class="app-header__left">
-        <span class="logo" aria-label="LojaSegura">LojaSegura</span>
+        <span class="logo" aria-label="Loja">Loja</span>
     </div>
 
     <div class="app-header__right">
-        <!-- Cesta resumida (só aparece logado como membro) -->
+        <!-- Cesta resumida de compras (exibida para membros) -->
         <button type="button" id="header-cart-btn"
                 class="icon-btn hidden"
                 data-action="navegar" data-view="carrinho"
@@ -42,7 +41,7 @@
             <span id="header-cart-count" class="icon-btn__badge">0</span>
         </button>
 
-        <!-- VISITANTE: botões de acesso -->
+        <!-- Visitante: botões de ação -->
         <div id="anon-buttons" class="button-group">
             <button type="button" class="btn btn-ghost btn-sm"
                     data-action="abrir-modal" data-modal="modal-cadastro">
@@ -54,7 +53,7 @@
             </button>
         </div>
 
-        <!-- LOGADO: avatar com dropdown -->
+        <!-- Usuário autenticado: avatar e dropdown -->
         <div id="auth-buttons" class="user-menu hidden">
             <button type="button" id="user-avatar-btn" class="avatar-btn"
                     aria-haspopup="menu" aria-expanded="false">
@@ -78,13 +77,17 @@
         </div>
     </div>
 </header>
+<!-- ═══════════════════════════════════════════════════════════
+     FIM: HEADER DA APLICAÇÃO
+     ═══════════════════════════════════════════════════════════ -->
+
 
 <!-- ═══════════════════════════════════════════════════════════
-     MAIN — todas as telas
+     INÍCIO: CONTAINER PRINCIPAL (TELAS)
      ═══════════════════════════════════════════════════════════ -->
 <main class="app-main" id="app-main">
 
-    <!-- ─── TELA DE BLOQUEIO (sem link autorizado) ─── -->
+    <!-- ─── INÍCIO: TELA DE BLOQUEIO (SEM LINK E SEM CONTA ATIVA) ─── -->
     <section id="view-bloqueado" class="view-panel hidden">
         <div class="hero-screen">
             <div class="hero-screen__icon" aria-hidden="true">
@@ -96,9 +99,9 @@
             </div>
             <h1 class="hero-screen__title">Plataforma Exclusiva</h1>
             <p class="hero-screen__text">
-                O acesso a esta vitrine é restrito e temporário.
+                O acesso a esta vitrine é restrito e seguro.
                 Para navegar, conhecer os produtos e fazer pedidos,
-                você precisa de um <strong>link autorizado</strong> emitido pela administração.
+                você precisa de um <strong>link autorizado</strong> emitido pela administração ou de uma conta aprovada[cite: 12].
             </p>
             <div class="hero-screen__actions">
                 <button type="button" class="btn btn-primary btn-block"
@@ -111,16 +114,18 @@
                 </button>
             </div>
             <p class="hero-screen__hint">
-                Recebeu um link do administrador?<br>Basta abri-lo no navegador.
+                Recebeu um link do administrador?<br>Basta abri-lo no navegador[cite: 12].
             </p>
         </div>
     </section>
+    <!-- ─── FIM: TELA DE BLOQUEIO ─── -->
 
-    <!-- ─── TELA 1: VITRINE ─── -->
+
+    <!-- ─── INÍCIO: TELA 1 — VITRINE DO CATÁLOGO ─── -->
     <section id="view-vitrine" class="view-panel active">
         <header class="screen-header">
             <h2 id="vitrine-title">Catálogo</h2>
-            <p class="screen-header__desc">Produtos disponíveis para o seu perfil.</p>
+            <p class="screen-header__desc">Produtos disponíveis para o seu perfil[cite: 12].</p>
         </header>
 
         <div class="search-bar">
@@ -138,7 +143,6 @@
 
         <div id="produtos-container" class="cards-grid"></div>
 
-        <!-- Área de dúvidas discreta (só aparece para membro/adm) -->
         <div id="container-duvidas-discreto" class="help-cta hidden">
             <button type="button" class="help-cta__btn" data-action="abrir-central-duvidas">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -151,12 +155,14 @@
             </button>
         </div>
     </section>
+    <!-- ─── FIM: TELA 1 — VITRINE DO CATÁLOGO ─── -->
 
-    <!-- ─── TELA 2: CESTA ─── -->
+
+    <!-- ─── INÍCIO: TELA 2 — MINHA CESTA DE COMPRAS ─── -->
     <section id="view-carrinho" class="view-panel">
         <header class="screen-header">
             <h2>Minha Cesta</h2>
-            <p class="screen-header__desc">Revise os itens antes de finalizar.</p>
+            <p class="screen-header__desc">Revise os itens antes de finalizar[cite: 12].</p>
         </header>
 
         <div id="carrinho-itens-lista" class="cart-items-wrapper"></div>
@@ -185,21 +191,25 @@
             </button>
         </div>
     </section>
+    <!-- ─── FIM: TELA 2 — MINHA CESTA DE COMPRAS ─── -->
 
-    <!-- ─── TELA 3: MEUS PEDIDOS ─── -->
+
+    <!-- ─── INÍCIO: TELA 3 — HISTÓRICO DE PEDIDOS DO MEMBRO ─── -->
     <section id="view-meus-pedidos" class="view-panel">
         <header class="screen-header">
             <h2>Meus Pedidos</h2>
-            <p class="screen-header__desc">Acompanhe o status das suas compras.</p>
+            <p class="screen-header__desc">Acompanhe o status das suas compras[cite: 12].</p>
         </header>
         <div id="meus-pedidos-container"></div>
     </section>
+    <!-- ─── FIM: TELA 3 — HISTÓRICO DE PEDIDOS DO MEMBRO ─── -->
 
-    <!-- ─── TELA 4: CADASTRAR PRODUTO (ADM) ─── -->
+
+    <!-- ─── INÍCIO: TELA 4 — CADASTRO DE PRODUTO (ADM) ─── -->
     <section id="view-novo-produto" class="view-panel">
         <header class="screen-header">
             <h2>Novo Produto</h2>
-            <p class="screen-header__desc">Adicione itens à vitrine.</p>
+            <p class="screen-header__desc">Adicione itens à vitrine[cite: 12].</p>
         </header>
 
         <div class="card">
@@ -247,12 +257,14 @@
             </form>
         </div>
     </section>
+    <!-- ─── FIM: TELA 4 — CADASTRO DE PRODUTO (ADM) ─── -->
 
-    <!-- ─── TELA 5: PIPELINE DE PEDIDOS (ADM) ─── -->
+
+    <!-- ─── INÍCIO: TELA 5 — ESTEIRA DE PEDIDOS / PIPELINE (ADM) ─── -->
     <section id="view-pedidos-adm" class="view-panel">
         <header class="screen-header">
             <h2>Esteira de Pedidos</h2>
-            <p class="screen-header__desc">Gestão das entregas em tempo real.</p>
+            <p class="screen-header__desc">Gestão das entregas em tempo real[cite: 12].</p>
         </header>
 
         <div class="pipeline-grid">
@@ -274,18 +286,20 @@
             </div>
         </div>
     </section>
+    <!-- ─── FIM: TELA 5 — ESTEIRA DE PEDIDOS / PIPELINE (ADM) ─── -->
 
-    <!-- ─── TELA 6: PAINEL CENTRAL (ADM) ─── -->
+
+    <!-- ─── INÍCIO: TELA 6 — PAINEL CENTRAL ADMINISTRATIVO ─── -->
     <section id="view-adm" class="view-panel">
         <header class="screen-header">
             <h2>Painel Central</h2>
-            <p class="screen-header__desc">Aprovações, links e métricas.</p>
+            <p class="screen-header__desc">Aprovações, usuários ativos, links e métricas[cite: 12].</p>
         </header>
 
-        <!-- Link temporário -->
+        <!-- Emissão de Link temporário -->
         <div class="card">
             <h3 class="card__title">Emitir Link de Acesso</h3>
-            <p class="card__desc">Gere um link temporário para liberar o acesso.</p>
+            <p class="card__desc">Gere um link temporário para liberar acesso temporário[cite: 12].</p>
 
             <div class="row-inline">
                 <select id="select-duracao-link" data-action="mudar-duracao-link" aria-label="Duração">
@@ -306,11 +320,11 @@
                     <input type="text" id="campo-link-gerado" readonly>
                     <button type="button" class="btn btn-success" data-action="copiar-link">Copiar</button>
                 </div>
-                <small class="link-display-box__hint">Partilhe com quem deseja autorizar.</small>
+                <small class="link-display-box__hint">Partilhe com quem deseja autorizar[cite: 12].</small>
             </div>
         </div>
 
-        <!-- Novos cadastros -->
+        <!-- Validação de novos cadastros pendentes -->
         <div class="card">
             <div class="card__head">
                 <h3 class="card__title">Validação de Cadastros</h3>
@@ -321,7 +335,18 @@
             <div id="adm-solicitacoes-lista" class="loading-slot">A carregar...</div>
         </div>
 
-        <!-- Métricas -->
+        <!-- Lista de Usuários Ativos Registrados -->
+        <div class="card">
+            <div class="card__head">
+                <h3 class="card__title">Usuários Ativos na Plataforma</h3>
+                <button type="button" class="btn btn-ghost btn-sm" data-action="carregar-painel-adm">
+                    Atualizar
+                </button>
+            </div>
+            <div id="adm-usuarios-lista" class="loading-slot">A carregar usuários...</div>
+        </div>
+
+        <!-- Métricas gerais de faturamento e vendas -->
         <div class="card">
             <h3 class="card__title">Métricas de Vendas</h3>
             <div class="metrics-summary">
@@ -337,25 +362,28 @@
             <div id="tabela-metricas-produtos"></div>
         </div>
 
-        <!-- Bloqueados -->
+        <!-- Contas suspensas com solicitação de liberação -->
         <div class="card">
             <h3 class="card__title">Contas Bloqueadas</h3>
             <div id="adm-bloqueados-lista"></div>
         </div>
 
-        <!-- Comentários -->
+        <!-- Mensagens e sugestões enviadas à administração -->
         <div class="card">
             <h3 class="card__title">Mensagens Recebidas</h3>
             <div id="adm-comentarios-lista"></div>
         </div>
     </section>
+    <!-- ─── FIM: TELA 6 — PAINEL CENTRAL ADMINISTRATIVO ─── -->
 
 </main>
+<!-- ═══════════════════════════════════════════════════════════
+     FIM: CONTAINER PRINCIPAL (TELAS)
+     ═══════════════════════════════════════════════════════════ -->
+
 
 <!-- ═══════════════════════════════════════════════════════════
-     BOTTOM NAV — fixo no rodapé
-     Os botões têm `data-roles` para o app.js exibir apenas
-     os pertinentes a cada papel.
+     INÍCIO: BOTTOM NAVIGATION (BARRA INFERIOR FIXA)
      ═══════════════════════════════════════════════════════════ -->
 <nav class="bottom-nav hidden" id="app-nav-bar" aria-label="Navegação principal">
 
@@ -372,7 +400,7 @@
         <span>Vitrine</span>
     </button>
 
-    <!-- Cesta -->
+    <!-- Cesta (exclusiva membro) -->
     <button type="button" class="bottom-nav__item hidden"
             id="tab-btn-carrinho"
             data-action="navegar" data-view="carrinho"
@@ -387,7 +415,7 @@
         <span id="cart-counter" class="bottom-nav__badge">0</span>
     </button>
 
-    <!-- Meus Pedidos (membro + entregador) -->
+    <!-- Meus Pedidos (membro e entregador) -->
     <button type="button" class="bottom-nav__item hidden"
             id="tab-btn-meus-pedidos"
             data-action="navegar" data-view="meus-pedidos"
@@ -402,7 +430,7 @@
         <span>Pedidos</span>
     </button>
 
-    <!-- Cadastrar Produto (ADM) -->
+    <!-- Cadastrar Produto (exclusivo ADM) -->
     <button type="button" class="bottom-nav__item hidden"
             id="tab-btn-novo-produto"
             data-action="navegar" data-view="novo-produto"
@@ -415,7 +443,7 @@
         <span>Produto</span>
     </button>
 
-    <!-- Pipeline Pedidos (ADM + entregador) -->
+    <!-- Pipeline Esteira de Pedidos (ADM e entregador) -->
     <button type="button" class="bottom-nav__item hidden"
             id="tab-btn-pedidos-adm"
             data-action="navegar" data-view="pedidos-adm"
@@ -430,7 +458,7 @@
         <span>Esteira</span>
     </button>
 
-    <!-- Painel ADM -->
+    <!-- Painel Central (exclusivo ADM) -->
     <button type="button" class="bottom-nav__item hidden"
             id="tab-btn-adm"
             data-action="navegar" data-view="adm"
@@ -444,12 +472,16 @@
         <span>Painel</span>
     </button>
 </nav>
-
 <!-- ═══════════════════════════════════════════════════════════
-     MODAIS
+     FIM: BOTTOM NAVIGATION (BARRA INFERIOR FIXA)
      ═══════════════════════════════════════════════════════════ -->
 
-<!-- Modal: Login -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     INÍCIO: MODAIS DO SISTEMA
+     ═══════════════════════════════════════════════════════════ -->
+
+<!-- ─── INÍCIO: MODAL DE LOGIN ─── -->
 <div id="modal-login" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
         <button type="button" class="btn-close"
@@ -457,7 +489,7 @@
                 aria-label="Fechar">&times;</button>
         <div class="modal-body">
             <h3>Acessar Conta</h3>
-            <p class="modal-subtitle">Entre com telefone e senha.</p>
+            <p class="modal-subtitle">Entre com telefone e senha[cite: 12].</p>
             <form id="form-login" data-action="login">
                 <div class="form-group">
                     <label for="login-usuario">Telefone ou usuário</label>
@@ -473,7 +505,7 @@
             </form>
 
             <div id="box-desbloqueio-conta" class="alert-danger hidden">
-                <p>Conta suspensa. Solicite liberação:</p>
+                <p>Conta suspensa. Solicite liberação[cite: 12]:</p>
                 <button type="button" class="btn btn-danger-outline btn-block"
                         data-action="pedir-desbloqueio" id="btn-solicitar-desbloqueio">
                     Pedir Liberação
@@ -482,8 +514,9 @@
         </div>
     </div>
 </div>
+<!-- ─── FIM: MODAL DE LOGIN ─── -->
 
-<!-- Modal: Cadastro -->
+<!-- ─── INÍCIO: MODAL DE CADASTRO ─── -->
 <div id="modal-cadastro" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
         <button type="button" class="btn-close"
@@ -491,7 +524,7 @@
                 aria-label="Fechar">&times;</button>
         <div class="modal-body">
             <h3>Criar Conta</h3>
-            <p class="modal-subtitle">Preencha os dados para análise.</p>
+            <p class="modal-subtitle">Preencha os dados para análise[cite: 12].</p>
 
             <form id="form-registro" data-action="enviar-cadastro">
                 <div class="form-group">
@@ -522,7 +555,7 @@
                     <input type="checkbox" id="cad-termos" required>
                     <label for="cad-termos">
                         Concordo com a política de privacidade e com o uso dos dados
-                        para funcionamento da plataforma.
+                        para funcionamento da plataforma[cite: 12].
                     </label>
                 </div>
                 <button type="submit" class="btn btn-primary btn-block" id="btn-enviar-cadastro">
@@ -532,8 +565,9 @@
         </div>
     </div>
 </div>
+<!-- ─── FIM: MODAL DE CADASTRO ─── -->
 
-<!-- Modal: Chat -->
+<!-- ─── INÍCIO: MODAL DE CHAT TEMPORÁRIO ─── -->
 <div id="modal-chat" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
         <button type="button" class="btn-close"
@@ -541,7 +575,7 @@
                 aria-label="Fechar">&times;</button>
         <div class="modal-body">
             <h3>Chat do Pedido <span id="chat-pedido-id" class="chat-id"></span></h3>
-            <p class="modal-subtitle">Canal temporário com a administração.</p>
+            <p class="modal-subtitle">Canal temporário com a administração[cite: 12].</p>
             <div id="chat-mensagens" class="chat-wrapper" aria-live="polite"></div>
             <div class="chat-input-row">
                 <input type="text" id="chat-input" placeholder="Escreva uma mensagem..." maxlength="300">
@@ -552,8 +586,9 @@
         </div>
     </div>
 </div>
+<!-- ─── FIM: MODAL DE CHAT TEMPORÁRIO ─── -->
 
-<!-- Modal: Central de Dúvidas -->
+<!-- ─── INÍCIO: MODAL DE CENTRAL DE DÚVIDAS E FAQ ─── -->
 <div id="modal-duvidas-central" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
         <button type="button" class="btn-close"
@@ -561,7 +596,7 @@
                 aria-label="Fechar">&times;</button>
         <div class="modal-body">
             <h3>Central de Ajuda</h3>
-            <p class="modal-subtitle">Dúvidas frequentes e canal com a moderação.</p>
+            <p class="modal-subtitle">Dúvidas frequentes e canal com a moderação[cite: 12].</p>
 
             <div class="faq-container">
                 <h4 class="faq-header-title">Dúvidas Frequentes</h4>
@@ -570,7 +605,7 @@
 
             <div class="sugestao-box-sutil">
                 <h4>Enviar Sugestão</h4>
-                <p>Tem alguma ideia? Deixe abaixo:</p>
+                <p>Tem alguma ideia? Deixe abaixo[cite: 12]:</p>
                 <form id="form-sugestao" data-action="enviar-sugestao">
                     <div class="form-group">
                         <textarea id="campo-sugestao-texto" rows="3"
@@ -596,8 +631,9 @@
         </div>
     </div>
 </div>
+<!-- ─── FIM: MODAL DE CENTRAL DE DÚVIDAS E FAQ ─── -->
 
-<!-- Modal: Confirmação -->
+<!-- ─── INÍCIO: MODAL DE CONFIRMAÇÃO ─── -->
 <div id="modal-confirmar" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog modal-sm">
         <div class="modal-body">
@@ -614,15 +650,25 @@
         </div>
     </div>
 </div>
+<!-- ─── FIM: MODAL DE CONFIRMAÇÃO ─── -->
 
-<!-- Loader global -->
+<!-- ═══════════════════════════════════════════════════════════
+     FIM: MODAIS DO SISTEMA
+     ═══════════════════════════════════════════════════════════ -->
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     INÍCIO: OVERLAYS DE SISTEMA (LOADER E TOASTS)
+     ═══════════════════════════════════════════════════════════ -->
 <div id="loader-overlay" class="loader-overlay hidden" role="status" aria-live="polite">
     <div class="spinner"></div>
     <span id="loader-text">A carregar...</span>
 </div>
 
-<!-- Toasts -->
 <div id="toast-container" class="toast-wrapper" aria-live="polite"></div>
+<!-- ═══════════════════════════════════════════════════════════
+     FIM: OVERLAYS DE SISTEMA (LOADER E TOASTS)
+     ═══════════════════════════════════════════════════════════ -->
 
 <script src="app.js"></script>
 <script src="bindings.js"></script>
