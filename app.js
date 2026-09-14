@@ -1,15 +1,14 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v9 — FRONTEND ALINHADO COM BACKEND)
+   app.js — Plataforma Comercial Segura (v10 — Navegação Redesenhada)
    ============================================================================
-   CORREÇÕES DESTA VERSÃO:
-     • executarRequisicaoAPI() envia { acao, payload, ts, fingerprint, hmac, token }
-       → formato exigido pelo code.gs (FASE 1)
-     • Fingerprint do dispositivo gerado e preservado em todas as operações
-     • HMAC-SHA256 assinado a cada requisição autenticada
-     • Auto-refresh: renova access token (15min) via refresh token (7 dias)
-     • Logout preserva o fingerprint (para rate-limit funcionar)
-     • Removida duplicação de window.executarLogout
-     • TODAS as funções originais preservadas — nada foi removido
+   NOVIDADES DESTA VERSÃO:
+     • Navegação migrada para BOTTOM NAV fixa (mobile-first)
+     • Avatar com iniciais no header + dropdown de ações
+     • Badge de carrinho sincronizado no header E no bottom nav
+     • Helpers: aplicarNavPorPapel, atualizarAvatarUsuario,
+                toggleUserDropdown, fecharUserDropdown, atualizarBadgeCarrinho
+     • navegarPara() agora usa .bottom-nav__item
+     • TUDO da v9 foi preservado (HMAC, refresh, fingerprint, rate-limit)
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
@@ -173,6 +172,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         await sincronizarProdutosServidor();
     }
+
+    // ─── Wiring do avatar (dropdown) ───────────────────────────
+    const avatarBtn = document.getElementById('user-avatar-btn');
+    if (avatarBtn) {
+        avatarBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleUserDropdown();
+        });
+    }
+
+    // Fecha o dropdown ao clicar fora
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.user-menu')) {
+            fecharUserDropdown();
+        }
+    });
+
+    // Fecha o dropdown com ESC
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            fecharUserDropdown();
+        }
+    });
 });
 
 function obterUrlBasePlataforma() {
@@ -203,7 +225,6 @@ async function verificarTokenUrl() {
 
         if (res.valido) {
             _linkAutorizadoValido = true;
-            // Salva o token do link SEPARADAMENTE (não substitui o token de sessão)
             sessionStorage.setItem('plataforma_link_token', tokenAcesso);
 
             const segundos = res.segundosRestantes || (15 * 60);
@@ -252,7 +273,6 @@ function executarLimpezaTotalESaida(silencioso = false) {
     pararAutoRefreshChat();
     desligarAutoRefreshAdm();
 
-    // Preserva o fingerprint antes de limpar
     const fp = localStorage.getItem('plataforma_fingerprint');
 
     try {
@@ -305,16 +325,8 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
 }
 
 /**
- * [CORRIGIDO] Requisição API no formato exigido pelo code.gs (FASE 1):
+ * Requisição API no formato exigido pelo code.gs (FASE 1):
  *   { acao, payload, ts, fingerprint, hmac, token }
- *
- * • ts           → timestamp atual (anti-replay)
- * • fingerprint  → identidade do dispositivo (rate-limit)
- * • hmac         → assinatura HMAC-SHA256 (se houver sessão)
- * • token        → access token (se houver sessão)
- *
- * Auto-refresh: se o backend devolver SESSION_EXPIRED, tenta renovar
- * com o refresh token. Se falhar, faz logout.
  */
 async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
     try {
@@ -328,7 +340,6 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
             fingerprint: FINGERPRINT
         };
 
-        // Anexa token + HMAC se houver sessão
         if (estadoSessao.token) {
             corpo.token = estadoSessao.token;
             try {
@@ -354,14 +365,12 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
             return { sucesso: false, mensagem: "Resposta inesperada do servidor." };
         }
 
-        // ─── Auto-refresh: access token expirou ─────────────────
         if (!json.sucesso && json.codigo === 'SESSION_EXPIRED' && tentarRefresh) {
             const rt = sessionStorage.getItem('plataforma_refresh_token');
             if (rt) {
                 console.log('[Sessão] Access expirou. Renovando...');
                 const ok = await tentarRenovarSessao(rt);
                 if (ok) {
-                    // Retenta a requisição original com o novo token
                     return executarRequisicaoAPI(acao, dadosExtras, false);
                 }
                 exibirToast("Sua sessão expirou. Faça login novamente.", "error");
@@ -798,7 +807,6 @@ async function tratarLogin(evento) {
         estadoSessao.token       = resposta.token;
         estadoSessao.nomeUsuario = resposta.nome;
 
-        // Guarda refresh token + hmacKey da sessão
         if (resposta.refreshToken) sessionStorage.setItem('plataforma_refresh_token', resposta.refreshToken);
         if (resposta.hmacKey)      sessionStorage.setItem('plataforma_hmac_key', resposta.hmacKey);
 
@@ -858,7 +866,6 @@ async function executarLogout() {
     pararAutoRefreshChat();
     desligarAutoRefreshAdm();
 
-    // Preserva o fingerprint
     const fp = localStorage.getItem('plataforma_fingerprint');
 
     try {
@@ -915,34 +922,35 @@ function restaurarSessaoLocal() {
 // 10. CONTROLO VISUAL: BLOQUEIO SEM LINK VS LOJA LIBERADA
 // ============================================================================
 function atualizarInterfaceSessao() {
-    const badge          = document.getElementById('role-badge');
     const anonBox        = document.getElementById('anon-buttons');
     const authBox        = document.getElementById('auth-buttons');
     const userLabel      = document.getElementById('user-display-name');
+    const badge          = document.getElementById('role-badge');
     const navBar         = document.getElementById('app-nav-bar');
-
-    const tabCarrinho    = document.getElementById('tab-btn-carrinho');
-    const tabMeusPedidos = document.getElementById('tab-btn-meus-pedidos');
-    const tabNovoProduto = document.getElementById('tab-btn-novo-produto');
-    const tabPedidosAdm  = document.getElementById('tab-btn-pedidos-adm');
-    const tabAdm         = document.getElementById('tab-btn-adm');
+    const headerCartBtn  = document.getElementById('header-cart-btn');
 
     const viewBloqueado  = document.getElementById('view-bloqueado');
     const containerDuvidas = document.getElementById('container-duvidas-discreto');
 
+    // 1. Atualiza badge e avatar
     if (badge) {
         badge.textContent = estadoSessao.papel.toUpperCase();
         badge.className   = `badge badge-${estadoSessao.papel}`;
     }
+    if (userLabel) {
+        userLabel.textContent = estadoSessao.nomeUsuario || 'Olá';
+    }
+    atualizarAvatarUsuario();
 
-    const esconder = elemento => elemento && elemento.classList.add('hidden');
-    const mostrar  = elemento => elemento && elemento.classList.remove('hidden');
+    // 2. Aplica visibilidade dos itens do bottom nav
+    aplicarNavPorPapel(estadoSessao.papel);
 
-    [tabCarrinho, tabMeusPedidos, tabNovoProduto, tabPedidosAdm, tabAdm].forEach(esconder);
-    esconder(containerDuvidas);
+    // 3. Esconde o botão de ajuda por padrão
+    if (containerDuvidas) containerDuvidas.classList.add('hidden');
 
+    // ─── CENÁRIO 1: BLOQUEIO (sem link, sem ADM) ─────────────
     if (!_linkAutorizadoValido && estadoSessao.papel !== 'adm') {
-        esconder(navBar);
+        if (navBar) navBar.classList.add('hidden');
         document.querySelectorAll('.view-panel').forEach(painel => {
             painel.classList.add('hidden');
             painel.classList.remove('active');
@@ -951,40 +959,44 @@ function atualizarInterfaceSessao() {
             viewBloqueado.classList.remove('hidden');
             viewBloqueado.classList.add('active');
         }
-        mostrar(anonBox);
-        esconder(authBox);
+        if (anonBox) anonBox.classList.remove('hidden');
+        if (authBox) authBox.classList.add('hidden');
+        if (headerCartBtn) headerCartBtn.classList.add('hidden');
+        fecharUserDropdown();
         return;
     }
 
-    mostrar(navBar);
+    // ─── CENÁRIO 2: LIBERADO ─────────────────────────────────
+    if (navBar) navBar.classList.remove('hidden');
     if (viewBloqueado) {
         viewBloqueado.classList.add('hidden');
         viewBloqueado.classList.remove('active');
     }
 
     if (estadoSessao.papel === 'visitante') {
-        mostrar(anonBox); esconder(authBox);
-    } else if (estadoSessao.papel === 'membro') {
-        esconder(anonBox); mostrar(authBox);
-        if (userLabel) userLabel.textContent = `Olá, ${estadoSessao.nomeUsuario}`;
-        mostrar(tabCarrinho); mostrar(tabMeusPedidos);
-        mostrar(containerDuvidas);
-    } else if (estadoSessao.papel === 'entregador') {
-        esconder(anonBox); mostrar(authBox);
-        if (userLabel) userLabel.textContent = `Entregador: ${estadoSessao.nomeUsuario}`;
-        mostrar(tabMeusPedidos); mostrar(tabPedidosAdm);
-        mostrar(containerDuvidas);
-    } else if (estadoSessao.papel === 'adm') {
-        esconder(anonBox); mostrar(authBox);
-        if (userLabel) userLabel.textContent = `ADM: ${estadoSessao.nomeUsuario}`;
-        mostrar(tabNovoProduto); mostrar(tabPedidosAdm); mostrar(tabAdm);
-        mostrar(containerDuvidas);
+        if (anonBox) anonBox.classList.remove('hidden');
+        if (authBox) authBox.classList.add('hidden');
+        if (headerCartBtn) headerCartBtn.classList.add('hidden');
+    } else {
+        if (anonBox) anonBox.classList.add('hidden');
+        if (authBox) authBox.classList.remove('hidden');
+
+        if (headerCartBtn) {
+            if (estadoSessao.papel === 'membro') {
+                headerCartBtn.classList.remove('hidden');
+            } else {
+                headerCartBtn.classList.add('hidden');
+            }
+        }
+    }
+
+    // Central de dúvidas: membro / entregador / adm
+    if (['membro', 'entregador', 'adm'].includes(estadoSessao.papel)) {
+        if (containerDuvidas) containerDuvidas.classList.remove('hidden');
     }
 
     const algumPainelVisivel = document.querySelector('.view-panel.active:not(.hidden)');
-    if (!algumPainelVisivel) {
-        navegarPara('vitrine');
-    }
+    if (!algumPainelVisivel) navegarPara('vitrine');
 
     if (estadoSessao.papel === 'adm') {
         ligarAutoRefreshAdm();
@@ -998,7 +1010,11 @@ function atualizarInterfaceSessao() {
 // 11. NAVEGAÇÃO ENTRE TELAS
 // ============================================================================
 function navegarPara(nomeAba) {
+    // Bottom nav (novo)
+    document.querySelectorAll('.bottom-nav__item').forEach(botao => botao.classList.remove('active'));
+    // Compat: se ainda houver .nav-tab no HTML, limpa também
     document.querySelectorAll('.nav-tab').forEach(botao => botao.classList.remove('active'));
+
     document.querySelectorAll('.view-panel').forEach(painel => painel.classList.remove('active'));
 
     const botaoAtivo  = document.getElementById(`tab-btn-${nomeAba}`);
@@ -1009,6 +1025,9 @@ function navegarPara(nomeAba) {
         painelAtivo.classList.remove('hidden');
         painelAtivo.classList.add('active');
     }
+
+    // Fecha o dropdown do avatar (se estiver aberto)
+    fecharUserDropdown();
 
     if (nomeAba === 'vitrine')      sincronizarProdutosServidor();
     if (nomeAba === 'carrinho')     renderizarCarrinho();
@@ -1031,14 +1050,15 @@ function adicionarAoCarrinho(produto) {
         cestaCompras.push({
             id: produto.id,
             nome: produto.nome,
-            preco: typeof produto.preco === 'number' ? produto.preco : parseFloat(String(produto.preco).replace(',', '.')),
+            preco: typeof produto.preco === 'number'
+                ? produto.preco
+                : parseFloat(String(produto.preco).replace(',', '.')),
             quantidade: 1
         });
     }
 
-    const totalItens = cestaCompras.reduce((acumulador, item) => acumulador + item.quantidade, 0);
-    const contador = document.getElementById('cart-counter');
-    if (contador) contador.textContent = totalItens;
+    const totalItens = cestaCompras.reduce((acc, i) => acc + i.quantidade, 0);
+    atualizarBadgeCarrinho(totalItens);
     exibirToast(`${produto.nome} adicionado à cesta.`, "info");
 }
 
@@ -1049,8 +1069,13 @@ function renderizarCarrinho() {
     let valorTotal = 0;
 
     if (cestaCompras.length === 0) {
-        lista.innerHTML = `<div class="empty-state"><strong>Sua cesta está vazia</strong>Adicione itens da vitrine.</div>`;
-        document.getElementById('carrinho-total-valor').textContent = 'R$ 0,00';
+        lista.innerHTML = `<div class="empty-state">
+            <strong>Sua cesta está vazia</strong>
+            Adicione itens da vitrine.
+        </div>`;
+        const totalEl = document.getElementById('carrinho-total-valor');
+        if (totalEl) totalEl.textContent = 'R$ 0,00';
+        atualizarBadgeCarrinho(0);
         return;
     }
 
@@ -1060,25 +1085,29 @@ function renderizarCarrinho() {
 
         const linha = document.createElement('div');
         linha.className = 'cart-item-row';
-        linha.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #e2e8f0;';
 
         const descricao = document.createElement('span');
-        descricao.textContent = `${item.nome} (x${item.quantidade})`;
+        descricao.textContent = item.nome;
+        descricao.style.flex = '1';
+        descricao.style.minWidth = '0';
+        descricao.style.overflow = 'hidden';
+        descricao.style.textOverflow = 'ellipsis';
+        descricao.style.whiteSpace = 'nowrap';
 
         const campoQuantidade = document.createElement('input');
         campoQuantidade.type = 'number';
         campoQuantidade.min = 1;
         campoQuantidade.value = item.quantidade;
-        campoQuantidade.style.cssText = 'width:64px;padding:4px 6px;';
+        campoQuantidade.style.cssText = 'width:56px;padding:4px 6px;text-align:center;';
         campoQuantidade.onchange = () => {
             item.quantidade = Math.max(1, Number(campoQuantidade.value) || 1);
             renderizarCarrinho();
-            const contador = document.getElementById('cart-counter');
-            if (contador) contador.textContent = cestaCompras.reduce((acc, el) => acc + el.quantidade, 0);
         };
 
         const precoTexto = document.createElement('strong');
         precoTexto.textContent = fmtPreco(subtotal);
+        precoTexto.style.minWidth = '70px';
+        precoTexto.style.textAlign = 'right';
 
         const botaoRemover = document.createElement('button');
         botaoRemover.className = 'btn btn-danger-outline btn-sm';
@@ -1087,15 +1116,17 @@ function renderizarCarrinho() {
         botaoRemover.onclick = () => {
             cestaCompras = cestaCompras.filter(el => el.id !== item.id);
             renderizarCarrinho();
-            const contador = document.getElementById('cart-counter');
-            if (contador) contador.textContent = cestaCompras.reduce((acc, el) => acc + el.quantidade, 0);
         };
 
         linha.append(descricao, campoQuantidade, precoTexto, botaoRemover);
         lista.appendChild(linha);
     });
 
-    document.getElementById('carrinho-total-valor').textContent = fmtPreco(valorTotal);
+    const totalEl = document.getElementById('carrinho-total-valor');
+    if (totalEl) totalEl.textContent = fmtPreco(valorTotal);
+
+    const totalItens = cestaCompras.reduce((acc, i) => acc + i.quantidade, 0);
+    atualizarBadgeCarrinho(totalItens);
 }
 
 async function tratarCriacaoPedido() {
@@ -1117,17 +1148,16 @@ async function tratarCriacaoPedido() {
     botaoCarregando('btn-confirmar-pedido', false);
 
     if (resposta.sucesso) {
-        exibirToast(`Pedido ${resposta.idPedido} gerado com sucesso!`, "success");
+        exibirToast(`Pedido ${resposta.idPedido} gerado!`, "success");
 
         const metodoEscolhido = metodo;
         cestaCompras = [];
-        const contador = document.getElementById('cart-counter');
-        if (contador) contador.textContent = "0";
+        atualizarBadgeCarrinho(0);
 
         navegarPara('meus-pedidos');
         abrirCobrancaPedido(resposta.idPedido, metodoEscolhido);
     } else {
-        exibirToast(resposta.mensagem || "Não foi possível gerar o pedido automaticamente.", "error");
+        exibirToast(resposta.mensagem || "Não foi possível gerar o pedido.", "error");
         exibirContingenciaSuporteAdm(resposta.mensagem, metodo);
     }
 }
@@ -1193,12 +1223,12 @@ async function carregarMeusPedidos() {
 
     resposta.pedidos.forEach(pedido => {
         const cartao = document.createElement('div');
-        cartao.className = 'adm-card';
+        cartao.className = 'card';
         const statusMinusculo = String(pedido.status).toLowerCase();
 
         cartao.innerHTML = `
             <h4>Pedido: ${escaparHtml(pedido.id)}</h4>
-            <p>Status: <strong class="status-tag status-${escaparHtml(statusMinusculo)}">${escaparHtml(statusMinusculo.toUpperCase())}</strong>
+            <p>Status: <strong>${escaparHtml(statusMinusculo.toUpperCase())}</strong>
                | Total: <strong>${fmtPreco(pedido.total)}</strong></p>
             <p>Forma de Pagamento: <strong>${escaparHtml(pedido.metodo || 'PIX')}</strong></p>
         `;
@@ -1859,7 +1889,80 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 });
 
 // ============================================================================
-// 19. EXPORTAÇÃO GLOBAL DE ALIASES (LIGAÇÃO COM O BINDINGS.JS)
+// 19. HELPERS DE NAVEGAÇÃO — avatar, bottom nav, badge do carrinho
+// ============================================================================
+
+/** Aplica visibilidade dos itens do bottom nav conforme o papel. */
+function aplicarNavPorPapel(papel) {
+    document.querySelectorAll('.bottom-nav__item').forEach(btn => {
+        const roles = (btn.dataset.roles || '').split(',').map(r => r.trim());
+        if (roles.includes(papel)) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    });
+}
+
+/** Atualiza as iniciais no avatar (header). */
+function atualizarAvatarUsuario() {
+    const alvo = document.getElementById('user-initials');
+    if (!alvo) return;
+
+    if (!estadoSessao.nomeUsuario || estadoSessao.papel === 'visitante') {
+        alvo.textContent = '?';
+        return;
+    }
+
+    const partes = String(estadoSessao.nomeUsuario).trim().split(/\s+/);
+    let sigla = (partes[0] || '?')[0];
+    if (partes.length > 1) sigla += (partes[partes.length - 1] || '')[0];
+    alvo.textContent = sigla.toUpperCase();
+}
+
+/** Abre/fecha o dropdown do avatar. */
+function toggleUserDropdown() {
+    const dd  = document.getElementById('user-dropdown');
+    const btn = document.getElementById('user-avatar-btn');
+    if (!dd || !btn) return;
+
+    const aberto = !dd.classList.contains('hidden');
+    if (aberto) {
+        dd.classList.add('hidden');
+        btn.setAttribute('aria-expanded', 'false');
+    } else {
+        dd.classList.remove('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+    }
+}
+
+/** Fecha o dropdown. */
+function fecharUserDropdown() {
+    const dd  = document.getElementById('user-dropdown');
+    const btn = document.getElementById('user-avatar-btn');
+    if (dd) dd.classList.add('hidden');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+/** Atualiza badges de carrinho (header + bottom nav). */
+function atualizarBadgeCarrinho(quantidade) {
+    const n = Number(quantidade) || 0;
+
+    const bottom = document.getElementById('cart-counter');
+    if (bottom) {
+        bottom.textContent = n;
+        bottom.dataset.zero = n === 0 ? '1' : '0';
+    }
+
+    const header = document.getElementById('header-cart-count');
+    if (header) {
+        header.textContent = n;
+        header.dataset.zero = n === 0 ? '1' : '0';
+    }
+}
+
+// ============================================================================
+// 20. EXPORTAÇÃO GLOBAL DE ALIASES (LIGAÇÃO COM O BINDINGS.JS)
 // ============================================================================
 window.abrirModal                 = abrirModal;
 window.fecharModal                = fecharModal;
@@ -1889,3 +1992,10 @@ window.abrirCentralDuvidas        = abrirCentralDuvidas;
 window.tratarEnvioSugestao        = tratarEnvioSugestao;
 window.tratarAdicionarFaq         = tratarAdicionarFaq;
 window.executarLimpezaTotalESaida = executarLimpezaTotalESaida;
+
+/* Novos helpers expostos (bindings pode chamar) */
+window.aplicarNavPorPapel         = aplicarNavPorPapel;
+window.atualizarAvatarUsuario     = atualizarAvatarUsuario;
+window.toggleUserDropdown         = toggleUserDropdown;
+window.fecharUserDropdown         = fecharUserDropdown;
+window.atualizarBadgeCarrinho     = atualizarBadgeCarrinho;
