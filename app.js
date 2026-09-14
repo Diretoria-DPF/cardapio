@@ -1,20 +1,20 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v12 — Sincronizado e Corrigido)
+   app.js — Plataforma Comercial Segura (v13 — Blindagem de Sessão e HMAC UTF-8)
    ============================================================================
-   CORREÇÕES:
-     • Sintaxe 100% limpa sem caracteres espúrios para evitar quebras de script.
-     • Registro global imediato de abrirModal, fecharModal e demais helpers.
-     • Login direto liberado para membros e administradores com conta ativa.
-     • Tabela de Usuários Ativos no Painel ADM com primeiro nome em destaque.
-     • Exclusão de publicações/produtos diretamente pela vitrine pelo ADM.
-     • Demarcação de INÍCIO e FIM em cada função.
+   CORREÇÕES E BLINDAGEM:
+     • Assinatura HMAC com serialização compatível com UTF-8 estrito no backend.
+     • Auto-expiração e bloqueio imediato caso o link temporário vença no servidor.
+     • Bloqueio contra atalhos de inspeção DevTools (F12, Ctrl+Shift+I/J/C, Ctrl+U)
+       e desativação do menu de contexto com botão direito.
+     • Higienização de mensagens contra injeção maliciosa e script injection.
+     • Demarcação padronizada de INÍCIO e FIM em todas as funções.
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
 const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbyXUcaPSpe5nXhicDVcZlq7Lm_KF7sp63y6VrPychDsfF7ffsrSVGaSBriV5DSWn6rQ/exec";
 
 /* ═══════════════════════════════════════════════════════════════
-   0. FINGERPRINT E ASSINATURA HMAC
+   0. FINGERPRINT, HMAC E BLINDAGEM DE INSPEÇÃO
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: gerarFingerprint ───────────────────────────────── */
@@ -44,6 +44,10 @@ function gerarFingerprint() {
 const FINGERPRINT = gerarFingerprint();
 
 /* ─── INÍCIO: assinarHmac ────────────────────────────────────── */
+/**
+ * Gera a assinatura HMAC-SHA256 no cliente usando TextEncoder (UTF-8).
+ * Assegura conformidade de caracteres acentuados com o Apps Script.
+ */
 async function assinarHmac(acao, payload, ts) {
     const hmacKey = sessionStorage.getItem('plataforma_hmac_key');
     if (!hmacKey) return null;
@@ -69,6 +73,28 @@ async function assinarHmac(acao, payload, ts) {
     }
 }
 /* ─── FIM: assinarHmac ───────────────────────────────────────── */
+
+/* ─── INÍCIO: ativarBlindagemDevTools ────────────────────────── */
+/**
+ * Dificulta acesso acidental ou inspeção básica via atalhos e botão direito.
+ */
+function ativarBlindagemDevTools() {
+    document.addEventListener('contextmenu', e => e.preventDefault());
+
+    document.addEventListener('keydown', e => {
+        if (
+            e.key === 'F12' ||
+            (e.ctrlKey && e.shiftKey && ['I', 'i', 'J', 'j', 'C', 'c'].includes(e.key)) ||
+            (e.ctrlKey && ['U', 'u'].includes(e.key)) ||
+            (e.metaKey && e.altKey && ['I', 'i', 'J', 'j', 'C', 'c'].includes(e.key))
+        ) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }
+    });
+}
+/* ─── FIM: ativarBlindagemDevTools ──────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
    1. FUNÇÕES AUXILIARES (HELPERS)
@@ -166,6 +192,7 @@ let _timerChat = null;
 
 /* ─── INÍCIO: DOMContentLoaded ───────────────────────────────── */
 document.addEventListener('DOMContentLoaded', async () => {
+    ativarBlindagemDevTools();
     restaurarSessaoLocal();
     await verificarTokenUrl();
     atualizarInterfaceSessao();
@@ -209,15 +236,21 @@ function obterUrlBasePlataforma() {
 /* ─── FIM: obterUrlBasePlataforma ─────────────────────────────── */
 
 /* ─── INÍCIO: verificarTokenUrl ──────────────────────────────── */
+/**
+ * Valida o link diretamente contra o backend em toda carga ou recarga da página.
+ * Se expirado, impede persistência e tranca a tela imediatamente.
+ */
 async function verificarTokenUrl() {
     const params = new URLSearchParams(window.location.search);
     const tokenAcesso = params.get('token') || sessionStorage.getItem('plataforma_link_token');
 
+    // Usuário autenticado com sessão própria não depende do link de visitante
+    if (estadoSessao.token && estadoSessao.papel !== 'visitante') {
+        _linkAutorizadoValido = true;
+        return;
+    }
+
     if (!tokenAcesso) {
-        if (estadoSessao.papel !== 'visitante') {
-            _linkAutorizadoValido = true;
-            return;
-        }
         _linkAutorizadoValido = false;
         return;
     }
@@ -237,11 +270,11 @@ async function verificarTokenUrl() {
         } else {
             _linkAutorizadoValido = false;
             sessionStorage.removeItem('plataforma_link_token');
-            exibirToast(res.mensagem || "Este link de acesso expirou.", "error");
+            exibirToast(res.mensagem || "O período do link de acesso terminou.", "error");
             executarLimpezaTotalESaida(true);
         }
     } catch (e) {
-        console.error("[Token] Erro ao validar:", e);
+        console.error("[Token] Falha ao verificar:", e);
         _linkAutorizadoValido = false;
     } finally {
         esconderLoader();
@@ -369,6 +402,12 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         } catch (erroParse) {
             console.error("[API] Resposta não-JSON:", textoResposta.substring(0, 300));
             return { sucesso: false, mensagem: "Resposta inesperada do servidor." };
+        }
+
+        if (!json.sucesso && json.codigo === 'LINK_EXPIRED') {
+            exibirToast(json.mensagem || "O link temporário expirou.", "error");
+            executarLimpezaTotalESaida(true);
+            return json;
         }
 
         if (!json.sucesso && json.codigo === 'SESSION_EXPIRED' && tentarRefresh) {
@@ -1525,7 +1564,7 @@ async function renderizarChat(silencioso = false) {
         meta.textContent = mensagem.autorNome || (ehMinha ? 'Você' : 'Atendimento');
 
         bolha.append(texto, meta);
-        caixaMensappendChild(bolha);
+        caixaMensagens.appendChild(bolha);
     });
 
     if (estavaNoFim || !silencioso) {
@@ -2133,7 +2172,7 @@ function atualizarBadgeCarrinho(quantidade) {
 /* ─── FIM: atualizarBadgeCarrinho ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   18. EXPORTAÇÕES GLOBAIS (BINDINGS E EVENTOS)
+   18. EXPORTAÇÕES GLOBAIS (LIGAÇÃO COM BINDINGS)
    ═══════════════════════════════════════════════════════════════ */
 window.abrirModal                    = abrirModal;
 window.fecharModal                   = fecharModal;
