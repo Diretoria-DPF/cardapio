@@ -1,14 +1,12 @@
 /* ============================================================================
-   bindings.js — Delegação Central de Eventos (v5 — CORRIGIDO)
+   bindings.js — Delegação Central de Eventos (v5 — Sincronizado)
    ============================================================================
-   CORREÇÕES DESTA VERSÃO:
-     • BUG CRÍTICO: o case 'confirmar-logout' estava chamando
-       'enviarPedidoDesbloqueio' em vez de 'executarLogout'. Corrigido.
-     • O logout agora é IMEDIATO (sem modal de confirmação) e dispara
-       'executarLogout', que invalida o link no servidor e recarrega a
-       página na tela de bloqueio.
-     • Listener de CHANGE mantido fora do switch de clique.
-     • Todos os "cases" agrupados no tipo correto (clique vs submit).
+   CARACTERÍSTICAS:
+     • Delegação global de cliques, submissões de formulário, inputs e teclas.
+     • Encapsulamento seguro via chamarComSeguranca (não quebra se o app.js
+       ainda estiver processando).
+     • Despacho de logout com revogação e limpeza total.
+     • Debounce nativo no filtro de pesquisa da vitrine.
    ============================================================================ */
 
 (function () {
@@ -67,10 +65,6 @@
         break;
 
       /* Sessão e contas ----------------------------------------- */
-
-      /* ✅ CORRIGIDO: 'confirmar-logout' agora chama 'executarLogout'
-         (antes estava chamando 'enviarPedidoDesbloqueio', por engano).
-         Logout é IMEDIATO — sem modal de confirmação. */
       case 'confirmar-logout':
         e.preventDefault();
         chamarComSeguranca('executarLogout');
