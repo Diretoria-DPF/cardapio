@@ -1,24 +1,21 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v10 — Navegação Redesenhada)
+   app.js — Plataforma Comercial Segura (v11 — Arquivo Completo e Estruturado)
    ============================================================================
-   NOVIDADES DESTA VERSÃO:
-     • Navegação migrada para BOTTOM NAV fixa (mobile-first)
-     • Avatar com iniciais no header + dropdown de ações
-     • Badge de carrinho sincronizado no header E no bottom nav
-     • Helpers: aplicarNavPorPapel, atualizarAvatarUsuario,
-                toggleUserDropdown, fecharUserDropdown, atualizarBadgeCarrinho
-     • navegarPara() agora usa .bottom-nav__item
-     • TUDO da v9 foi preservado (HMAC, refresh, fingerprint, rate-limit)
+   AJUSTES INTEGRADORES:
+     • Login direto liberado para contas de membros ativas e aprovadas[cite: 10].
+     • Renderização da lista de Usuários Ativos no Painel ADM[cite: 10].
+     • Exclusão física de publicações/produtos pelo Administrador com confirmação[cite: 10].
+     • Demarcação padronizada de INÍCIO e FIM em todas as funções[cite: 10].
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
 const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbyXUcaPSpe5nXhicDVcZlq7Lm_KF7sp63y6VrPychDsfF7ffsrSVGaSBriV5DSWn6rQ/exec";
 
-// ============================================================================
-// 0. FASE 1 — FINGERPRINT, HMAC E REFRESH
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   0. FINGERPRINT E ASSINATURA HMAC
+   ═══════════════════════════════════════════════════════════════ */
 
-/** Gera fingerprint estável do dispositivo (hash simples). */
+/* ─── INÍCIO: gerarFingerprint ───────────────────────────────── */
 function gerarFingerprint() {
     let fp = localStorage.getItem('plataforma_fingerprint');
     if (fp) return fp;
@@ -40,10 +37,11 @@ function gerarFingerprint() {
     try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {}
     return fp;
 }
+/* ─── FIM: gerarFingerprint ─────────────────────────────────── */
 
 const FINGERPRINT = gerarFingerprint();
 
-/** Assina o corpo da requisição com HMAC-SHA256 usando a hmacKey da sessão. */
+/* ─── INÍCIO: assinarHmac ────────────────────────────────────── */
 async function assinarHmac(acao, payload, ts) {
     const hmacKey = sessionStorage.getItem('plataforma_hmac_key');
     if (!hmacKey) return null;
@@ -64,53 +62,59 @@ async function assinarHmac(acao, payload, ts) {
             .map(b => b.toString(16).padStart(2, '0'))
             .join('');
     } catch (e) {
-        console.warn('[HMAC] Falha ao assinar:', e);
+        console.warn('[HMAC] Falha ao assinar requisição:', e);
         return null;
     }
 }
+/* ─── FIM: assinarHmac ───────────────────────────────────────── */
 
-// ============================================================================
-// 1. FUNÇÕES AUXILIARES (HELPERS)
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   1. FUNÇÕES AUXILIARES (HELPERS)
+   ═══════════════════════════════════════════════════════════════ */
 
-/** Higieniza texto para inserção segura no DOM, prevenindo ataques XSS. */
+/* ─── INÍCIO: escaparHtml ────────────────────────────────────── */
 function escaparHtml(valor) {
     return String(valor ?? '').replace(/[&<>"']/g, caractere => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[caractere]));
 }
+/* ─── FIM: escaparHtml ───────────────────────────────────────── */
 
-/** Formata números no padrão monetário brasileiro (R$). */
+/* ─── INÍCIO: fmtPreco ───────────────────────────────────────── */
 function fmtPreco(valor) {
     const numero = typeof valor === 'number' ? valor : parseFloat(String(valor).replace(',', '.'));
     return `R$ ${(isNaN(numero) ? 0 : numero).toFixed(2).replace('.', ',')}`;
 }
+/* ─── FIM: fmtPreco ─────────────────────────────────────────── */
 
-/** Exibe o indicador de carregamento global. */
+/* ─── INÍCIO: mostrarLoader ──────────────────────────────────── */
 function mostrarLoader(texto = 'Carregando...') {
     const elementoTexto = document.getElementById('loader-text');
     const elementoOverlay = document.getElementById('loader-overlay');
     if (elementoTexto) elementoTexto.textContent = texto;
     if (elementoOverlay) elementoOverlay.classList.remove('hidden');
 }
+/* ─── FIM: mostrarLoader ─────────────────────────────────────── */
 
-/** Oculta o indicador de carregamento global. */
+/* ─── INÍCIO: esconderLoader ─────────────────────────────────── */
 function esconderLoader() {
     const elementoOverlay = document.getElementById('loader-overlay');
     if (elementoOverlay) elementoOverlay.classList.add('hidden');
 }
+/* ─── FIM: esconderLoader ─────────────────────────────────────── */
 
-/** Alterna o estado visual e bloqueio de botões de ação. */
+/* ─── INÍCIO: botaoCarregando ────────────────────────────────── */
 function botaoCarregando(idBotao, carregando = true) {
     const botao = document.getElementById(idBotao);
     if (!botao) return;
     botao.disabled = carregando;
     botao.classList.toggle('loading', carregando);
 }
+/* ─── FIM: botaoCarregando ───────────────────────────────────── */
 
-// ============================================================================
-// 2. MEMÓRIA EM CACHE LOCAL (RESPOSTA INSTANTÂNEA)
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   2. CACHE LOCAL
+   ═══════════════════════════════════════════════════════════════ */
 const CacheLoja = {
     salvar(chave, dados) {
         try {
@@ -132,9 +136,9 @@ const CacheLoja = {
     }
 };
 
-// ============================================================================
-// 3. ESTADO GLOBAL DA APLICAÇÃO
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   3. ESTADO GLOBAL DA APLICAÇÃO
+   ═══════════════════════════════════════════════════════════════ */
 const estadoSessao = {
     papel: 'visitante',
     token: null,
@@ -149,15 +153,16 @@ let identificadorEmTentativa = "";
 let pedidoChatAberto = null;
 
 let _linkAutorizadoValido = false;
-
 let _timerSilencioso = null;
 let _segundosRestantesLink = 0;
 let _timerPainelAdm = null;
 let _timerChat = null;
 
-// ============================================================================
-// 4. INICIALIZAÇÃO
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   4. INICIALIZAÇÃO E COMUNICAÇÃO HTTP
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: DOMContentLoaded ───────────────────────────────── */
 document.addEventListener('DOMContentLoaded', async () => {
     restaurarSessaoLocal();
     await verificarTokenUrl();
@@ -173,7 +178,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         await sincronizarProdutosServidor();
     }
 
-    // ─── Wiring do avatar (dropdown) ───────────────────────────
     const avatarBtn = document.getElementById('user-avatar-btn');
     if (avatarBtn) {
         avatarBtn.addEventListener('click', (e) => {
@@ -182,28 +186,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Fecha o dropdown ao clicar fora
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.user-menu')) {
             fecharUserDropdown();
         }
     });
 
-    // Fecha o dropdown com ESC
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' || e.key === 'Esc') {
             fecharUserDropdown();
         }
     });
 });
+/* ─── FIM: DOMContentLoaded ─────────────────────────────────── */
 
+/* ─── INÍCIO: obterUrlBasePlataforma ─────────────────────────── */
 function obterUrlBasePlataforma() {
     return window.location.href.split('?')[0];
 }
+/* ─── FIM: obterUrlBasePlataforma ─────────────────────────────── */
 
-/**
- * Validação do Token na URL e controle de entrada restrita
- */
+/* ─── INÍCIO: verificarTokenUrl ──────────────────────────────── */
 async function verificarTokenUrl() {
     const params = new URLSearchParams(window.location.search);
     const tokenAcesso = params.get('token') || sessionStorage.getItem('plataforma_link_token');
@@ -242,7 +245,9 @@ async function verificarTokenUrl() {
         esconderLoader();
     }
 }
+/* ─── FIM: verificarTokenUrl ─────────────────────────────────── */
 
+/* ─── INÍCIO: iniciarTemporizadorSilencioso ──────────────────── */
 function iniciarTemporizadorSilencioso(segundosTotais) {
     pararTemporizadorSilencioso();
     _segundosRestantesLink = segundosTotais;
@@ -257,18 +262,18 @@ function iniciarTemporizadorSilencioso(segundosTotais) {
         }
     }, 1000);
 }
+/* ─── FIM: iniciarTemporizadorSilencioso ──────────────────────── */
 
+/* ─── INÍCIO: pararTemporizadorSilencioso ────────────────────── */
 function pararTemporizadorSilencioso() {
     if (_timerSilencioso) {
         clearInterval(_timerSilencioso);
         _timerSilencioso = null;
     }
 }
+/* ─── FIM: pararTemporizadorSilencioso ────────────────────────── */
 
-/**
- * Limpeza Completa (Purge): apaga cookies, storage e tranca a tela
- * Preserva o fingerprint do dispositivo.
- */
+/* ─── INÍCIO: executarLimpezaTotalESaida ─────────────────────── */
 function executarLimpezaTotalESaida(silencioso = false) {
     pararTemporizadorSilencioso();
     pararAutoRefreshChat();
@@ -279,9 +284,7 @@ function executarLimpezaTotalESaida(silencioso = false) {
     try {
         localStorage.clear();
         sessionStorage.clear();
-    } catch (e) {
-        console.warn("Storage limpo:", e);
-    }
+    } catch (e) {}
 
     if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {} }
 
@@ -289,11 +292,11 @@ function executarLimpezaTotalESaida(silencioso = false) {
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
 
-    estadoSessao.papel = 'visitante';
-    estadoSessao.token = null;
+    estadoSessao.papel       = 'visitante';
+    estadoSessao.token       = null;
     estadoSessao.nomeUsuario = 'Visitante';
-    cestaCompras = [];
-    _linkAutorizadoValido = false;
+    cestaCompras             = [];
+    _linkAutorizadoValido    = false;
 
     const urlLimpa = window.location.origin + window.location.pathname;
     window.history.replaceState({}, document.title, urlLimpa);
@@ -304,8 +307,9 @@ function executarLimpezaTotalESaida(silencioso = false) {
 
     atualizarInterfaceSessao();
 }
+/* ─── FIM: executarLimpezaTotalESaida ─────────────────────────── */
 
-/** Fetch com timeout, redirects e modo CORS. */
+/* ─── INÍCIO: fetchComTimeout ────────────────────────────────── */
 async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
     const controladorAborto = new AbortController();
     const temporizador = setTimeout(() => controladorAborto.abort(), limiteTempoMs);
@@ -324,11 +328,9 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
         clearTimeout(temporizador);
     }
 }
+/* ─── FIM: fetchComTimeout ───────────────────────────────────── */
 
-/**
- * Requisição API no formato exigido pelo code.gs:
- *   { acao, payload, ts, fingerprint, hmac, token }
- */
+/* ─── INÍCIO: executarRequisicaoAPI ──────────────────────────── */
 async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
     try {
         const ts = Date.now();
@@ -341,20 +343,15 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
             fingerprint: FINGERPRINT
         };
 
-        // Preferência: sessão ativa (com HMAC) > token do link
         if (estadoSessao.token) {
             corpo.token = estadoSessao.token;
             try {
                 const hmac = await assinarHmac(acao, payload, ts);
                 if (hmac) corpo.hmac = hmac;
-            } catch (e) {
-                console.warn('[HMAC] Não foi possível assinar:', e);
-            }
+            } catch (e) {}
         } else {
             const linkToken = sessionStorage.getItem('plataforma_link_token');
-            if (linkToken) {
-                corpo.token = linkToken;
-            }
+            if (linkToken) corpo.token = linkToken;
         }
 
         const resposta = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 25000, {
@@ -375,7 +372,6 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         if (!json.sucesso && json.codigo === 'SESSION_EXPIRED' && tentarRefresh) {
             const rt = sessionStorage.getItem('plataforma_refresh_token');
             if (rt) {
-                console.log('[Sessão] Access expirou. Renovando...');
                 const ok = await tentarRenovarSessao(rt);
                 if (ok) {
                     return executarRequisicaoAPI(acao, dadosExtras, false);
@@ -398,8 +394,9 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         return { sucesso: false, mensagem: erroRede.toString() };
     }
 }
+/* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
 
-/** Renova o access token usando o refresh token. */
+/* ─── INÍCIO: tentarRenovarSessao ────────────────────────────── */
 async function tentarRenovarSessao(refreshToken) {
     try {
         const resposta = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 15000, {
@@ -418,19 +415,20 @@ async function tentarRenovarSessao(refreshToken) {
             estadoSessao.token = json.token;
             sessionStorage.setItem('plataforma_hmac_key', json.hmacKey);
             localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
-            console.log('[Sessão] Renovada com sucesso.');
             return true;
         }
         return false;
     } catch (e) {
-        console.error('[Refresh] Falha:', e);
         return false;
     }
 }
+/* ─── FIM: tentarRenovarSessao ───────────────────────────────── */
 
-// ============================================================================
-// 5. UPLOAD DE FOTOS E GIFS DO DISPOSITIVO
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   5. UPLOAD DE FOTOS E GIFS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: processarUploadImagem ─────────────────────────── */
 function processarUploadImagem(evento) {
     const ficheiro = evento.target.files[0];
     if (!ficheiro) return;
@@ -478,7 +476,9 @@ function processarUploadImagem(evento) {
     };
     leitor.readAsDataURL(ficheiro);
 }
+/* ─── FIM: processarUploadImagem ─────────────────────────────── */
 
+/* ─── INÍCIO: exibirPreviewImagem ───────────────────────────── */
 function exibirPreviewImagem(origemBase64) {
     const imgPreview = document.getElementById('img-preview');
     const containerPreview = document.getElementById('preview-container');
@@ -488,7 +488,9 @@ function exibirPreviewImagem(origemBase64) {
     if (containerPreview) containerPreview.classList.remove('hidden');
     if (inputUrl) inputUrl.value = "";
 }
+/* ─── FIM: exibirPreviewImagem ───────────────────────────────── */
 
+/* ─── INÍCIO: removerFotoCarregada ──────────────────────────── */
 function removerFotoCarregada() {
     fotoBase64Temporaria = "";
     const containerPreview = document.getElementById('preview-container');
@@ -499,10 +501,13 @@ function removerFotoCarregada() {
     if (inputArquivo) inputArquivo.value = "";
     if (imgPreview) imgPreview.src = "";
 }
+/* ─── FIM: removerFotoCarregada ─────────────────────────────── */
 
-// ============================================================================
-// 6. VITRINE DE PRODUTOS E BUSCA EM TEMPO REAL
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   6. VITRINE DE PRODUTOS E GESTÃO DO CATÁLOGO (ADM)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: sincronizarProdutosServidor ────────────────────── */
 async function sincronizarProdutosServidor() {
     let url = `${URL_BACKEND_APPS_SCRIPT}?acao=listar_produtos`;
     if (estadoSessao.token) {
@@ -522,10 +527,12 @@ async function sincronizarProdutosServidor() {
             renderizarVitrine();
         }
     } catch (erro) {
-        console.warn("[Vitrine] Modo offline ou aguardando rede:", erro);
+        console.warn("[Vitrine] Erro na sincronização:", erro);
     }
 }
+/* ─── FIM: sincronizarProdutosServidor ───────────────────────── */
 
+/* ─── INÍCIO: aplicarFiltroVitrine ──────────────────────────── */
 function aplicarFiltroVitrine(termoManual = null) {
     const inputFiltro = document.getElementById('filtro-produtos');
     const termo = (termoManual !== null ? termoManual : (inputFiltro ? inputFiltro.value : '')).trim().toLowerCase();
@@ -536,7 +543,9 @@ function aplicarFiltroVitrine(termoManual = null) {
 
     renderizarVitrine();
 }
+/* ─── FIM: aplicarFiltroVitrine ─────────────────────────────── */
 
+/* ─── INÍCIO: renderizarVitrine ──────────────────────────────── */
 function renderizarVitrine() {
     const grid = document.getElementById('produtos-container');
     if (!grid) return;
@@ -600,10 +609,18 @@ function renderizarVitrine() {
 
             painelAdm.append(tag, selectVisib);
             body.appendChild(painelAdm);
+
+            // Botão de Excluir Publicação (Exclusivo ADM)
+            const btnExcluir = document.createElement('button');
+            btnExcluir.className = 'btn btn-danger-outline btn-block btn-sm';
+            btnExcluir.style.marginTop = '6px';
+            btnExcluir.textContent = '🗑️ Excluir Produto';
+            btnExcluir.onclick = () => confirmarExclusaoProdutoAdm(p.id, p.nome);
+            body.appendChild(btnExcluir);
         } else {
             const aviso = document.createElement('small');
             aviso.className = 'visitor-note';
-            aviso.textContent = 'Cadastre-se para comprar.';
+            aviso.textContent = 'Cadastre-se ou entre para comprar.';
             body.appendChild(aviso);
         }
 
@@ -611,8 +628,9 @@ function renderizarVitrine() {
         grid.appendChild(card);
     });
 }
+/* ─── FIM: renderizarVitrine ─────────────────────────────────── */
 
-/** Permite ao Administrador trocar a visibilidade do produto na hora */
+/* ─── INÍCIO: alterarVisibilidadeProdutoAdm ──────────────────── */
 async function alterarVisibilidadeProdutoAdm(idProduto, novaVisib) {
     mostrarLoader("Alterando visibilidade...");
     const res = await executarRequisicaoAPI("alterar_visibilidade_produto", {
@@ -628,34 +646,63 @@ async function alterarVisibilidadeProdutoAdm(idProduto, novaVisib) {
         exibirToast(res.mensagem || "Erro ao alterar visibilidade.", "error");
     }
 }
+/* ─── FIM: alterarVisibilidadeProdutoAdm ──────────────────────── */
 
-// ============================================================================
-// 7. CENTRAL DE DÚVIDAS RÁPIDAS (FAQ) E SUGESTÕES EXCLUSIVAS
-// ============================================================================
+/* ─── INÍCIO: confirmarExclusaoProdutoAdm ────────────────────── */
+function confirmarExclusaoProdutoAdm(idProduto, nomeProduto) {
+    abrirConfirmacao(
+        "Excluir Produto",
+        `Deseja realmente excluir permanentemente "${escaparHtml(nomeProduto)}"? Esta ação não poderá ser desfeita.`,
+        () => excluirProdutoAdm(idProduto)
+    );
+}
+/* ─── FIM: confirmarExclusaoProdutoAdm ────────────────────────── */
+
+/* ─── INÍCIO: excluirProdutoAdm ──────────────────────────────── */
+async function excluirProdutoAdm(idProduto) {
+    mostrarLoader("Excluindo produto...");
+    const res = await executarRequisicaoAPI("excluir_produto", { idProduto });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast(res.mensagem || "Produto excluído com sucesso!", "success");
+        await sincronizarProdutosServidor();
+    } else {
+        exibirToast(res.mensagem || "Não foi possível excluir o produto.", "error");
+    }
+}
+/* ─── FIM: excluirProdutoAdm ─────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   7. CENTRAL DE DÚVIDAS (FAQ) E SUGESTÕES
+   ═══════════════════════════════════════════════════════════════ */
 
 let listaDuvidasFaq = [
     {
         pergunta: "Como funciona a retirada e entrega do produto?",
-        resposta: "Após a confirmação do pagamento, um chat exclusivo é aberto no seu pedido com todas as orientações de retirada ou envio pelo entregador."
+        resposta: "Após a confirmação do pagamento, um chat exclusivo é aberto no seu pedido com todas as orientações de retirada ou envio pelo entregador."[cite: 10]
     },
     {
         pergunta: "Quais são as formas de pagamento aceitas?",
-        resposta: "Aceitamos PIX com confirmação dinâmica imediata, Cartão de Crédito e Criptomoedas (Bitcoin, Ethereum e Tether USDT)."
+        resposta: "Aceitamos PIX com confirmação dinâmica imediata, Cartão de Crédito e Criptomoedas (Bitcoin, Ethereum e Tether USDT)."[cite: 10]
     },
     {
         pergunta: "Quanto tempo dura o chat temporário do pedido?",
-        resposta: "O chat temporário permanece ativo enquanto a entrega estiver em andamento. Ao ser concluído pelo Administrador, o canal é finalizado com segurança."
+        resposta: "O chat temporário permanece ativo enquanto a entrega estiver em andamento. Ao ser concluído pelo Administrador, o canal é finalizado com segurança."[cite: 10]
     }
 ];
 
+/* ─── INÍCIO: carregarFaqMemoria ─────────────────────────────── */
 function carregarFaqMemoria() {
     const salvo = localStorage.getItem('loja_faq_dados');
     if (salvo) {
         try { listaDuvidasFaq = JSON.parse(salvo); } catch(e) {}
     }
 }
+/* ─── FIM: carregarFaqMemoria ─────────────────────────────────── */
 carregarFaqMemoria();
 
+/* ─── INÍCIO: abrirCentralDuvidas ────────────────────────────── */
 function abrirCentralDuvidas() {
     if (estadoSessao.papel === 'visitante') {
         exibirToast("A Central de Dúvidas e Sugestões é exclusiva para membros.", "info");
@@ -676,7 +723,9 @@ function abrirCentralDuvidas() {
 
     abrirModal('modal-duvidas-central');
 }
+/* ─── FIM: abrirCentralDuvidas ───────────────────────────────── */
 
+/* ─── INÍCIO: renderizarListaFaq ─────────────────────────────── */
 function renderizarListaFaq() {
     const container = document.getElementById('lista-faq-perguntas');
     if (!container) return;
@@ -714,7 +763,9 @@ function renderizarListaFaq() {
         container.appendChild(itemDiv);
     });
 }
+/* ─── FIM: renderizarListaFaq ─────────────────────────────────── */
 
+/* ─── INÍCIO: tratarEnvioSugestao ────────────────────────────── */
 async function tratarEnvioSugestao(e) {
     if (e && e.preventDefault) e.preventDefault();
 
@@ -737,7 +788,9 @@ async function tratarEnvioSugestao(e) {
         exibirToast(res.mensagem || "Erro ao enviar sugestão.", "error");
     }
 }
+/* ─── FIM: tratarEnvioSugestao ───────────────────────────────── */
 
+/* ─── INÍCIO: tratarEnvioComentario ──────────────────────────── */
 async function tratarEnvioComentario(e) {
     if (e && e.preventDefault) e.preventDefault();
     const nomeInput = document.getElementById('comentario-nome');
@@ -757,7 +810,9 @@ async function tratarEnvioComentario(e) {
         exibirToast(res.mensagem || "Erro ao enviar mensagem.", "error");
     }
 }
+/* ─── FIM: tratarEnvioComentario ─────────────────────────────── */
 
+/* ─── INÍCIO: tratarAdicionarFaq ─────────────────────────────── */
 function tratarAdicionarFaq(e) {
     if (e && e.preventDefault) e.preventDefault();
 
@@ -778,10 +833,13 @@ function tratarAdicionarFaq(e) {
     renderizarListaFaq();
     exibirToast("Nova dúvida adicionada ao FAQ!", "success");
 }
+/* ─── FIM: tratarAdicionarFaq ─────────────────────────────────── */
 
-// ============================================================================
-// 8. SOLICITAÇÃO DE CADASTRO
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   8. SOLICITAÇÃO DE CADASTRO
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: tratarSolicitacaoCadastro ──────────────────────── */
 async function tratarSolicitacaoCadastro(evento) {
     if (evento && evento.preventDefault) evento.preventDefault();
 
@@ -812,10 +870,13 @@ async function tratarSolicitacaoCadastro(evento) {
         exibirToast(resposta.mensagem || "Erro ao registrar solicitação.", "error");
     }
 }
+/* ─── FIM: tratarSolicitacaoCadastro ─────────────────────────── */
 
-// ============================================================================
-// 9. AUTENTICAÇÃO (LOGIN / LOGOUT / DESBLOQUEIO)
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   9. AUTENTICAÇÃO E CONTROLE DE SESSÃO
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: tratarLogin ────────────────────────────────────── */
 async function tratarLogin(evento) {
     if (evento && evento.preventDefault) evento.preventDefault();
 
@@ -847,7 +908,7 @@ async function tratarLogin(evento) {
 
         CacheLoja.limpar('produtos_visitante');
         await sincronizarProdutosServidor();
-        exibirToast(`Bem-vindo, ${resposta.nome}!`, "success");
+        exibirToast(resposta.mensagem || `Bem-vindo(a), ${resposta.nome}!`, "success");
     } else {
         exibirToast(resposta.mensagem || "Credenciais inválidas.", "error");
         if (resposta.requerLiberacaoAdm) {
@@ -855,7 +916,9 @@ async function tratarLogin(evento) {
         }
     }
 }
+/* ─── FIM: tratarLogin ───────────────────────────────────────── */
 
+/* ─── INÍCIO: enviarPedidoDesbloqueio ────────────────────────── */
 async function enviarPedidoDesbloqueio() {
     if (!identificadorEmTentativa) return;
     const resposta = await executarRequisicaoAPI("pedir_desbloqueio", { identificador: identificadorEmTentativa });
@@ -865,14 +928,15 @@ async function enviarPedidoDesbloqueio() {
         if (btn) btn.disabled = true;
     }
 }
+/* ─── FIM: enviarPedidoDesbloqueio ───────────────────────────── */
 
+/* ─── INÍCIO: confirmarLogout ────────────────────────────────── */
 function confirmarLogout() {
     abrirConfirmacao("Sair da conta", "Deseja realmente encerrar a sessão?", executarLogout);
 }
+/* ─── FIM: confirmarLogout ───────────────────────────────────── */
 
-/**
- * LOGOUT: invalida link no servidor, limpa tudo, preserva fingerprint.
- */
+/* ─── INÍCIO: executarLogout ─────────────────────────────────── */
 async function executarLogout() {
     const tokenLink = sessionStorage.getItem('plataforma_link_token');
 
@@ -880,9 +944,7 @@ async function executarLogout() {
         mostrarLoader("Encerrando sessão e revogando link...");
         try {
             await executarRequisicaoAPI("invalidar_link", { tokenAcesso: tokenLink });
-        } catch (erro) {
-            console.warn("[Logout] Não foi possível invalidar o link:", erro);
-        }
+        } catch (erro) {}
     } else {
         mostrarLoader("Encerrando sessão...");
     }
@@ -896,20 +958,15 @@ async function executarLogout() {
     try {
         localStorage.clear();
         sessionStorage.clear();
-    } catch (erro) {
-        console.warn("[Logout] Erro ao limpar storage:", erro);
-    }
+    } catch (erro) {}
 
     if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {} }
 
     try {
         document.cookie.split(";").forEach(c => {
-            document.cookie = c.replace(/^ +/, "")
-                .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
         });
-    } catch (erro) {
-        console.warn("[Logout] Erro ao limpar cookies:", erro);
-    }
+    } catch (erro) {}
 
     estadoSessao.papel       = 'visitante';
     estadoSessao.token       = null;
@@ -925,7 +982,9 @@ async function executarLogout() {
     esconderLoader();
     window.location.replace(urlLimpa);
 }
+/* ─── FIM: executarLogout ─────────────────────────────────────── */
 
+/* ─── INÍCIO: restaurarSessaoLocal ───────────────────────────── */
 function restaurarSessaoLocal() {
     const dadosSalvos = localStorage.getItem('plataforma_sessao');
     if (!dadosSalvos) return;
@@ -942,10 +1001,13 @@ function restaurarSessaoLocal() {
         localStorage.removeItem('plataforma_sessao');
     }
 }
+/* ─── FIM: restaurarSessaoLocal ───────────────────────────────── */
 
-// ============================================================================
-// 10. CONTROLO VISUAL: BLOQUEIO SEM LINK VS LOJA LIBERADA
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   10. CONTROLE VISUAL E PERMISSÕES DE TELA
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: atualizarInterfaceSessao ───────────────────────── */
 function atualizarInterfaceSessao() {
     const anonBox        = document.getElementById('anon-buttons');
     const authBox        = document.getElementById('auth-buttons');
@@ -957,7 +1019,6 @@ function atualizarInterfaceSessao() {
     const viewBloqueado  = document.getElementById('view-bloqueado');
     const containerDuvidas = document.getElementById('container-duvidas-discreto');
 
-    // 1. Atualiza badge e avatar
     if (badge) {
         badge.textContent = estadoSessao.papel.toUpperCase();
         badge.className   = `badge badge-${estadoSessao.papel}`;
@@ -967,13 +1028,11 @@ function atualizarInterfaceSessao() {
     }
     atualizarAvatarUsuario();
 
-    // 2. Aplica visibilidade dos itens do bottom nav
     aplicarNavPorPapel(estadoSessao.papel);
 
-    // 3. Esconde o botão de ajuda por padrão
     if (containerDuvidas) containerDuvidas.classList.add('hidden');
 
-    // ─── CENÁRIO 1: BLOQUEIO (sem link e sem usuário autenticado) ───
+    // Bloqueia apenas visitantes sem link de acesso
     if (!_linkAutorizadoValido && estadoSessao.papel === 'visitante') {
         if (navBar) navBar.classList.add('hidden');
         document.querySelectorAll('.view-panel').forEach(painel => {
@@ -991,7 +1050,6 @@ function atualizarInterfaceSessao() {
         return;
     }
 
-    // ─── CENÁRIO 2: LIBERADO ─────────────────────────────────
     if (navBar) navBar.classList.remove('hidden');
     if (viewBloqueado) {
         viewBloqueado.classList.add('hidden');
@@ -1015,7 +1073,6 @@ function atualizarInterfaceSessao() {
         }
     }
 
-    // Central de dúvidas: membro / entregador / adm
     if (['membro', 'entregador', 'adm'].includes(estadoSessao.papel)) {
         if (containerDuvidas) containerDuvidas.classList.remove('hidden');
     }
@@ -1030,10 +1087,9 @@ function atualizarInterfaceSessao() {
         atualizarBadgePendentesAdm(0);
     }
 }
+/* ─── FIM: atualizarInterfaceSessao ───────────────────────────── */
 
-// ============================================================================
-// 11. NAVEGAÇÃO ENTRE TELAS
-// ============================================================================
+/* ─── INÍCIO: navegarPara ────────────────────────────────────── */
 function navegarPara(nomeAba) {
     document.querySelectorAll('.bottom-nav__item').forEach(botao => botao.classList.remove('active'));
     document.querySelectorAll('.nav-tab').forEach(botao => botao.classList.remove('active'));
@@ -1059,10 +1115,13 @@ function navegarPara(nomeAba) {
         consultarPendentesAdm();
     }
 }
+/* ─── FIM: navegarPara ───────────────────────────────────────── */
 
-// ============================================================================
-// 12. CESTA DE COMPRAS E CRIAÇÃO DE PEDIDOS
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   11. CESTA DE COMPRAS E PEDIDOS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: adicionarAoCarrinho ────────────────────────────── */
 function adicionarAoCarrinho(produto) {
     const itemExistente = cestaCompras.find(item => item.id === produto.id);
     if (itemExistente) {
@@ -1082,7 +1141,9 @@ function adicionarAoCarrinho(produto) {
     atualizarBadgeCarrinho(totalItens);
     exibirToast(`${produto.nome} adicionado à cesta.`, "info");
 }
+/* ─── FIM: adicionarAoCarrinho ───────────────────────────────── */
 
+/* ─── INÍCIO: renderizarCarrinho ─────────────────────────────── */
 function renderizarCarrinho() {
     const lista = document.getElementById('carrinho-itens-lista');
     if (!lista) return;
@@ -1149,7 +1210,9 @@ function renderizarCarrinho() {
     const totalItens = cestaCompras.reduce((acc, i) => acc + i.quantidade, 0);
     atualizarBadgeCarrinho(totalItens);
 }
+/* ─── FIM: renderizarCarrinho ─────────────────────────────────── */
 
+/* ─── INÍCIO: tratarCriacaoPedido ────────────────────────────── */
 async function tratarCriacaoPedido() {
     if (cestaCompras.length === 0) {
         return exibirToast("A sua cesta está vazia.", "error");
@@ -1182,7 +1245,9 @@ async function tratarCriacaoPedido() {
         exibirContingenciaSuporteAdm(resposta.mensagem, metodo);
     }
 }
+/* ─── FIM: tratarCriacaoPedido ───────────────────────────────── */
 
+/* ─── INÍCIO: exibirContingenciaSuporteAdm ───────────────────── */
 function exibirContingenciaSuporteAdm(motivoErro, metodoEscolhido) {
     const itensDescricao = cestaCompras.map(item => `${item.nome} (x${item.quantidade})`).join(', ');
     const totalEstimado = document.getElementById('carrinho-total-valor')?.textContent || "R$ 0,00";
@@ -1225,10 +1290,13 @@ function exibirContingenciaSuporteAdm(motivoErro, metodoEscolhido) {
     const btnOk = document.getElementById('confirmar-btn-ok');
     if (btnOk) btnOk.textContent = "Chamar Administrador";
 }
+/* ─── FIM: exibirContingenciaSuporteAdm ───────────────────────── */
 
-// ============================================================================
-// 13. MEUS PEDIDOS, PAGAMENTO SEGURO E CHAT TEMPORÁRIO
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   12. MEUS PEDIDOS, PAGAMENTO SEGURO E CHAT
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: carregarMeusPedidos ────────────────────────────── */
 async function carregarMeusPedidos() {
     const container = document.getElementById('meus-pedidos-container');
     if (!container) return;
@@ -1282,7 +1350,9 @@ async function carregarMeusPedidos() {
         container.appendChild(cartao);
     });
 }
+/* ─── FIM: carregarMeusPedidos ───────────────────────────────── */
 
+/* ─── INÍCIO: abrirCobrancaPedido ────────────────────────────── */
 async function abrirCobrancaPedido(idPedido, metodo) {
     mostrarLoader("Gerando instruções de pagamento...");
     const resposta = await executarRequisicaoAPI("gerar_pagamento", {
@@ -1372,7 +1442,9 @@ async function abrirCobrancaPedido(idPedido, metodo) {
         carregarMeusPedidos();
     });
 }
+/* ─── FIM: abrirCobrancaPedido ───────────────────────────────── */
 
+/* ─── INÍCIO: copiarPixCopiaECola ────────────────────────────── */
 function copiarPixCopiaECola() {
     const input = document.getElementById('pix-copia-cola');
     if (!input) return;
@@ -1384,8 +1456,9 @@ function copiarPixCopiaECola() {
             exibirToast("Código PIX copiado!", "success");
         });
 }
+/* ─── FIM: copiarPixCopiaECola ───────────────────────────────── */
 
-// ─── CHAT TEMPORÁRIO COM POLLING CONTÍNUO ───────────────────
+/* ─── INÍCIO: abrirChatPedido ────────────────────────────────── */
 async function abrirChatPedido(pedidoId) {
     pedidoChatAberto = pedidoId;
     const elementoTitulo = document.getElementById('chat-pedido-id');
@@ -1398,7 +1471,9 @@ async function abrirChatPedido(pedidoId) {
     await renderizarChat();
     iniciarAutoRefreshChat();
 }
+/* ─── FIM: abrirChatPedido ───────────────────────────────────── */
 
+/* ─── INÍCIO: iniciarAutoRefreshChat ─────────────────────────── */
 function iniciarAutoRefreshChat() {
     pararAutoRefreshChat();
     _timerChat = setInterval(async () => {
@@ -1406,14 +1481,18 @@ function iniciarAutoRefreshChat() {
         await renderizarChat(true);
     }, 5000);
 }
+/* ─── FIM: iniciarAutoRefreshChat ─────────────────────────────── */
 
+/* ─── INÍCIO: pararAutoRefreshChat ───────────────────────────── */
 function pararAutoRefreshChat() {
     if (_timerChat) {
         clearInterval(_timerChat);
         _timerChat = null;
     }
 }
+/* ─── FIM: pararAutoRefreshChat ───────────────────────────────── */
 
+/* ─── INÍCIO: renderizarChat ─────────────────────────────────── */
 async function renderizarChat(silencioso = false) {
     if (!pedidoChatAberto) return;
     const caixaMensagens = document.getElementById('chat-mensagens');
@@ -1453,7 +1532,9 @@ async function renderizarChat(silencioso = false) {
         caixaMensagens.scrollTop = caixaMensagens.scrollHeight;
     }
 }
+/* ─── FIM: renderizarChat ─────────────────────────────────────── */
 
+/* ─── INÍCIO: enviarMensagemChat ─────────────────────────────── */
 async function enviarMensagemChat() {
     const inputTexto = document.getElementById('chat-input');
     if (!inputTexto) return;
@@ -1475,19 +1556,22 @@ async function enviarMensagemChat() {
         exibirToast(resposta.mensagem || "Falha ao enviar mensagem.", "error");
     }
 }
+/* ─── FIM: enviarMensagemChat ─────────────────────────────────── */
 
-// ============================================================================
-// 14. PAINEL CENTRAL ADMINISTRATIVO (APROVAÇÃO, MÉTRICAS E DESBLOQUEIOS)
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   13. PAINEL CENTRAL ADMINISTRATIVO E MONITORIA
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: carregarPainelCentralAdm ───────────────────────── */
 async function carregarPainelCentralAdm() {
     if (estadoSessao.papel !== 'adm') return;
 
+    // 1. Cadastros pendentes de aprovação
     const divSolicitacoes = document.getElementById('adm-solicitacoes-lista');
     if (divSolicitacoes) divSolicitacoes.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
 
     const respostaSolic = await executarRequisicaoAPI("listar_solicitacoes_adm");
     const totalPendentes = (respostaSolic.sucesso && Array.isArray(respostaSolic.solicitacoes)) ? respostaSolic.solicitacoes.length : 0;
-
     atualizarBadgePendentesAdm(totalPendentes);
 
     if (divSolicitacoes) {
@@ -1518,6 +1602,30 @@ async function carregarPainelCentralAdm() {
         }
     }
 
+    // 2. Usuários Ativos Cadastrados (Primeiro Nome em Destaque)
+    const divUsuarios = document.getElementById('adm-usuarios-lista');
+    if (divUsuarios) {
+        divUsuarios.innerHTML = '<div class="loading-slot">Carregando usuários ativos...</div>';
+        const respostaUsuarios = await executarRequisicaoAPI("listar_usuarios_adm");
+        divUsuarios.innerHTML = '';
+
+        if (respostaUsuarios.sucesso && Array.isArray(respostaUsuarios.usuarios) && respostaUsuarios.usuarios.length > 0) {
+            let html = '<table class="tabela-metricas"><thead><tr><th>Primeiro Nome</th><th>Login/Telefone</th><th>Papel</th></tr></thead><tbody>';
+            respostaUsuarios.usuarios.forEach(u => {
+                html += `<tr>
+                    <td><strong>${escaparHtml(u.primeiroNome)}</strong> <small style="color:#64748b;">(${escaparHtml(u.nomeCompleto)})</small></td>
+                    <td>${escaparHtml(u.telefone)}</td>
+                    <td><span class="badge badge-${u.papel}">${escaparHtml(u.papel.toUpperCase())}</span></td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            divUsuarios.innerHTML = html;
+        } else {
+            divUsuarios.innerHTML = '<div class="loading-slot">Nenhum usuário ativo registrado no momento.</div>';
+        }
+    }
+
+    // 3. Métricas de Vendas
     const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas");
     if (respostaMetricas.sucesso) {
         const elementoFaturamento = document.getElementById('metric-faturamento');
@@ -1540,6 +1648,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
+    // 4. Contas Bloqueadas
     const respostaBloqueados = await executarRequisicaoAPI("listar_bloqueados_adm");
     const divBloqueados = document.getElementById('adm-bloqueados-lista');
     if (divBloqueados) {
@@ -1563,6 +1672,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
+    // 5. Mensagens e Comentários Recebidos
     const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm");
     const divComentarios = document.getElementById('adm-comentarios-lista');
     if (divComentarios) {
@@ -1580,7 +1690,9 @@ async function carregarPainelCentralAdm() {
         }
     }
 }
+/* ─── FIM: carregarPainelCentralAdm ─────────────────────────── */
 
+/* ─── INÍCIO: aprovarMembroAdm ───────────────────────────────── */
 async function aprovarMembroAdm(idSolicitacao) {
     mostrarLoader("Aprovando membro...");
     const resposta = await executarRequisicaoAPI("aprovar_cadastro", { idSolicitacao });
@@ -1589,12 +1701,13 @@ async function aprovarMembroAdm(idSolicitacao) {
     if (resposta.sucesso) {
         exibirToast(resposta.mensagem || "Membro aprovado com sucesso!", "success");
         await carregarPainelCentralAdm();
-        await consultarPendentesAdm();
     } else {
         exibirToast(resposta.mensagem || "Erro ao aprovar membro.", "error");
     }
 }
+/* ─── FIM: aprovarMembroAdm ───────────────────────────────────── */
 
+/* ─── INÍCIO: liberarContaUsuarioAdm ─────────────────────────── */
 async function liberarContaUsuarioAdm(identificador) {
     const resposta = await executarRequisicaoAPI("liberar_conta_adm", { identificador });
     if (resposta.sucesso) {
@@ -1602,7 +1715,9 @@ async function liberarContaUsuarioAdm(identificador) {
         await carregarPainelCentralAdm();
     }
 }
+/* ─── FIM: liberarContaUsuarioAdm ─────────────────────────────── */
 
+/* ─── INÍCIO: atualizarBadgePendentesAdm ─────────────────────── */
 function atualizarBadgePendentesAdm(quantidade) {
     const botaoAdm = document.getElementById('tab-btn-adm');
     if (!botaoAdm) return;
@@ -1621,7 +1736,9 @@ function atualizarBadgePendentesAdm(quantidade) {
         botaoAdm.appendChild(badgeSpan);
     }
 }
+/* ─── FIM: atualizarBadgePendentesAdm ─────────────────────────── */
 
+/* ─── INÍCIO: consultarPendentesAdm ──────────────────────────── */
 async function consultarPendentesAdm() {
     if (estadoSessao.papel !== 'adm') return;
     try {
@@ -1630,7 +1747,9 @@ async function consultarPendentesAdm() {
         atualizarBadgePendentesAdm(total);
     } catch {}
 }
+/* ─── FIM: consultarPendentesAdm ─────────────────────────────── */
 
+/* ─── INÍCIO: ligarAutoRefreshAdm ────────────────────────────── */
 function ligarAutoRefreshAdm() {
     desligarAutoRefreshAdm();
     if (estadoSessao.papel !== 'adm') return;
@@ -1644,17 +1763,22 @@ function ligarAutoRefreshAdm() {
         consultarPendentesAdm();
     }, 20000);
 }
+/* ─── FIM: ligarAutoRefreshAdm ───────────────────────────────── */
 
+/* ─── INÍCIO: desligarAutoRefreshAdm ─────────────────────────── */
 function desligarAutoRefreshAdm() {
     if (_timerPainelAdm) {
         clearInterval(_timerPainelAdm);
         _timerPainelAdm = null;
     }
 }
+/* ─── FIM: desligarAutoRefreshAdm ─────────────────────────────── */
 
-// ============================================================================
-// 15. ESTEIRA DE PEDIDOS (ADM)
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   14. ESTEIRA DE PEDIDOS (ADM)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: carregarPedidosAdm ─────────────────────────────── */
 async function carregarPedidosAdm() {
     const colunaAnalise     = document.getElementById('pipe-analise');
     const colunaSolicitados = document.getElementById('pipe-solicitados');
@@ -1715,7 +1839,9 @@ async function carregarPedidosAdm() {
         }
     });
 }
+/* ─── FIM: carregarPedidosAdm ─────────────────────────────────── */
 
+/* ─── INÍCIO: avancarStatusAdm ───────────────────────────────── */
 async function avancarStatusAdm(idPedido, statusAtual) {
     let proximoStatus = 'solicitados';
     if (statusAtual === 'solicitados') proximoStatus = 'viagem';
@@ -1733,10 +1859,13 @@ async function avancarStatusAdm(idPedido, statusAtual) {
         exibirToast(resposta.mensagem || "Erro ao atualizar status.", "error");
     }
 }
+/* ─── FIM: avancarStatusAdm ──────────────────────────────────── */
 
-// ============================================================================
-// 16. LINK TEMPORÁRIO COM TEMPO FLEXÍVEL
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   15. GERAÇÃO DE LINKS TEMPORÁRIOS E CADASTRO DE PRODUTOS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: gerarLinkTemporarioAdm ─────────────────────────── */
 async function gerarLinkTemporarioAdm() {
     const selectDuracao = document.getElementById('select-duracao-link');
     const inputPersonalizado = document.getElementById('input-duracao-personalizada');
@@ -1772,7 +1901,9 @@ async function gerarLinkTemporarioAdm() {
         exibirToast(resposta.mensagem || "Falha ao gerar o link.", "error");
     }
 }
+/* ─── FIM: gerarLinkTemporarioAdm ─────────────────────────────── */
 
+/* ─── INÍCIO: copiarLinkGerado ───────────────────────────────── */
 function copiarLinkGerado() {
     const campo = document.getElementById('campo-link-gerado');
     if (!campo) return;
@@ -1784,10 +1915,9 @@ function copiarLinkGerado() {
             exibirToast("Link copiado!", "success");
         });
 }
+/* ─── FIM: copiarLinkGerado ───────────────────────────────────── */
 
-// ============================================================================
-// 17. CADASTRO DE NOVO PRODUTO (ADM)
-// ============================================================================
+/* ─── INÍCIO: tratarCadastroProduto ─────────────────────────── */
 async function tratarCadastroProduto(evento) {
     if (evento && evento.preventDefault) evento.preventDefault();
 
@@ -1820,23 +1950,30 @@ async function tratarCadastroProduto(evento) {
         exibirToast(resposta.mensagem || "Erro ao salvar produto.", "error");
     }
 }
+/* ─── FIM: tratarCadastroProduto ─────────────────────────────── */
 
-// ============================================================================
-// 18. MODAIS, DIÁLOGOS DE CONFIRMAÇÃO E NOTIFICAÇÕES
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   16. MODAIS, DIÁLOGOS DE CONFIRMAÇÃO E TOASTS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: abrirModal ─────────────────────────────────────── */
 function abrirModal(idModal) {
     const modal = document.getElementById(idModal);
     if (modal) modal.classList.add('active');
 }
+/* ─── FIM: abrirModal ─────────────────────────────────────────── */
 
+/* ─── INÍCIO: fecharModal ────────────────────────────────────── */
 function fecharModal(idModal) {
     const modal = document.getElementById(idModal);
     if (modal) modal.classList.remove('active');
     if (idModal === 'modal-chat') pararAutoRefreshChat();
 }
+/* ─── FIM: fecharModal ───────────────────────────────────────── */
 
 let _callbackConfirmacao = null;
 
+/* ─── INÍCIO: abrirConfirmacao ───────────────────────────────── */
 function abrirConfirmacao(titulo, mensagemTextoOuHtml, callbackAcao) {
     const elementoTitulo = document.getElementById('confirmar-titulo');
     const elementoMensagem = document.getElementById('confirmar-mensagem');
@@ -1862,7 +1999,9 @@ function abrirConfirmacao(titulo, mensagemTextoOuHtml, callbackAcao) {
 
     abrirModal('modal-confirmar');
 }
+/* ─── FIM: abrirConfirmacao ──────────────────────────────────── */
 
+/* ─── INÍCIO: abrirConfirmacaoElemento ───────────────────────── */
 function abrirConfirmacaoElemento(titulo, elementoDom, callbackAcao) {
     const elementoTitulo = document.getElementById('confirmar-titulo');
     const elementoMensagem = document.getElementById('confirmar-mensagem');
@@ -1885,12 +2024,16 @@ function abrirConfirmacaoElemento(titulo, elementoDom, callbackAcao) {
 
     abrirModal('modal-confirmar');
 }
+/* ─── FIM: abrirConfirmacaoElemento ───────────────────────────── */
 
+/* ─── INÍCIO: fecharConfirmacao ──────────────────────────────── */
 function fecharConfirmacao() {
     fecharModal('modal-confirmar');
     _callbackConfirmacao = null;
 }
+/* ─── FIM: fecharConfirmacao ─────────────────────────────────── */
 
+/* ─── INÍCIO: exibirToast ────────────────────────────────────── */
 function exibirToast(mensagem, tipo = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -1900,6 +2043,7 @@ function exibirToast(mensagem, tipo = 'info') {
     container.appendChild(toast);
     setTimeout(() => toast.remove(), 3500);
 }
+/* ─── FIM: exibirToast ───────────────────────────────────────── */
 
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', evento => {
@@ -1910,11 +2054,11 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
     });
 });
 
-// ============================================================================
-// 19. HELPERS DE NAVEGAÇÃO — avatar, bottom nav, badge do carrinho
-// ============================================================================
+/* ═══════════════════════════════════════════════════════════════
+   17. HELPERS DE INTERFACE E NAVEGAÇÃO
+   ═══════════════════════════════════════════════════════════════ */
 
-/** Aplica visibilidade dos itens do bottom nav conforme o papel. */
+/* ─── INÍCIO: aplicarNavPorPapel ─────────────────────────────── */
 function aplicarNavPorPapel(papel) {
     document.querySelectorAll('.bottom-nav__item').forEach(btn => {
         const roles = (btn.dataset.roles || '').split(',').map(r => r.trim());
@@ -1925,8 +2069,9 @@ function aplicarNavPorPapel(papel) {
         }
     });
 }
+/* ─── FIM: aplicarNavPorPapel ─────────────────────────────────── */
 
-/** Atualiza as iniciais no avatar (header). */
+/* ─── INÍCIO: atualizarAvatarUsuario ─────────────────────────── */
 function atualizarAvatarUsuario() {
     const alvo = document.getElementById('user-initials');
     if (!alvo) return;
@@ -1941,8 +2086,9 @@ function atualizarAvatarUsuario() {
     if (partes.length > 1) sigla += (partes[partes.length - 1] || '')[0];
     alvo.textContent = sigla.toUpperCase();
 }
+/* ─── FIM: atualizarAvatarUsuario ─────────────────────────────── */
 
-/** Abre/fecha o dropdown do avatar. */
+/* ─── INÍCIO: toggleUserDropdown ─────────────────────────────── */
 function toggleUserDropdown() {
     const dd  = document.getElementById('user-dropdown');
     const btn = document.getElementById('user-avatar-btn');
@@ -1957,16 +2103,18 @@ function toggleUserDropdown() {
         btn.setAttribute('aria-expanded', 'true');
     }
 }
+/* ─── FIM: toggleUserDropdown ─────────────────────────────────── */
 
-/** Fecha o dropdown. */
+/* ─── INÍCIO: fecharUserDropdown ─────────────────────────────── */
 function fecharUserDropdown() {
     const dd  = document.getElementById('user-dropdown');
     const btn = document.getElementById('user-avatar-btn');
     if (dd) dd.classList.add('hidden');
     if (btn) btn.setAttribute('aria-expanded', 'false');
 }
+/* ─── FIM: fecharUserDropdown ─────────────────────────────────── */
 
-/** Atualiza badges de carrinho (header + bottom nav). */
+/* ─── INÍCIO: atualizarBadgeCarrinho ─────────────────────────── */
 function atualizarBadgeCarrinho(quantidade) {
     const n = Number(quantidade) || 0;
 
@@ -1982,43 +2130,45 @@ function atualizarBadgeCarrinho(quantidade) {
         header.dataset.zero = n === 0 ? '1' : '0';
     }
 }
+/* ─── FIM: atualizarBadgeCarrinho ─────────────────────────────── */
 
-// ============================================================================
-// 20. EXPORTAÇÃO GLOBAL DE ALIASES (LIGAÇÃO COM O BINDINGS.JS)
-// ============================================================================
-window.abrirModal                 = abrirModal;
-window.fecharModal                = fecharModal;
-window.abrirConfirmacao           = abrirConfirmacao;
-window.exibirConfirmacao          = abrirConfirmacao;
-window.fecharConfirmacao          = fecharConfirmacao;
-window.confirmarLogout            = confirmarLogout;
-window.executarLogout             = executarLogout;
-window.enviarPedidoDesbloqueio    = enviarPedidoDesbloqueio;
-window.navegarPara                = navegarPara;
-window.tratarCriacaoPedido        = tratarCriacaoPedido;
-window.removerFotoCarregada       = removerFotoCarregada;
-window.gerarLinkTemporarioAdm     = gerarLinkTemporarioAdm;
-window.copiarLinkGerado           = copiarLinkGerado;
-window.carregarPainelCentralAdm   = carregarPainelCentralAdm;
-window.enviarMensagemChat         = enviarMensagemChat;
-window.tratarEnvioMensagemChat    = enviarMensagemChat;
-window.abrirChatPedido            = abrirChatPedido;
-window.tratarSolicitacaoCadastro  = tratarSolicitacaoCadastro;
-window.tratarLogin                = tratarLogin;
-window.tratarCadastroProduto      = tratarCadastroProduto;
-window.aplicarFiltroVitrine       = aplicarFiltroVitrine;
-window.filtrarVitrineEmTempoReal  = aplicarFiltroVitrine;
-window.processarUploadImagem      = processarUploadImagem;
-window.copiarPixCopiaECola        = copiarPixCopiaECola;
-window.abrirCentralDuvidas        = abrirCentralDuvidas;
-window.tratarEnvioSugestao        = tratarEnvioSugestao;
-window.tratarEnvioComentario      = tratarEnvioComentario;
-window.tratarAdicionarFaq         = tratarAdicionarFaq;
-window.executarLimpezaTotalESaida = executarLimpezaTotalESaida;
+/* ═══════════════════════════════════════════════════════════════
+   18. EXPORTAÇÕES GLOBAIS (BINDINGS E EVENTOS)
+   ═══════════════════════════════════════════════════════════════ */
+window.abrirModal                    = abrirModal;
+window.fecharModal                   = fecharModal;
+window.abrirConfirmacao              = abrirConfirmacao;
+window.exibirConfirmacao             = abrirConfirmacao;
+window.fecharConfirmacao             = fecharConfirmacao;
+window.confirmarLogout               = confirmarLogout;
+window.executarLogout                = executarLogout;
+window.enviarPedidoDesbloqueio       = enviarPedidoDesbloqueio;
+window.navegarPara                   = navegarPara;
+window.tratarCriacaoPedido           = tratarCriacaoPedido;
+window.removerFotoCarregada          = removerFotoCarregada;
+window.gerarLinkTemporarioAdm        = gerarLinkTemporarioAdm;
+window.copiarLinkGerado              = copiarLinkGerado;
+window.carregarPainelCentralAdm      = carregarPainelCentralAdm;
+window.enviarMensagemChat            = enviarMensagemChat;
+window.tratarEnvioMensagemChat       = enviarMensagemChat;
+window.abrirChatPedido               = abrirChatPedido;
+window.tratarSolicitacaoCadastro     = tratarSolicitacaoCadastro;
+window.tratarLogin                   = tratarLogin;
+window.tratarCadastroProduto         = tratarCadastroProduto;
+window.aplicarFiltroVitrine          = aplicarFiltroVitrine;
+window.filtrarVitrineEmTempoReal     = aplicarFiltroVitrine;
+window.processarUploadImagem         = processarUploadImagem;
+window.copiarPixCopiaECola           = copiarPixCopiaECola;
+window.abrirCentralDuvidas           = abrirCentralDuvidas;
+window.tratarEnvioSugestao           = tratarEnvioSugestao;
+window.tratarEnvioComentario         = tratarEnvioComentario;
+window.tratarAdicionarFaq            = tratarAdicionarFaq;
+window.executarLimpezaTotalESaida    = executarLimpezaTotalESaida;
+window.confirmarExclusaoProdutoAdm   = confirmarExclusaoProdutoAdm;
+window.excluirProdutoAdm             = excluirProdutoAdm;
 
-/* Helpers expostos */
-window.aplicarNavPorPapel         = aplicarNavPorPapel;
-window.atualizarAvatarUsuario     = atualizarAvatarUsuario;
-window.toggleUserDropdown         = toggleUserDropdown;
-window.fecharUserDropdown         = fecharUserDropdown;
-window.atualizarBadgeCarrinho     = atualizarBadgeCarrinho;
+window.aplicarNavPorPapel            = aplicarNavPorPapel;
+window.atualizarAvatarUsuario        = atualizarAvatarUsuario;
+window.toggleUserDropdown            = toggleUserDropdown;
+window.fecharUserDropdown            = fecharUserDropdown;
+window.atualizarBadgeCarrinho        = atualizarBadgeCarrinho;
