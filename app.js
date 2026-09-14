@@ -340,6 +340,7 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
             fingerprint: FINGERPRINT
         };
 
+         // Preferência: sessão de ADM (com HMAC) > token do link
         if (estadoSessao.token) {
             corpo.token = estadoSessao.token;
             try {
@@ -347,6 +348,13 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
                 if (hmac) corpo.hmac = hmac;
             } catch (e) {
                 console.warn('[HMAC] Não foi possível assinar:', e);
+            }
+        } else {
+            // Sem sessão: envia o token do link (se houver)
+            const linkToken = sessionStorage.getItem('plataforma_link_token');
+            if (linkToken) {
+                corpo.token = linkToken;
+                // Sem hmac — backend trata via linkAindaValido()
             }
         }
 
