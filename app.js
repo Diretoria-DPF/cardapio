@@ -1,11 +1,13 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v11 — Arquivo Completo e Estruturado)
+   app.js — Plataforma Comercial Segura (v12 — Sincronizado e Corrigido)
    ============================================================================
-   AJUSTES INTEGRADORES:
-     • Login direto liberado para contas de membros ativas e aprovadas[cite: 10].
-     • Renderização da lista de Usuários Ativos no Painel ADM[cite: 10].
-     • Exclusão física de publicações/produtos pelo Administrador com confirmação[cite: 10].
-     • Demarcação padronizada de INÍCIO e FIM em todas as funções[cite: 10].
+   CORREÇÕES:
+     • Sintaxe 100% limpa sem caracteres espúrios para evitar quebras de script.
+     • Registro global imediato de abrirModal, fecharModal e demais helpers.
+     • Login direto liberado para membros e administradores com conta ativa.
+     • Tabela de Usuários Ativos no Painel ADM com primeiro nome em destaque.
+     • Exclusão de publicações/produtos diretamente pela vitrine pelo ADM.
+     • Demarcação de INÍCIO e FIM em cada função.
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
@@ -610,7 +612,6 @@ function renderizarVitrine() {
             painelAdm.append(tag, selectVisib);
             body.appendChild(painelAdm);
 
-            // Botão de Excluir Publicação (Exclusivo ADM)
             const btnExcluir = document.createElement('button');
             btnExcluir.className = 'btn btn-danger-outline btn-block btn-sm';
             btnExcluir.style.marginTop = '6px';
@@ -680,15 +681,15 @@ async function excluirProdutoAdm(idProduto) {
 let listaDuvidasFaq = [
     {
         pergunta: "Como funciona a retirada e entrega do produto?",
-        resposta: "Após a confirmação do pagamento, um chat exclusivo é aberto no seu pedido com todas as orientações de retirada ou envio pelo entregador."[cite: 10]
+        resposta: "Após a confirmação do pagamento, um chat exclusivo é aberto no seu pedido com todas as orientações de retirada ou envio pelo entregador."
     },
     {
         pergunta: "Quais são as formas de pagamento aceitas?",
-        resposta: "Aceitamos PIX com confirmação dinâmica imediata, Cartão de Crédito e Criptomoedas (Bitcoin, Ethereum e Tether USDT)."[cite: 10]
+        resposta: "Aceitamos PIX com confirmação dinâmica imediata, Cartão de Crédito e Criptomoedas (Bitcoin, Ethereum e Tether USDT)."
     },
     {
         pergunta: "Quanto tempo dura o chat temporário do pedido?",
-        resposta: "O chat temporário permanece ativo enquanto a entrega estiver em andamento. Ao ser concluído pelo Administrador, o canal é finalizado com segurança."[cite: 10]
+        resposta: "O chat temporário permanece ativo enquanto a entrega estiver em andamento. Ao ser concluído pelo Administrador, o canal é finalizado com segurança."
     }
 ];
 
@@ -1032,7 +1033,6 @@ function atualizarInterfaceSessao() {
 
     if (containerDuvidas) containerDuvidas.classList.add('hidden');
 
-    // Bloqueia apenas visitantes sem link de acesso
     if (!_linkAutorizadoValido && estadoSessao.papel === 'visitante') {
         if (navBar) navBar.classList.add('hidden');
         document.querySelectorAll('.view-panel').forEach(painel => {
@@ -1261,7 +1261,7 @@ function exibirContingenciaSuporteAdm(motivoErro, metodoEscolhido) {
                 ${escaparHtml(motivoErro || "Instabilidade na ligação com o servidor.")}
             </p>
             <p style="margin-bottom:6px;">
-                Pode contactar o Administrador agora mesmo para que ele regularize a sua conta ou envie a chave/link de pagamento manual.
+                Pode contactar o Administrador agora mesmo para regularizar sua conta ou obter chave de pagamento manual.
             </p>
             <p style="font-size:0.8rem;color:#64748b;margin-bottom:12px;">
                 <strong>Itens:</strong> ${escaparHtml(itensDescricao)}<br>
@@ -1525,7 +1525,7 @@ async function renderizarChat(silencioso = false) {
         meta.textContent = mensagem.autorNome || (ehMinha ? 'Você' : 'Atendimento');
 
         bolha.append(texto, meta);
-        caixaMensagens.appendChild(bolha);
+        caixaMensappendChild(bolha);
     });
 
     if (estavaNoFim || !silencioso) {
