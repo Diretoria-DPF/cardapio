@@ -163,7 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await verificarTokenUrl();
     atualizarInterfaceSessao();
 
-    if (_linkAutorizadoValido || estadoSessao.papel === 'adm') {
+    if (_linkAutorizadoValido || estadoSessao.papel !== 'visitante') {
         const produtosEmCache = CacheLoja.obter('produtos_' + estadoSessao.papel);
         if (produtosEmCache && produtosEmCache.length > 0) {
             catalogoProdutos = produtosEmCache;
@@ -206,10 +206,10 @@ function obterUrlBasePlataforma() {
  */
 async function verificarTokenUrl() {
     const params = new URLSearchParams(window.location.search);
-    const tokenAcesso = params.get('token');
+    const tokenAcesso = params.get('token') || sessionStorage.getItem('plataforma_link_token');
 
     if (!tokenAcesso) {
-        if (estadoSessao.papel === 'adm') {
+        if (estadoSessao.papel !== 'visitante') {
             _linkAutorizadoValido = true;
             return;
         }
@@ -231,6 +231,7 @@ async function verificarTokenUrl() {
             iniciarTemporizadorSilencioso(segundos);
         } else {
             _linkAutorizadoValido = false;
+            sessionStorage.removeItem('plataforma_link_token');
             exibirToast(res.mensagem || "Este link de acesso expirou.", "error");
             executarLimpezaTotalESaida(true);
         }
@@ -325,7 +326,7 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
 }
 
 /**
- * Requisição API no formato exigido pelo code.gs (FASE 1):
+ * Requisição API no formato exigido pelo code.gs:
  *   { acao, payload, ts, fingerprint, hmac, token }
  */
 async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
@@ -340,7 +341,7 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
             fingerprint: FINGERPRINT
         };
 
-         // Preferência: sessão de ADM (com HMAC) > token do link
+        // Preferência: sessão ativa (com HMAC) > token do link
         if (estadoSessao.token) {
             corpo.token = estadoSessao.token;
             try {
@@ -350,11 +351,9 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
                 console.warn('[HMAC] Não foi possível assinar:', e);
             }
         } else {
-            // Sem sessão: envia o token do link (se houver)
             const linkToken = sessionStorage.getItem('plataforma_link_token');
             if (linkToken) {
                 corpo.token = linkToken;
-                // Sem hmac — backend trata via linkAindaValido()
             }
         }
 
@@ -739,6 +738,26 @@ async function tratarEnvioSugestao(e) {
     }
 }
 
+async function tratarEnvioComentario(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const nomeInput = document.getElementById('comentario-nome');
+    const msgInput = document.getElementById('comentario-mensagem');
+    const nome = nomeInput ? nomeInput.value.trim() : estadoSessao.nomeUsuario;
+    const mensagem = msgInput ? msgInput.value.trim() : '';
+    if (!mensagem) return;
+
+    mostrarLoader("Enviando mensagem...");
+    const res = await executarRequisicaoAPI("enviar_comentario", { nome, mensagem });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast("Mensagem enviada com sucesso!", "success");
+        if (msgInput) msgInput.value = '';
+    } else {
+        exibirToast(res.mensagem || "Erro ao enviar mensagem.", "error");
+    }
+}
+
 function tratarAdicionarFaq(e) {
     if (e && e.preventDefault) e.preventDefault();
 
@@ -818,9 +837,7 @@ async function tratarLogin(evento) {
         if (resposta.refreshToken) sessionStorage.setItem('plataforma_refresh_token', resposta.refreshToken);
         if (resposta.hmacKey)      sessionStorage.setItem('plataforma_hmac_key', resposta.hmacKey);
 
-        if (resposta.papel === 'adm') {
-            _linkAutorizadoValido = true;
-        }
+        _linkAutorizadoValido = true;
 
         localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
         document.getElementById('form-login').reset();
@@ -918,7 +935,7 @@ function restaurarSessaoLocal() {
         estadoSessao.token       = sessao.token || null;
         estadoSessao.nomeUsuario = sessao.nomeUsuario || 'Visitante';
 
-        if (estadoSessao.papel === 'adm') {
+        if (estadoSessao.papel !== 'visitante') {
             _linkAutorizadoValido = true;
         }
     } catch {
@@ -956,8 +973,8 @@ function atualizarInterfaceSessao() {
     // 3. Esconde o botão de ajuda por padrão
     if (containerDuvidas) containerDuvidas.classList.add('hidden');
 
-    // ─── CENÁRIO 1: BLOQUEIO (sem link, sem ADM) ─────────────
-    if (!_linkAutorizadoValido && estadoSessao.papel !== 'adm') {
+    // ─── CENÁRIO 1: BLOQUEIO (sem link e sem usuário autenticado) ───
+    if (!_linkAutorizadoValido && estadoSessao.papel === 'visitante') {
         if (navBar) navBar.classList.add('hidden');
         document.querySelectorAll('.view-panel').forEach(painel => {
             painel.classList.add('hidden');
@@ -1018,11 +1035,8 @@ function atualizarInterfaceSessao() {
 // 11. NAVEGAÇÃO ENTRE TELAS
 // ============================================================================
 function navegarPara(nomeAba) {
-    // Bottom nav (novo)
     document.querySelectorAll('.bottom-nav__item').forEach(botao => botao.classList.remove('active'));
-    // Compat: se ainda houver .nav-tab no HTML, limpa também
     document.querySelectorAll('.nav-tab').forEach(botao => botao.classList.remove('active'));
-
     document.querySelectorAll('.view-panel').forEach(painel => painel.classList.remove('active'));
 
     const botaoAtivo  = document.getElementById(`tab-btn-${nomeAba}`);
@@ -1034,7 +1048,6 @@ function navegarPara(nomeAba) {
         painelAtivo.classList.add('active');
     }
 
-    // Fecha o dropdown do avatar (se estiver aberto)
     fecharUserDropdown();
 
     if (nomeAba === 'vitrine')      sincronizarProdutosServidor();
@@ -1779,12 +1792,13 @@ async function tratarCadastroProduto(evento) {
     if (evento && evento.preventDefault) evento.preventDefault();
 
     const nome         = document.getElementById('adm-prod-nome').value.trim();
-    const preco        = parseFloat(document.getElementById('adm-prod-preco').value);
+    const precoStr     = String(document.getElementById('adm-prod-preco').value || '').replace(',', '.');
+    const preco        = parseFloat(precoStr);
     const visibilidade = document.getElementById('adm-prod-visibilidade').value;
     const urlFoto      = document.getElementById('adm-prod-foto-url').value.trim();
     const fotoFinal    = fotoBase64Temporaria || urlFoto || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400";
 
-    if (!nome || !preco || preco <= 0) {
+    if (!nome || isNaN(preco) || preco <= 0) {
         return exibirToast("Preencha nome e preço válidos.", "error");
     }
 
@@ -1998,10 +2012,11 @@ window.processarUploadImagem      = processarUploadImagem;
 window.copiarPixCopiaECola        = copiarPixCopiaECola;
 window.abrirCentralDuvidas        = abrirCentralDuvidas;
 window.tratarEnvioSugestao        = tratarEnvioSugestao;
+window.tratarEnvioComentario      = tratarEnvioComentario;
 window.tratarAdicionarFaq         = tratarAdicionarFaq;
 window.executarLimpezaTotalESaida = executarLimpezaTotalESaida;
 
-/* Novos helpers expostos (bindings pode chamar) */
+/* Helpers expostos */
 window.aplicarNavPorPapel         = aplicarNavPorPapel;
 window.atualizarAvatarUsuario     = atualizarAvatarUsuario;
 window.toggleUserDropdown         = toggleUserDropdown;
