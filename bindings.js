@@ -1,17 +1,17 @@
 /* ============================================================================
-   bindings.js — Delegação Central de Eventos (v5 — Sincronizado)
+   bindings.js — Delegação Central de Eventos (v6 — Sincronizado e Corrigido)
    ============================================================================
-   CARACTERÍSTICAS:
-     • Delegação global de cliques, submissões de formulário, inputs e teclas.
-     • Encapsulamento seguro via chamarComSeguranca (não quebra se o app.js
-       ainda estiver processando).
-     • Despacho de logout com revogação e limpeza total.
-     • Debounce nativo no filtro de pesquisa da vitrine.
+   CORREÇÕES:
+     • Ações exclusivas de digitação/mudança (como 'filtro-vitrine') são
+       ignoradas no listener de clique, evitando avisos no console.
+     • Logout direto sem bloqueios.
+     • Demarcação de INÍCIO e FIM em cada bloco funcional.
    ============================================================================ */
 
 (function () {
   'use strict';
 
+  /* ─── INÍCIO: chamarComSeguranca ────────────────────────────── */
   /**
    * Executa uma função global com segurança. Nunca quebra a página se a
    * função ainda não estiver carregada pelo app.js.
@@ -27,16 +27,17 @@
       console.warn(`[bindings] A função "${nomeFuncao}" ainda não foi carregada.`);
     }
   }
+  /* ─── FIM: chamarComSeguranca ────────────────────────────────── */
 
   // Temporizador do debounce da busca
   let temporizadorBusca = null;
 
-  /* ─── BLOCO 1: CLIQUE (delegação global) ─────────────────────── */
+  /* ─── INÍCIO: Listener Global de Clique (click) ─────────────── */
   document.addEventListener('click', function (e) {
     const el = e.target.closest('[data-action]');
     if (!el) return;
 
-    // Ignora <form> — o evento 'submit' trata dele
+    // Ignora formulários (o evento 'submit' cuida deles)
     if (el.tagName === 'FORM') return;
 
     // Ignora elementos desabilitados
@@ -47,8 +48,13 @@
 
     const acao = el.dataset.action;
 
+    // Ignora no clique ações exclusivas de digitação e seleção de arquivos
+    if (['filtro-vitrine', 'upload-imagem', 'mudar-duracao-link'].includes(acao)) {
+      return;
+    }
+
     switch (acao) {
-      /* Modais -------------------------------------------------- */
+      /* Modais */
       case 'abrir-modal':
         e.preventDefault();
         chamarComSeguranca('abrirModal', el.dataset.modal);
@@ -64,7 +70,7 @@
         chamarComSeguranca('fecharConfirmacao');
         break;
 
-      /* Sessão e contas ----------------------------------------- */
+      /* Sessão e Contas */
       case 'confirmar-logout':
         e.preventDefault();
         chamarComSeguranca('executarLogout');
@@ -75,25 +81,25 @@
         chamarComSeguranca('enviarPedidoDesbloqueio');
         break;
 
-      /* Navegação ----------------------------------------------- */
+      /* Navegação */
       case 'navegar':
         e.preventDefault();
         chamarComSeguranca('navegarPara', el.dataset.view);
         break;
 
-      /* Carrinho e checkout ------------------------------------- */
+      /* Carrinho e Checkout */
       case 'criar-pedido':
         e.preventDefault();
         chamarComSeguranca('tratarCriacaoPedido');
         break;
 
-      /* Produtos (ADM) ------------------------------------------ */
+      /* Gestão de Produtos (ADM) */
       case 'remover-foto':
         e.preventDefault();
         chamarComSeguranca('removerFotoCarregada');
         break;
 
-      /* Links temporários (ADM) --------------------------------- */
+      /* Links Temporários (ADM) */
       case 'gerar-link':
         e.preventDefault();
         chamarComSeguranca('gerarLinkTemporarioAdm');
@@ -104,13 +110,13 @@
         chamarComSeguranca('copiarLinkGerado');
         break;
 
-      /* Painel ADM ---------------------------------------------- */
+      /* Painel ADM */
       case 'carregar-painel-adm':
         e.preventDefault();
         chamarComSeguranca('carregarPainelCentralAdm');
         break;
 
-      /* Central de dúvidas e FAQ -------------------------------- */
+      /* Central de Dúvidas e FAQ */
       case 'abrir-central-duvidas':
         e.preventDefault();
         chamarComSeguranca('abrirCentralDuvidas');
@@ -121,7 +127,7 @@
         el.closest('.faq-item')?.classList.toggle('active');
         break;
 
-      /* Chat ---------------------------------------------------- */
+      /* Chat */
       case 'enviar-chat':
         e.preventDefault();
         if (typeof window.enviarMensagemChat === 'function') {
@@ -140,8 +146,9 @@
         console.warn('[bindings] Ação de clique não reconhecida:', acao);
     }
   }, false);
+  /* ─── FIM: Listener Global de Clique (click) ────────────────── */
 
-  /* ─── BLOCO 2: SUBMIT (formulários) ──────────────────────────── */
+  /* ─── INÍCIO: Listener de Submissão de Formulários (submit) ─── */
   document.addEventListener('submit', function (e) {
     const form = e.target.closest('form[data-action]');
     if (!form) return;
@@ -183,8 +190,9 @@
         console.warn('[bindings] Ação de formulário não reconhecida:', acao);
     }
   }, false);
+  /* ─── FIM: Listener de Submissão de Formulários (submit) ─────── */
 
-  /* ─── BLOCO 3: INPUT (busca com debounce) ────────────────────── */
+  /* ─── INÍCIO: Listener de Entrada de Texto (input) ──────────── */
   document.addEventListener('input', function (e) {
     if (e.target.matches('[data-action="filtro-vitrine"]')) {
       const termo = e.target.value;
@@ -198,16 +206,17 @@
       }, 150);
     }
   }, false);
+  /* ─── FIM: Listener de Entrada de Texto (input) ──────────────── */
 
-  /* ─── BLOCO 4: CHANGE (uploads e duração do link) ────────────── */
+  /* ─── INÍCIO: Listener de Alteração (change) ─────────────────── */
   document.addEventListener('change', function (e) {
-    // 1. Upload de foto/GIF do produto (ADM)
+    // Upload de imagem do produto (ADM)
     if (e.target.matches('[data-action="upload-imagem"]')) {
       chamarComSeguranca('processarUploadImagem', e);
       return;
     }
 
-    // 2. Seletor de duração do link temporário (ADM)
+    // Seletor de tempo do link temporário (ADM)
     if (e.target.matches('[data-action="mudar-duracao-link"]')) {
       const inputPersonalizado = document.getElementById('input-duracao-personalizada');
       if (inputPersonalizado) {
@@ -221,8 +230,9 @@
       return;
     }
   }, false);
+  /* ─── FIM: Listener de Alteração (change) ───────────────────── */
 
-  /* ─── BLOCO 5: TECLADO (atalhos úteis) ───────────────────────── */
+  /* ─── INÍCIO: Listener de Teclado (keydown) ─────────────────── */
   document.addEventListener('keydown', function (e) {
     // ESC fecha qualquer modal aberto
     if (e.key === 'Escape' || e.key === 'Esc') {
@@ -242,5 +252,6 @@
       }
     }
   }, false);
+  /* ─── FIM: Listener de Teclado (keydown) ─────────────────────── */
 
 })();
