@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
-
+    <meta name="theme-color" content="#0f172a">
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'self';
                    img-src 'self' data: https:;
@@ -13,383 +13,516 @@
                    connect-src 'self' https://script.google.com https://script.googleusercontent.com;
                    form-action 'self';
                    base-uri 'self';">
-
-    <title>Plataforma Comercial Exclusiva</title>
+    <title>LojaSegura</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- CABEÇALHO -->
+<!-- ═══════════════════════════════════════════════════════════
+     HEADER — fixo no topo
+     Esquerda: logo · Direita: cesta (se logado) + avatar/perfil
+     ═══════════════════════════════════════════════════════════ -->
 <header class="app-header">
-    <div class="header-content">
-        <h1 class="logo">Cardápio</h1>
+    <div class="app-header__left">
+        <span class="logo" aria-label="LojaSegura">LojaSegura</span>
+    </div>
 
-        <div class="auth-actions">
-            <span id="role-badge" class="badge badge-visitor">Visitante</span>
+    <div class="app-header__right">
+        <!-- Cesta resumida (só aparece logado como membro) -->
+        <button type="button" id="header-cart-btn"
+                class="icon-btn hidden"
+                data-action="navegar" data-view="carrinho"
+                aria-label="Cesta de compras">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+            </svg>
+            <span id="header-cart-count" class="icon-btn__badge">0</span>
+        </button>
 
-            <!-- Botão de acesso direto para o Administrador entrar mesmo com a loja bloqueada -->
-            <div id="anon-buttons" class="button-group">
-                <button type="button" class="btn btn-outline"
-                        data-action="abrir-modal" data-modal="modal-cadastro" id="btn-header-cadastro">
-                    Cadastre-se
+        <!-- VISITANTE: botões de acesso -->
+        <div id="anon-buttons" class="button-group">
+            <button type="button" class="btn btn-ghost btn-sm"
+                    data-action="abrir-modal" data-modal="modal-cadastro">
+                Cadastrar
+            </button>
+            <button type="button" class="btn btn-primary btn-sm"
+                    data-action="abrir-modal" data-modal="modal-login">
+                Entrar
+            </button>
+        </div>
+
+        <!-- LOGADO: avatar com dropdown -->
+        <div id="auth-buttons" class="user-menu hidden">
+            <button type="button" id="user-avatar-btn" class="avatar-btn"
+                    aria-haspopup="menu" aria-expanded="false">
+                <span id="user-initials">?</span>
+            </button>
+            <div id="user-dropdown" class="dropdown hidden" role="menu">
+                <div class="dropdown__header">
+                    <span id="user-display-name" class="dropdown__name">Olá</span>
+                    <span id="role-badge" class="badge badge-visitor">Visitante</span>
+                </div>
+                <div class="dropdown__divider"></div>
+                <button type="button" class="dropdown__item"
+                        data-action="abrir-central-duvidas">
+                    Central de Ajuda
                 </button>
-                <button type="button" class="btn btn-primary"
-                        data-action="abrir-modal" data-modal="modal-login">
-                    Entrar
-                </button>
-            </div>
-
-            <div id="auth-buttons" class="button-group hidden">
-                <span id="user-display-name" class="user-greeting">Olá</span>
-                <button type="button" class="btn btn-danger-outline"
+                <button type="button" class="dropdown__item dropdown__item--danger"
                         data-action="confirmar-logout">
-                    Sair
+                    Encerrar sessão
                 </button>
             </div>
         </div>
     </div>
 </header>
 
-<!-- BARRA DE NAVEGAÇÃO -->
-<nav class="app-nav" id="app-nav-bar" aria-label="Navegação principal">
-    <button type="button" class="nav-tab active" id="tab-btn-vitrine"
-            data-action="navegar" data-view="vitrine">Vitrine</button>
+<!-- ═══════════════════════════════════════════════════════════
+     MAIN — todas as telas
+     ═══════════════════════════════════════════════════════════ -->
+<main class="app-main" id="app-main">
 
-    <button type="button" class="nav-tab hidden" id="tab-btn-carrinho"
-            data-action="navegar" data-view="carrinho">
-        Cesta (<span id="cart-counter">0</span>)
-    </button>
-
-    <button type="button" class="nav-tab hidden" id="tab-btn-meus-pedidos"
-            data-action="navegar" data-view="meus-pedidos">Meus Pedidos</button>
-
-    <button type="button" class="nav-tab hidden" id="tab-btn-novo-produto"
-            data-action="navegar" data-view="novo-produto">Cadastrar Produto</button>
-
-    <button type="button" class="nav-tab hidden" id="tab-btn-pedidos-adm"
-            data-action="navegar" data-view="pedidos-adm">Pedidos</button>
-
-    <button type="button" class="nav-tab hidden" id="tab-btn-adm"
-            data-action="navegar" data-view="adm">Painel ADM</button>
-</nav>
-
-<main class="app-main">
-
-    <!-- =======================================================
-         TELA DE BLOQUEIO: EXIBIDA SE ENTRAR SEM LINK DO ADM
-         ======================================================= -->
+    <!-- ─── TELA DE BLOQUEIO (sem link autorizado) ─── -->
     <section id="view-bloqueado" class="view-panel hidden">
-        <div class="lock-screen-card">
-            <div class="lock-icon">🔒</div>
-            <h2>Link expirou</h2>
-            <p>O acesso a esta vitrine é temporário. Para navegar, conhecer os produtos disponíveis e solicitar pedidos, é necessário possuir um <strong>link de acesso autorizado</strong> realize cadastro se não tiver:</p>
-            
-            <div class="lock-actions">
-                <button type="button" class="btn btn-primary" data-action="abrir-modal" data-modal="modal-cadastro">
-                    Realizar Cadastro
-                </button>
-                <p class="lock-hint">
-     Entre em contato para solicitar um novo acesso.
-                </p>
+        <div class="hero-screen">
+            <div class="hero-screen__icon" aria-hidden="true">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
             </div>
+            <h1 class="hero-screen__title">Plataforma Exclusiva</h1>
+            <p class="hero-screen__text">
+                O acesso a esta vitrine é restrito e temporário.
+                Para navegar, conhecer os produtos e fazer pedidos,
+                você precisa de um <strong>link autorizado</strong> emitido pela administração.
+            </p>
+            <div class="hero-screen__actions">
+                <button type="button" class="btn btn-primary btn-block"
+                        data-action="abrir-modal" data-modal="modal-cadastro">
+                    Solicitar Cadastro
+                </button>
+                <button type="button" class="btn btn-ghost btn-block"
+                        data-action="abrir-modal" data-modal="modal-login">
+                    Já sou membro
+                </button>
+            </div>
+            <p class="hero-screen__hint">
+                Recebeu um link do administrador?<br>Basta abri-lo no navegador.
+            </p>
         </div>
     </section>
 
-    <!-- ABA 1 — VITRINE LIBERADA (COM LINK ATIVO) -->
+    <!-- ─── TELA 1: VITRINE ─── -->
     <section id="view-vitrine" class="view-panel active">
-        <header class="section-header">
-            <h2>Catálogo de Produtos</h2>
-            <p class="section-desc">Itens selecionados disponíveis para visualização.</p>
+        <header class="screen-header">
+            <h2 id="vitrine-title">Catálogo</h2>
+            <p class="screen-header__desc">Produtos disponíveis para o seu perfil.</p>
         </header>
 
         <div class="search-bar">
+            <svg class="search-bar__icon" width="18" height="18" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
             <input type="search" id="filtro-produtos"
-                   placeholder="🔍 Buscar produto pelo nome..."
+                   placeholder="Buscar produto..."
                    data-action="filtro-vitrine"
                    aria-label="Filtrar produtos por nome">
         </div>
 
         <div id="produtos-container" class="cards-grid"></div>
 
-        <div class="duvidas-container-discreto hidden" id="container-duvidas-discreto">
-    <button type="button" class="btn-duvidas-discreto" data-action="abrir-central-duvidas">
-        💡 Central de Dúvidas & Sugestões
-    </button>
-</div>
+        <!-- Área de dúvidas discreta (só aparece para membro/adm) -->
+        <div id="container-duvidas-discreto" class="help-cta hidden">
+            <button type="button" class="help-cta__btn" data-action="abrir-central-duvidas">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                <span>Central de Dúvidas & Sugestões</span>
+            </button>
+        </div>
     </section>
 
-    <!-- ABA 2 — CESTA DE COMPRAS -->
+    <!-- ─── TELA 2: CESTA ─── -->
     <section id="view-carrinho" class="view-panel">
-        <header class="section-header">
-            <h2>Cesta de Compras</h2>
-            <p class="section-desc">Revise os seus produtos antes de confirmar o pedido.</p>
+        <header class="screen-header">
+            <h2>Minha Cesta</h2>
+            <p class="screen-header__desc">Revise os itens antes de finalizar.</p>
         </header>
 
         <div id="carrinho-itens-lista" class="cart-items-wrapper"></div>
 
         <div class="cart-summary-card">
             <div class="cart-total-row">
-                <span>Total Estimado:</span>
+                <span>Total</span>
                 <strong id="carrinho-total-valor">R$ 0,00</strong>
             </div>
 
             <div class="form-group">
-                <label for="metodo-pagamento">Forma de Pagamento:</label>
+                <label for="metodo-pagamento">Forma de pagamento</label>
                 <select id="metodo-pagamento">
-                    <option value="PIX">PIX (Chave / QR Code)</option>
-                    <option value="CARTAO">Cartão de Crédito</option>                  
+                    <option value="PIX">PIX (instantâneo)</option>
+                    <option value="CARTAO">Cartão de Crédito</option>
+                    <option value="BTC">Bitcoin (BTC)</option>
+                    <option value="ETH">Ethereum (ETH)</option>
+                    <option value="USDT">Tether (USDT)</option>
                 </select>
             </div>
 
             <button type="button" class="btn btn-success btn-block"
                     id="btn-confirmar-pedido"
                     data-action="criar-pedido">
-                Solicitar Pedido
+                Finalizar Pedido
             </button>
         </div>
     </section>
 
-    <!-- ABA 3 — MEUS PEDIDOS -->
+    <!-- ─── TELA 3: MEUS PEDIDOS ─── -->
     <section id="view-meus-pedidos" class="view-panel">
-        <header class="section-header">
+        <header class="screen-header">
             <h2>Meus Pedidos</h2>
-            <p class="section-desc">Histórico dos seus pedidos, pagamento e chat de entrega.</p>
+            <p class="screen-header__desc">Acompanhe o status das suas compras.</p>
         </header>
         <div id="meus-pedidos-container"></div>
     </section>
 
-    <!-- ABA 4 — CADASTRAR PRODUTO (ADM) -->
+    <!-- ─── TELA 4: CADASTRAR PRODUTO (ADM) ─── -->
     <section id="view-novo-produto" class="view-panel">
-        <header class="section-header">
-            <h2>Cadastrar Novo Produto na Vitrine</h2>
-            <p class="section-desc">Adicione produtos com foto/GIF do seu telemóvel ou computador.</p>
+        <header class="screen-header">
+            <h2>Novo Produto</h2>
+            <p class="screen-header__desc">Adicione itens à vitrine.</p>
         </header>
 
-        <div class="adm-card">
+        <div class="card">
             <form id="form-novo-produto" data-action="cadastrar-produto">
                 <div class="form-group">
-                    <label for="adm-prod-nome">Nome do Produto:</label>
-                    <input type="text" id="adm-prod-nome" required placeholder="Ex: Produto Especial">
+                    <label for="adm-prod-nome">Nome do produto</label>
+                    <input type="text" id="adm-prod-nome" required placeholder="Ex: Camiseta Premium">
                 </div>
 
                 <div class="form-group">
-                    <label for="adm-prod-preco">Preço Base (R$):</label>
+                    <label for="adm-prod-preco">Preço (R$)</label>
                     <input type="number" id="adm-prod-preco" step="0.01" min="0.01" required placeholder="99.90">
                 </div>
 
                 <div class="form-group">
-                    <label for="adm-prod-arquivo">Fotografia ou GIF do Produto:</label>
+                    <label for="adm-prod-arquivo">Foto ou GIF</label>
                     <input type="file" id="adm-prod-arquivo" accept="image/*,.gif" data-action="upload-imagem">
                     <input type="hidden" id="adm-prod-foto-final">
 
                     <div id="preview-container" class="preview-box hidden">
                         <img id="img-preview" src="" alt="Pré-visualização">
                         <button type="button" class="btn btn-danger-outline btn-sm" data-action="remover-foto">
-                            Remover Foto
+                            Remover
                         </button>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="adm-prod-foto-url">Ou insira o Link Externo da Foto (Opcional):</label>
+                    <label for="adm-prod-foto-url">Ou link externo (opcional)</label>
                     <input type="url" id="adm-prod-foto-url" placeholder="https://exemplo.com/foto.jpg">
                 </div>
 
                 <div class="form-group">
-                    <label for="adm-prod-visibilidade">Visibilidade do Item:</label>
+                    <label for="adm-prod-visibilidade">Visibilidade</label>
                     <select id="adm-prod-visibilidade">
-                        <option value="publico">Público (Todos com link ativo)</option>
-                        <option value="registrado">Membros (Apenas Membros e ADM)</option>
-                        <option value="adm">Restrito ADM (Oculto - Apenas Administrador)</option>
+                        <option value="publico">Público (visitantes e membros)</option>
+                        <option value="registrado">Membros (apenas registrados)</option>
+                        <option value="adm">Oculto (apenas ADM)</option>
                     </select>
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-block" id="btn-salvar-produto">
-                    Gravar Produto no Catálogo
+                    Publicar Produto
                 </button>
             </form>
         </div>
     </section>
 
-    <!-- ABA 5 — ESTEIRA GERAL DE PEDIDOS (ADM) -->
+    <!-- ─── TELA 5: PIPELINE DE PEDIDOS (ADM) ─── -->
     <section id="view-pedidos-adm" class="view-panel">
-        <header class="section-header">
-            <h2>Esteira Geral de Pedidos</h2>
-            <p class="section-desc">Gerencie o progresso das entregas dos clientes.</p>
+        <header class="screen-header">
+            <h2>Esteira de Pedidos</h2>
+            <p class="screen-header__desc">Gestão das entregas em tempo real.</p>
         </header>
 
         <div class="pipeline-grid">
-            <div class="pipeline-col"><h4>Em Análise</h4> <div id="pipe-analise"></div></div>
-            <div class="pipeline-col"><h4>Solicitados</h4> <div id="pipe-solicitados"></div></div>
-            <div class="pipeline-col"><h4>Em Viagem</h4> <div id="pipe-viagem"></div></div>
-            <div class="pipeline-col"><h4>Concluídos</h4> <div id="pipe-concluido"></div></div>
+            <div class="pipeline-col">
+                <h4>Análise</h4>
+                <div id="pipe-analise"></div>
+            </div>
+            <div class="pipeline-col">
+                <h4>Solicitados</h4>
+                <div id="pipe-solicitados"></div>
+            </div>
+            <div class="pipeline-col">
+                <h4>Em viagem</h4>
+                <div id="pipe-viagem"></div>
+            </div>
+            <div class="pipeline-col">
+                <h4>Concluídos</h4>
+                <div id="pipe-concluido"></div>
+            </div>
         </div>
     </section>
 
-    <!-- ABA 6 — PAINEL CENTRAL ADM (COM TEMPOS DE 10, 15, 30 E PERSONALIZADO) -->
+    <!-- ─── TELA 6: PAINEL CENTRAL (ADM) ─── -->
     <section id="view-adm" class="view-panel">
-        <header class="section-header">
-            <h2>Painel Central do Administrador</h2>
-            <p class="section-desc">Aprovações de membros, links temporários e métricas.</p>
+        <header class="screen-header">
+            <h2>Painel Central</h2>
+            <p class="screen-header__desc">Aprovações, links e métricas.</p>
         </header>
 
-        <!-- Card: Link Temporário com Tempo Flexível -->
-        <div class="adm-card">
-            <h3>Emitir Link de Acesso Temporário</h3>
-            <p class="modal-subtitle">Gere o link obrigatório para que os clientes consigam navegar na vitrine:</p>
+        <!-- Link temporário -->
+        <div class="card">
+            <h3 class="card__title">Emitir Link de Acesso</h3>
+            <p class="card__desc">Gere um link temporário para liberar o acesso.</p>
 
-            <div class="row-inline" style="flex-wrap: wrap; gap: 8px;">
-                <select id="select-duracao-link" data-action="mudar-duracao-link" aria-label="Duração do link">
-                    <option value="10">10 Minutos</option>
-                    <option value="15" selected>15 Minutos</option>
-                    <option value="30">30 Minutos</option>
+            <div class="row-inline">
+                <select id="select-duracao-link" data-action="mudar-duracao-link" aria-label="Duração">
+                    <option value="10">10 minutos</option>
+                    <option value="15" selected>15 minutos</option>
+                    <option value="30">30 minutos</option>
+                    <option value="60">1 hora</option>
                     <option value="personalizado">Personalizado...</option>
                 </select>
-
-                <!-- Campo que surge apenas se escolher 'Personalizado' -->
-               <input type="number" id="input-duracao-personalizada" class="hidden input-inline"
-       placeholder="Minutos (ex: 45)" min="1" max="10080">
-
-                <button type="button" class="btn btn-primary" data-action="gerar-link">
-                    Gerar Link
-                </button>
+                <input type="number" id="input-duracao-personalizada" class="hidden input-inline"
+                       placeholder="Minutos" min="1" max="10080">
+                <button type="button" class="btn btn-primary" data-action="gerar-link">Gerar</button>
             </div>
 
             <div id="area-link-gerado" class="link-display-box hidden">
-                <label class="link-label" for="campo-link-gerado">Link Gerado com Sucesso:</label>
+                <label for="campo-link-gerado" class="link-display-box__label">Link gerado</label>
                 <div class="row-inline">
                     <input type="text" id="campo-link-gerado" readonly>
-                    <button type="button" class="btn btn-success" data-action="copiar-link">
-                        Copiar
-                    </button>
+                    <button type="button" class="btn btn-success" data-action="copiar-link">Copiar</button>
                 </div>
-                <small class="link-hint">Apenas utilizadores com este link poderão aceder à loja durante o tempo programado.</small>
+                <small class="link-display-box__hint">Partilhe com quem deseja autorizar.</small>
             </div>
         </div>
 
-        <!-- Card: Validação de Novos Cadastros -->
-        <div class="adm-card">
-            <div class="adm-card-head">
-                <h3>Validação de Novos Cadastros</h3>
-                <button type="button" class="btn btn-outline btn-sm" data-action="carregar-painel-adm">
-                    Atualizar Lista
+        <!-- Novos cadastros -->
+        <div class="card">
+            <div class="card__head">
+                <h3 class="card__title">Validação de Cadastros</h3>
+                <button type="button" class="btn btn-ghost btn-sm" data-action="carregar-painel-adm">
+                    Atualizar
                 </button>
             </div>
-            <div id="adm-solicitacoes-lista" class="loading-slot">Carregando solicitações...</div>
+            <div id="adm-solicitacoes-lista" class="loading-slot">A carregar...</div>
         </div>
 
-        <!-- Card: Métricas de Vendas -->
-        <div class="adm-card">
-            <h3>Planilha de Vendas Consolidadas</h3>
+        <!-- Métricas -->
+        <div class="card">
+            <h3 class="card__title">Métricas de Vendas</h3>
             <div class="metrics-summary">
                 <div class="metric-box">
                     <span>Faturamento</span>
                     <strong id="metric-faturamento">R$ 0,00</strong>
                 </div>
                 <div class="metric-box">
-                    <span>Total Pedidos</span>
+                    <span>Pedidos</span>
                     <strong id="metric-pedidos">0</strong>
                 </div>
             </div>
             <div id="tabela-metricas-produtos"></div>
         </div>
 
-        <!-- Card: Contas Bloqueadas -->
-        <div class="adm-card">
-            <h3>Contas Bloqueadas</h3>
+        <!-- Bloqueados -->
+        <div class="card">
+            <h3 class="card__title">Contas Bloqueadas</h3>
             <div id="adm-bloqueados-lista"></div>
         </div>
 
-        <!-- Card: Sugestões e Mensagens -->
-        <div class="adm-card">
-            <h3>Sugestões e Mensagens Recebidas</h3>
+        <!-- Comentários -->
+        <div class="card">
+            <h3 class="card__title">Mensagens Recebidas</h3>
             <div id="adm-comentarios-lista"></div>
         </div>
     </section>
 
 </main>
 
-<!-- MODAL: CENTRAL DE DÚVIDAS E SUGESTÕES -->
-<div id="modal-duvidas-central" class="modal-overlay" role="dialog" aria-modal="true">
+<!-- ═══════════════════════════════════════════════════════════
+     BOTTOM NAV — fixo no rodapé
+     Os botões têm `data-role` para o app.js mostrar só os
+     que interessam a cada papel.
+     ═══════════════════════════════════════════════════════════ -->
+<nav class="bottom-nav hidden" id="app-nav-bar" aria-label="Navegação principal">
+
+    <!-- Vitrine -->
+    <button type="button" class="bottom-nav__item active"
+            id="tab-btn-vitrine"
+            data-action="navegar" data-view="vitrine"
+            data-roles="visitante,membro,entregador,adm">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        <span>Vitrine</span>
+    </button>
+
+    <!-- Cesta -->
+    <button type="button" class="bottom-nav__item hidden"
+            id="tab-btn-carrinho"
+            data-action="navegar" data-view="carrinho"
+            data-roles="membro">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="21" r="1"></circle>
+            <circle cx="20" cy="21" r="1"></circle>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+        </svg>
+        <span>Cesta</span>
+        <span id="cart-counter" class="bottom-nav__badge">0</span>
+    </button>
+
+    <!-- Meus Pedidos (membro + entregador) -->
+    <button type="button" class="bottom-nav__item hidden"
+            id="tab-btn-meus-pedidos"
+            data-action="navegar" data-view="meus-pedidos"
+            data-roles="membro,entregador">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+        <span>Pedidos</span>
+    </button>
+
+    <!-- Cadastrar Produto (ADM) -->
+    <button type="button" class="bottom-nav__item hidden"
+            id="tab-btn-novo-produto"
+            data-action="navegar" data-view="novo-produto"
+            data-roles="adm">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Produto</span>
+    </button>
+
+    <!-- Pipeline Pedidos (ADM + entregador) -->
+    <button type="button" class="bottom-nav__item hidden"
+            id="tab-btn-pedidos-adm"
+            data-action="navegar" data-view="pedidos-adm"
+            data-roles="adm,entregador">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+        <span>Esteira</span>
+    </button>
+
+    <!-- Painel ADM -->
+    <button type="button" class="bottom-nav__item hidden"
+            id="tab-btn-adm"
+            data-action="navegar" data-view="adm"
+            data-roles="adm">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20V10"></path>
+            <path d="M18 20V4"></path>
+            <path d="M6 20v-4"></path>
+        </svg>
+        <span>Painel</span>
+    </button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAIS (mantidos com os mesmos IDs)
+     ═══════════════════════════════════════════════════════════ -->
+
+<!-- Modal: Login -->
+<div id="modal-login" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
         <button type="button" class="btn-close"
-                data-action="fechar-modal" data-modal="modal-duvidas-central"
+                data-action="fechar-modal" data-modal="modal-login"
                 aria-label="Fechar">&times;</button>
-
         <div class="modal-body">
-            <h3>Central de Ajuda & Sugestões</h3>
-            <p class="modal-subtitle">Respostas automáticas para dúvidas frequentes e canal direto com a moderação.</p>
+            <h3>Acessar Conta</h3>
+            <p class="modal-subtitle">Entre com telefone e senha.</p>
+            <form id="form-login" data-action="login">
+                <div class="form-group">
+                    <label for="login-usuario">Telefone ou usuário</label>
+                    <input type="text" id="login-usuario" required placeholder="Seu identificador">
+                </div>
+                <div class="form-group">
+                    <label for="login-senha">Senha</label>
+                    <input type="password" id="login-senha" required placeholder="Sua senha">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-entrar">
+                    Entrar
+                </button>
+            </form>
 
-            <div class="faq-container">
-                <h4 class="faq-header-title">Dúvidas Frequentes:</h4>
-                <div id="lista-faq-perguntas" class="faq-list"></div>
-            </div>
-
-            <div class="sugestao-box-sutil">
-                <h4>Enviar uma Sugestão:</h4>
-                <p>Tem alguma recomendação? Deixe a abaixo:</p>
-                <form id="form-sugestao" data-action="enviar-sugestao">
-                    <div class="form-group">
-                        <textarea id="campo-sugestao-texto" rows="3"
-                                  placeholder="Escreva a sua sugestão..." maxlength="500" required></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-outline-dark btn-sm">Enviar Sugestão</button>
-                </form>
-            </div>
-
-            <div id="adm-editor-faq-area" class="adm-faq-editor hidden">
-                <hr class="adm-editor-hr">
-                <h4>⚙️ Gestão de Dúvidas Rápidas (Apenas ADM)</h4>
-                <form id="form-novo-faq" data-action="adicionar-faq">
-                    <div class="form-group">
-                        <input type="text" id="faq-nova-pergunta" placeholder="Pergunta rápida..." required>
-                    </div>
-                    <div class="form-group">
-                        <textarea id="faq-nova-resposta" rows="2" placeholder="Resposta automática..." required></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-sm">Adicionar Pergunta ao FAQ</button>
-                </form>
+            <div id="box-desbloqueio-conta" class="alert-danger hidden">
+                <p>Conta suspensa. Solicite liberação:</p>
+                <button type="button" class="btn btn-danger-outline btn-block"
+                        data-action="pedir-desbloqueio" id="btn-solicitar-desbloqueio">
+                    Pedir Liberação
+                </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- MODAIS DE CADASTRO, LOGIN, CHAT E CONFIRMAÇÃO -->
+<!-- Modal: Cadastro -->
 <div id="modal-cadastro" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
-        <button type="button" class="btn-close" data-action="fechar-modal" data-modal="modal-cadastro" aria-label="Fechar">&times;</button>
+        <button type="button" class="btn-close"
+                data-action="fechar-modal" data-modal="modal-cadastro"
+                aria-label="Fechar">&times;</button>
         <div class="modal-body">
-            <h3>Solicitar Cadastro de Membro</h3>
-            <p class="modal-subtitle">Preencha os seus dados:</p>
+            <h3>Criar Conta</h3>
+            <p class="modal-subtitle">Preencha os dados para análise.</p>
+
             <form id="form-registro" data-action="enviar-cadastro">
                 <div class="form-group">
-                    <label for="cad-nome">Nome ou Exibição:</label>
+                    <label for="cad-nome">Nome de exibição</label>
                     <input type="text" id="cad-nome" required placeholder="Ex: Maria Silva">
                 </div>
                 <div class="form-group">
-                    <label for="cad-telefone">Telefone / WhatsApp (Seu Login):</label>
+                    <label for="cad-telefone">Telefone (WhatsApp)</label>
                     <input type="tel" id="cad-telefone" required placeholder="Ex: 71999999999">
                 </div>
                 <div class="form-group">
-                    <label for="cad-senha">Criar Senha (mínimo 6 caracteres):</label>
+                    <label for="cad-senha">Senha (mín. 6 caracteres)</label>
                     <input type="password" id="cad-senha" required minlength="6" placeholder="******">
                 </div>
                 <div class="form-group">
-                    <label for="cad-senha-conf">Confirmar Senha:</label>
+                    <label for="cad-senha-conf">Confirmar senha</label>
                     <input type="password" id="cad-senha-conf" required minlength="6" placeholder="******">
                 </div>
                 <div class="form-group">
-                    <label for="cad-twitter">Twitter / X (opcional):</label>
+                    <label for="cad-twitter">Twitter/X (opcional)</label>
                     <input type="text" id="cad-twitter" placeholder="@usuario">
                 </div>
                 <div class="form-group">
-                    <label for="cad-telegram">Telegram (opcional):</label>
+                    <label for="cad-telegram">Telegram (opcional)</label>
                     <input type="text" id="cad-telegram" placeholder="@usuario">
                 </div>
                 <div class="terms-container">
                     <input type="checkbox" id="cad-termos" required>
                     <label for="cad-termos">
-                        Declaro ciência e concordo com a recolha dos dados acima para funcionamento na plataforma. Posso solicitar exclusão ao encerrar a conta.
+                        Concordo com a política de privacidade e com o uso dos dados
+                        para funcionamento da plataforma.
                     </label>
                 </div>
                 <button type="submit" class="btn btn-primary btn-block" id="btn-enviar-cadastro">
@@ -400,68 +533,95 @@
     </div>
 </div>
 
-<div id="modal-login" class="modal-overlay" role="dialog" aria-modal="true">
-    <div class="modal-dialog">
-        <button type="button" class="btn-close" data-action="fechar-modal" data-modal="modal-login" aria-label="Fechar">&times;</button>
-        <div class="modal-body">
-            <h3>Acessar Conta</h3>
-            <p class="modal-subtitle">Informe o seu telefone/usuário e senha:</p>
-            <form id="form-login" data-action="login">
-                <div class="form-group">
-                    <label for="login-usuario">Telefone ou Usuário:</label>
-                    <input type="text" id="login-usuario" required placeholder="Seu identificador">
-                </div>
-                <div class="form-group">
-                    <label for="login-senha">Senha:</label>
-                    <input type="password" id="login-senha" required placeholder="Sua senha secreta">
-                </div>
-                <button type="submit" class="btn btn-primary btn-block" id="btn-entrar">
-                    Entrar
-                </button>
-            </form>
-            <div id="box-desbloqueio-conta" class="alert-danger hidden">
-                <p>Conta suspensa por exceder tentativas. Solicite liberação:</p>
-                <button type="button" id="btn-solicitar-desbloqueio" class="btn btn-danger-outline btn-block" data-action="pedir-desbloqueio">
-                    Pedir Liberação ao Administrador
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
+<!-- Modal: Chat -->
 <div id="modal-chat" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
-        <button type="button" class="btn-close" data-action="fechar-modal" data-modal="modal-chat" aria-label="Fechar">&times;</button>
+        <button type="button" class="btn-close"
+                data-action="fechar-modal" data-modal="modal-chat"
+                aria-label="Fechar">&times;</button>
         <div class="modal-body">
             <h3>Chat do Pedido <span id="chat-pedido-id" class="chat-id"></span></h3>
             <p class="modal-subtitle">Canal temporário com a administração.</p>
             <div id="chat-mensagens" class="chat-wrapper" aria-live="polite"></div>
             <div class="chat-input-row">
                 <input type="text" id="chat-input" placeholder="Escreva uma mensagem..." maxlength="300">
-                <button type="button" class="btn btn-primary" id="btn-chat-enviar" data-action="enviar-chat">Enviar</button>
+                <button type="button" class="btn btn-primary" id="btn-chat-enviar" data-action="enviar-chat">
+                    Enviar
+                </button>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Modal: Central de Dúvidas -->
+<div id="modal-duvidas-central" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-dialog">
+        <button type="button" class="btn-close"
+                data-action="fechar-modal" data-modal="modal-duvidas-central"
+                aria-label="Fechar">&times;</button>
+        <div class="modal-body">
+            <h3>Central de Ajuda</h3>
+            <p class="modal-subtitle">Dúvidas frequentes e canal com a moderação.</p>
+
+            <div class="faq-container">
+                <h4 class="faq-header-title">Dúvidas Frequentes</h4>
+                <div id="lista-faq-perguntas" class="faq-list"></div>
+            </div>
+
+            <div class="sugestao-box-sutil">
+                <h4>Enviar Sugestão</h4>
+                <p>Tem alguma ideia? Deixe abaixo:</p>
+                <form id="form-sugestao" data-action="enviar-sugestao">
+                    <div class="form-group">
+                        <textarea id="campo-sugestao-texto" rows="3"
+                                  placeholder="Escreva sua sugestão..." maxlength="500" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-outline-dark btn-sm">Enviar</button>
+                </form>
+            </div>
+
+            <div id="adm-editor-faq-area" class="adm-faq-editor hidden">
+                <hr class="adm-editor-hr">
+                <h4>Gestão de FAQ (ADM)</h4>
+                <form id="form-novo-faq" data-action="adicionar-faq">
+                    <div class="form-group">
+                        <input type="text" id="faq-nova-pergunta" placeholder="Pergunta..." required>
+                    </div>
+                    <div class="form-group">
+                        <textarea id="faq-nova-resposta" rows="2" placeholder="Resposta..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">Adicionar Pergunta</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirmação -->
 <div id="modal-confirmar" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog modal-sm">
         <div class="modal-body">
             <h3 id="confirmar-titulo">Confirmar</h3>
             <div id="confirmar-mensagem">Tem certeza?</div>
             <div class="modal-actions">
-                <button type="button" class="btn btn-outline-dark" data-action="fechar-confirmacao">Fechar</button>
-                <button type="button" class="btn btn-danger" id="confirmar-btn-ok">Confirmar</button>
+                <button type="button" class="btn btn-ghost" data-action="fechar-confirmacao">
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmar-btn-ok">
+                    Confirmar
+                </button>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Loader global -->
 <div id="loader-overlay" class="loader-overlay hidden" role="status" aria-live="polite">
     <div class="spinner"></div>
-    <span id="loader-text">Carregando...</span>
+    <span id="loader-text">A carregar...</span>
 </div>
 
+<!-- Toasts -->
 <div id="toast-container" class="toast-wrapper" aria-live="polite"></div>
 
 <script src="app.js"></script>
