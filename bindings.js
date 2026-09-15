@@ -1,10 +1,10 @@
 /* ============================================================================
-   bindings.js — Delegação Central de Eventos (v6 — Sincronizado e Corrigido)
+   bindings.js — Delegação Central de Eventos (v7 — Suporte a Chips e UX)
    ============================================================================
-   CORREÇÕES:
-     • Ações exclusivas de digitação/mudança (como 'filtro-vitrine') são
-       ignoradas no listener de clique, evitando avisos no console.
-     • Logout direto sem bloqueios.
+   NOVIDADES DESTA VERSÃO:
+     • Delegação de clique para os chips de categoria ('filtrar-categoria').
+     • Ignora cliques em campos de digitação para evitar alertas desnecessários.
+     • Proteção e encapsulamento em chamarComSeguranca.
      • Demarcação de INÍCIO e FIM em cada bloco funcional.
    ============================================================================ */
 
@@ -85,6 +85,12 @@
       case 'navegar':
         e.preventDefault();
         chamarComSeguranca('navegarPara', el.dataset.view);
+        break;
+
+      /* Filtros de Categorias (Pílulas / Chips) */
+      case 'filtrar-categoria':
+        e.preventDefault();
+        chamarComSeguranca('selecionarCategoriaChip', el.dataset.categoria, el);
         break;
 
       /* Carrinho e Checkout */
