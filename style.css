@@ -1,13 +1,13 @@
 /* ============================================================================
    style.css — Plataforma Comercial Segura (v5 — UI/UX Leve, Acessível e Completa)
    ============================================================================
-   NOVIDADES DESTA VERSÃO:
-     • Modo Escuro nativo com alternância por data-theme="dark".
-     • Barra Flutuante de Sacola (estilo iFood) fixada acima da navegação.
-     • Botão "Comprar Agora" (1 Toque) em destaque nos cards de produtos.
+   ESTRUTURA LIMPA:
+     • Modo Escuro nativo por data-theme="dark".
+     • Barra Flutuante de Sacola fixada no rodapé.
+     • Botão "Comprar Agora" nos cards de produtos.
      • Visualizador Lightbox de fotos em tela cheia com fundo escuro.
      • Botão Flutuante de Ajuda Humana (FAB) e layout do Atendente Virtual.
-     • Toolbar de Aprovação em Lote com checkboxes no painel administrativo.
+     • Toolbar de Aprovação em Lote com checkboxes no ADM.
      • Estilização para impressão e exportação direta em PDF (@media print).
    ============================================================================ */
 
