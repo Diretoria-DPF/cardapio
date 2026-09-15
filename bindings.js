@@ -303,7 +303,7 @@
 
     // 2. Máscara de telefone progressiva
     if (e.target.matches('input[type="tel"]') || e.target.id === 'cad-telefone') {
-      e.target.value = formatarMascaraTelefone(e.target.value);
+     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11);
     }
   }, false);
   /* ─── FIM: Listener de Entrada de Texto (input) ──────────────── */
