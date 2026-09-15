@@ -540,7 +540,6 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         console.warn("[API] Oscilação transitória:", erroRede);
         return { sucesso: false, erroRede: true, mensagem: "Sem conexão momentânea com o servidor." };
     }
-}
 /* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
 }
 /* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
