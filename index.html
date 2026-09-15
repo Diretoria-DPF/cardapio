@@ -325,6 +325,29 @@
             </div>
         </div>
 
+        <!-- CARD DE CONTROLE DE USABILIDADE / MODO DE ACESSO (KILL SWITCH) -->
+<div class="card card-modo-acesso" style="border: 2px solid var(--cor-borda); margin-bottom: 18px; padding: 14px; border-radius: 8px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <span>🛡️</span> Usabilidade da Plataforma
+        </h4>
+        <span id="badge-modo-acesso-adm" class="badge badge-membro">LIBERADO (PADRÃO)</span>
+    </div>
+    <p style="font-size: 0.85rem; color: var(--cor-texto-suave); margin: 0 0 12px 0;">
+        Controle o acesso geral ao sistema. Ative o bloqueio para manutenções ou emergências.
+    </p>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-danger btn-sm" id="btn-lockdown-adm" 
+                data-action="alterar-modo-acesso" data-modo="APENAS_ADM">
+            🔒 Bloquear Acesso (Apenas ADM)
+        </button>
+        <button type="button" class="btn btn-success btn-sm hidden" id="btn-padrao-adm" 
+                data-action="alterar-modo-acesso" data-modo="PADRAO">
+            🌐 Liberar Acesso (Padrão)
+        </button>
+    </div>
+</div>
+
         <div class="card">
             <div class="card__head">
                 <h3 class="card__title">Validação de Cadastros</h3>
