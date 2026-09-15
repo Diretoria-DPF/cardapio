@@ -438,7 +438,7 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
 }
 /* ─── FIM: fetchComTimeout ───────────────────────────────────── */
 
-/* ─── INÍCIO: executarRequisicaoAPI (Bearer Token Nativo) ─────── */
+/* ─── INÍCIO: executarRequisicaoAPI (Blindada contra CORS) ───── */
 async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
     try {
         const payload = dadosExtras;
@@ -466,7 +466,8 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         try {
             json = JSON.parse(textoResposta);
         } catch (erroParse) {
-            return { sucesso: false, erroTransitorio: true, mensagem: "Servidor ocupado. Aguarde um instante..." };
+            console.warn("[API] Resposta não-JSON do Apps Script:", textoResposta.substring(0, 200));
+            return { sucesso: false, mensagem: "O servidor retornou uma resposta inválida. Verifique se a implantação foi atualizada." };
         }
 
         if (!json.sucesso && json.codigo === 'SISTEMA_BLOQUEADO') {
@@ -503,10 +504,11 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         return json;
 
     } catch (erroRede) {
-        console.warn("[API] Oscilação transitória:", erroRede);
-        return { sucesso: false, erroRede: true, mensagem: "Sem conexão momentânea com o servidor." };
+        console.warn("[API] Erro de rede ou CORS:", erroRede);
+        return { sucesso: false, mensagem: "Falha de comunicação com o servidor. Verifique a URL de implantação." };
     }
 }
+/* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
 /* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
 
 /* ─── INÍCIO: tentarRenovarSessao ────────────────────────────── */
