@@ -1,16 +1,18 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v16 — Mandala WebGL & Ciclo de Sessão)
+   app.js — Plataforma Comercial Segura (v15 — UX, Áudio Nativo, Lote & Acessibilidade)
    ============================================================================
-   INTEGRAÇÕES:
-     • WebGL Mandala nativa via gerenciarMandalaNaSessao() com pausa inteligente.
-     • Web Audio API nativa para novos pedidos e mensagens no chat.
-     • Alternância dinâmica de Modo Escuro com persistência local.
-     • Barra flutuante de sacola e compra rápida em 1 toque.
-     • Visualizador Lightbox de fotos em tela cheia (duplo clique / toque).
-     • Aprovação em lote com seleção múltipla no painel ADM.
-     • Exportação de relatórios em PDF nativo via motor de impressão.
-     • Preservação de blindagem HMAC UTF-8, DevTools lock e sanitização.
-     • Demarcação de INÍCIO e FIM em cada bloco.
+   NOVIDADES DESTA VERSÃO:
+     • Web Audio API nativa: avisos sonoros para novas mensagens e novos pedidos.
+     • Alternância dinâmica de Modo Escuro (Dark Mode) com persistência em cache.
+     • Barra flutuante de sacola (estilo iFood) com atualização dinâmica de total.
+     • Ação rápida "Comprar Agora" (1 Toque) direto para a esteira de pagamento.
+     • Visualizador Lightbox de fotos em tela cheia com duplo toque ou duplo clique.
+     • Aprovação em lote com seleção múltipla e contagem de itens para o ADM.
+     • Exportação de relatório em PDF otimizado para impressão nativa.
+     • Compartilhamento de resumo de pedidos via Web Share API e WhatsApp.
+     • Atendente virtual com base de conhecimento segmentada por perfil.
+     • Preservação de todas as blindagens de segurança, HMAC UTF-8 e DevTools.
+     • Demarcação padronizada de INÍCIO e FIM em todas as funções.
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
@@ -93,6 +95,9 @@ function ativarBlindagemDevTools() {
 /* ─── FIM: ativarBlindagemDevTools ──────────────────────────── */
 
 /* ─── INÍCIO: tocarSomNotificacao ───────────────────────────── */
+/**
+ * Emite bipes harmônicos via Web Audio API sem dependências externas.
+ */
 function tocarSomNotificacao(tipo = 'mensagem') {
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -106,8 +111,8 @@ function tocarSomNotificacao(tipo = 'mensagem') {
             gain.connect(ctx.destination);
 
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-            osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.12);
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+            osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.12); // A5
             gain.gain.setValueAtTime(0.18, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
 
@@ -120,14 +125,16 @@ function tocarSomNotificacao(tipo = 'mensagem') {
             gain.connect(ctx.destination);
 
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(784.00, ctx.currentTime);
+            osc.frequency.setValueAtTime(784.00, ctx.currentTime); // G5
             gain.gain.setValueAtTime(0.14, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
 
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + 0.22);
         }
-    } catch (e) {}
+    } catch (e) {
+        // Bloqueio automático de autoplay pelo navegador contornado após primeiro clique
+    }
 }
 /* ─── FIM: tocarSomNotificacao ───────────────────────────────── */
 
@@ -271,7 +278,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await verificarTokenUrl();
     atualizarInterfaceSessao();
     assegurarElementosAuxiliares();
-    gerenciarMandalaNaSessao();
 
     if (_linkAutorizadoValido || estadoSessao.papel !== 'visitante') {
         const produtosEmCache = CacheLoja.obter('produtos_' + estadoSessao.papel);
@@ -306,6 +312,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 /* ─── FIM: DOMContentLoaded ─────────────────────────────────── */
 
 /* ─── INÍCIO: assegurarElementosAuxiliares ────────────────────── */
+/**
+ * Garante a presença do botão flutuante de ajuda e do container de Lightbox no DOM.
+ */
 function assegurarElementosAuxiliares() {
     if (!document.getElementById('btn-flutuante-ajuda')) {
         const fab = document.createElement('button');
@@ -448,7 +457,6 @@ function executarLimpezaTotalESaida(silencioso = false) {
     }
 
     atualizarInterfaceSessao();
-    gerenciarMandalaNaSessao();
 }
 /* ─── FIM: executarLimpezaTotalESaida ─────────────────────────── */
 
@@ -768,6 +776,9 @@ function renderizarVitrine() {
 /* ─── FIM: renderizarVitrine ─────────────────────────────────── */
 
 /* ─── INÍCIO: comprarProdutoDireto ───────────────────────────── */
+/**
+ * Botão "Comprar Agora": isola o produto na cesta e vai direto para a tela de finalização.
+ */
 function comprarProdutoDireto(idProduto) {
     const prod = catalogoProdutos.find(p => String(p.id) === String(idProduto));
     if (!prod) return;
@@ -844,7 +855,7 @@ function atualizarBarraFlutuanteSacola() {
             bar.className = 'floating-cart-bar';
             bar.innerHTML = `
                 <div class="floating-cart-bar__left">
-                    <span class="floating-cart-bar__count" id="float-cart-count">0 itens</span>
+                    <span class="floating-cart-bar__count" id="float-cart-count">0</span>
                     <span class="floating-cart-bar__total" id="float-cart-total">R$ 0,00</span>
                 </div>
                 <div class="floating-cart-bar__cta">
@@ -1493,6 +1504,7 @@ async function enviarMensagemChat() {
 async function carregarPainelCentralAdm() {
     if (estadoSessao.papel !== 'adm') return;
 
+    // 1. Cadastros pendentes com checkboxes
     const divSolicitacoes = document.getElementById('adm-solicitacoes-lista');
     const toolbarLote = document.getElementById('adm-lote-toolbar');
     if (divSolicitacoes) divSolicitacoes.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
@@ -1541,6 +1553,7 @@ async function carregarPainelCentralAdm() {
     }
     atualizarContadorSelecaoLote();
 
+    // 2. Usuários Ativos
     const divUsuarios = document.getElementById('adm-usuarios-lista');
     if (divUsuarios) {
         divUsuarios.innerHTML = '<div class="loading-slot">Carregando usuários ativos...</div>';
@@ -1563,6 +1576,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
+    // 3. Métricas
     const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas");
     if (respostaMetricas.sucesso) {
         const elementoFaturamento = document.getElementById('metric-faturamento');
@@ -1585,6 +1599,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
+    // 4. Bloqueados
     const respostaBloqueados = await executarRequisicaoAPI("listar_bloqueados_adm");
     const divBloqueados = document.getElementById('adm-bloqueados-lista');
     if (divBloqueados) {
@@ -1608,6 +1623,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
+    // 5. Mensagens
     const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm");
     const divComentarios = document.getElementById('adm-comentarios-lista');
     if (divComentarios) {
@@ -2224,7 +2240,6 @@ function atualizarInterfaceSessao() {
         if (headerCartBtn) headerCartBtn.classList.add('hidden');
         fecharUserDropdown();
         atualizarBarraFlutuanteSacola();
-        gerenciarMandalaNaSessao();
         return;
     }
 
@@ -2266,7 +2281,6 @@ function atualizarInterfaceSessao() {
     }
 
     atualizarBarraFlutuanteSacola();
-    gerenciarMandalaNaSessao();
 }
 /* ─── FIM: atualizarInterfaceSessao ───────────────────────────── */
 
@@ -2285,7 +2299,6 @@ function navegarPara(nomeAba) {
     }
 
     fecharUserDropdown();
-    gerenciarMandalaNaSessao();
 
     if (nomeAba === 'vitrine')      sincronizarProdutosServidor();
     if (nomeAba === 'carrinho')     renderizarCarrinho();
@@ -2601,49 +2614,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 });
 
 /* ═══════════════════════════════════════════════════════════════
-   16. CONTROLE DO MOTOR MANDALA WEBGL (MANDALA.JS)
-   ═══════════════════════════════════════════════════════════════ */
-
-/* ─── INÍCIO: gerenciarMandalaNaSessao ───────────────────────── */
-let instanciaMandala = null;
-
-function gerenciarMandalaNaSessao() {
-    const container = document.getElementById('mandala-container');
-    const telaBloqueio = document.getElementById('view-bloqueado');
-
-    const estaBloqueadoVisivel = telaBloqueio &&
-        !telaBloqueio.classList.contains('hidden') &&
-        telaBloqueio.classList.contains('active');
-
-    if (estaBloqueadoVisivel && container) {
-        if (!instanciaMandala && typeof window.MandalaScene !== 'undefined' && typeof THREE !== 'undefined') {
-            try {
-                const configMandala = typeof window.MANDALA_DEFAULTS !== 'undefined' ? window.MANDALA_DEFAULTS : undefined;
-                instanciaMandala = new window.MandalaScene(container, configMandala);
-                instanciaMandala.setSize(container.clientWidth, container.clientHeight);
-
-                window.addEventListener('resize', () => {
-                    if (instanciaMandala && container) {
-                        instanciaMandala.setSize(container.clientWidth, container.clientHeight);
-                    }
-                });
-            } catch (erroWebGL) {
-                console.warn('[Mandala] Falha ao inicializar cena WebGL:', erroWebGL);
-            }
-        }
-        if (instanciaMandala && typeof instanciaMandala.start === 'function') {
-            instanciaMandala.start();
-        }
-    } else {
-        if (instanciaMandala && typeof instanciaMandala.stop === 'function') {
-            instanciaMandala.stop();
-        }
-    }
-}
-/* ─── FIM: gerenciarMandalaNaSessao ─────────────────────────── */
-
-/* ═══════════════════════════════════════════════════════════════
-   17. EXPORTAÇÕES GLOBAIS (LIGAÇÃO COM BINDINGS)
+   16. EXPORTAÇÕES GLOBAIS (LIGAÇÃO COM BINDINGS)
    ═══════════════════════════════════════════════════════════════ */
 window.abrirModal                    = abrirModal;
 window.fecharModal                   = fecharModal;
@@ -2684,7 +2655,7 @@ window.toggleUserDropdown            = toggleUserDropdown;
 window.fecharUserDropdown            = fecharUserDropdown;
 window.atualizarBadgeCarrinho        = atualizarBadgeCarrinho;
 
-// Funções de acessibilidade e animações
+// Funções da nova versão
 window.alternarModoEscuro                  = alternarModoEscuro;
 window.abrirLightboxFoto                   = abrirLightboxFoto;
 window.fecharLightbox                      = fecharLightbox;
@@ -2696,4 +2667,3 @@ window.atualizarContadorSelecaoLote        = atualizarContadorSelecaoLote;
 window.aprovarSolicitacoesSelecionadasLote = aprovarSolicitacoesSelecionadasLote;
 window.gerarRelatorioPdfVendas             = gerarRelatorioPdfVendas;
 window.tocarSomNotificacao                 = tocarSomNotificacao;
-window.gerenciarMandalaNaSessao            = gerenciarMandalaNaSessao;
