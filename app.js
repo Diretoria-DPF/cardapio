@@ -2196,7 +2196,7 @@ async function tratarSolicitacaoCadastro(evento) {
     if (evento && evento.preventDefault) evento.preventDefault();
 
     const nome      = document.getElementById('cad-nome').value.trim();
-    const telefone  = document.getElementById('cad-telefone').value.trim();
+    const telefone  = document.getElementById('cad-telefone').value.replace(/\D/g, '');
     const senha     = document.getElementById('cad-senha').value;
     const senhaConf = document.getElementById('cad-senha-conf').value;
     const twitter   = document.getElementById('cad-twitter').value.trim();
