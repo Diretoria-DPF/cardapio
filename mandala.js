@@ -326,3 +326,6 @@ class MandalaScene {
         this.renderer.render(this.scene, this.camera);
     }
 }
+
+window.MandalaScene = MandalaScene;
+window.MANDALA_DEFAULTS = MANDALA_DEFAULTS;
