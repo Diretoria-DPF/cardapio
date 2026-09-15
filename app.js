@@ -1,24 +1,12 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v17 — Estável, Leve & Blindada)
-   ============================================================================
-   RECURSOS ATIVOS:
-     • Web Audio API nativa: alertas harmônicos para chat e novos pedidos.
-     • Alternância dinâmica de Modo Escuro com persistência local.
-     • Barra flutuante de sacola (estilo iFood) com cálculo dinâmico.
-     • Botão "Comprar Agora" (1 Toque) direto para finalização.
-     • Lightbox em tela cheia com duplo toque/clique nas fotos.
-     • Aprovação em lote com seleção múltipla no painel ADM.
-     • Exportação de relatórios em PDF nativo via motor de impressão.
-     • Compartilhamento de resumo de pedidos via Web Share API e WhatsApp.
-     • Atendente virtual segmentado por perfil de usuário.
-     • Totalmente desacoplado de dependências WebGL externas.
+   app.js — Plataforma Comercial Segura (v20 — Estável, Persistente & Completa)
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
 const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbyXUcaPSpe5nXhicDVcZlq7Lm_KF7sp63y6VrPychDsfF7ffsrSVGaSBriV5DSWn6rQ/exec";
 
 /* ═══════════════════════════════════════════════════════════════
-   0. FINGERPRINT, HMAC, DEVTOOLS E ÁUDIO NATIVO
+   0. FINGERPRINT, HMAC, DEVTOOLS, ÁUDIO & VISIBILIDADE
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: gerarFingerprint ───────────────────────────────── */
@@ -49,7 +37,7 @@ const FINGERPRINT = gerarFingerprint();
 
 /* ─── INÍCIO: assinarHmac ────────────────────────────────────── */
 async function assinarHmac(acao, payload, ts) {
-    const hmacKey = sessionStorage.getItem('plataforma_hmac_key');
+    const hmacKey = estadoSessao.hmacKey || sessionStorage.getItem('plataforma_hmac_key');
     if (!hmacKey) return null;
 
     const bodyAssinado = JSON.stringify({ acao, payload, ts });
@@ -68,7 +56,6 @@ async function assinarHmac(acao, payload, ts) {
             .map(b => b.toString(16).padStart(2, '0'))
             .join('');
     } catch (e) {
-        console.warn('[HMAC] Falha ao assinar requisição:', e);
         return null;
     }
 }
@@ -77,7 +64,6 @@ async function assinarHmac(acao, payload, ts) {
 /* ─── INÍCIO: ativarBlindagemDevTools ────────────────────────── */
 function ativarBlindagemDevTools() {
     document.addEventListener('contextmenu', e => e.preventDefault());
-
     document.addEventListener('keydown', e => {
         if (
             e.key === 'F12' ||
@@ -105,13 +91,11 @@ function tocarSomNotificacao(tipo = 'mensagem') {
             const gain = ctx.createGain();
             osc.connect(gain);
             gain.connect(ctx.destination);
-
             osc.type = 'sine';
             osc.frequency.setValueAtTime(587.33, ctx.currentTime);
             osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.12);
             gain.gain.setValueAtTime(0.18, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + 0.35);
         } else {
@@ -119,18 +103,33 @@ function tocarSomNotificacao(tipo = 'mensagem') {
             const gain = ctx.createGain();
             osc.connect(gain);
             gain.connect(ctx.destination);
-
             osc.type = 'sine';
             osc.frequency.setValueAtTime(784.00, ctx.currentTime);
             gain.gain.setValueAtTime(0.14, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
-
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + 0.22);
         }
     } catch (e) {}
 }
 /* ─── FIM: tocarSomNotificacao ───────────────────────────────── */
+
+/* ─── INÍCIO: Monitor de Visibilidade (Economia de Cotas) ────── */
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        pararAutoRefreshChat();
+        desligarAutoRefreshAdm();
+    } else {
+        if (pedidoChatAberto) {
+            renderizarChat(true);
+            iniciarAutoRefreshChat();
+        }
+        if (estadoSessao.papel === 'adm') {
+            ligarAutoRefreshAdm();
+        }
+    }
+});
+/* ─── FIM: Monitor de Visibilidade ───────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
    1. MODO ESCURO (DARK MODE)
@@ -220,9 +219,7 @@ const CacheLoja = {
     salvar(chave, dados) {
         try {
             localStorage.setItem('cache_' + chave, JSON.stringify({ dados, hora: Date.now() }));
-        } catch (erro) {
-            console.warn("[Cache] Limite excedido:", erro);
-        }
+        } catch (erro) {}
     },
     obter(chave) {
         try {
@@ -240,6 +237,8 @@ const CacheLoja = {
 const estadoSessao = {
     papel: 'visitante',
     token: null,
+    refreshToken: null,
+    hmacKey: null,
     nomeUsuario: 'Visitante',
     pedidosRecentes: []
 };
@@ -261,7 +260,7 @@ let _timerPainelAdm = null;
 let _timerChat = null;
 
 /* ═══════════════════════════════════════════════════════════════
-   4. INICIALIZAÇÃO E COMUNICAÇÃO HTTP
+   4. INICIALIZAÇÃO E COMUNICAÇÃO HTTP RESILIENTE
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: DOMContentLoaded ───────────────────────────────── */
@@ -274,10 +273,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     assegurarElementosAuxiliares();
 
     if (_linkAutorizadoValido || estadoSessao.papel !== 'visitante') {
-        const produtosEmCache = CacheLoja.obter('produtos_' + estadoSessao.papel);
-        if (produtosEmCache && produtosEmCache.length > 0) {
-            catalogoProdutos = produtosEmCache;
-            catalogoFiltrado = produtosEmCache;
+        const cache = CacheLoja.obter('produtos_' + estadoSessao.papel);
+        if (cache && cache.length > 0) {
+            catalogoProdutos = cache;
+            catalogoFiltrado = cache;
             renderizarVitrine();
         }
         await sincronizarProdutosServidor();
@@ -292,15 +291,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.user-menu')) {
-            fecharUserDropdown();
-        }
+        if (!e.target.closest('.user-menu')) fecharUserDropdown();
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' || e.key === 'Esc') {
-            fecharUserDropdown();
-        }
+        if (e.key === 'Escape' || e.key === 'Esc') fecharUserDropdown();
     });
 });
 /* ─── FIM: DOMContentLoaded ─────────────────────────────────── */
@@ -315,8 +310,7 @@ function assegurarElementosAuxiliares() {
         fab.setAttribute('data-action', 'abrir-assistente');
         fab.setAttribute('aria-label', 'Atendente Virtual e Ajuda');
         fab.innerHTML = `
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
             <span>Ajuda</span>
@@ -345,20 +339,22 @@ function obterUrlBasePlataforma() {
 
 /* ─── INÍCIO: verificarTokenUrl ──────────────────────────────── */
 async function verificarTokenUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const tokenAcesso = params.get('token') || sessionStorage.getItem('plataforma_link_token');
-
+    // Membro ou ADM logado tem acesso contínuo e NÃO depende de link de visitante
     if (estadoSessao.token && estadoSessao.papel !== 'visitante') {
         _linkAutorizadoValido = true;
+        pararTemporizadorSilencioso();
         return;
     }
+
+    const params = new URLSearchParams(window.location.search);
+    const tokenAcesso = params.get('token') || sessionStorage.getItem('plataforma_link_token');
 
     if (!tokenAcesso) {
         _linkAutorizadoValido = false;
         return;
     }
 
-    mostrarLoader('Validando link temporário...');
+    mostrarLoader('Validando acesso...');
     try {
         const url = `${URL_BACKEND_APPS_SCRIPT}?acao=validar_link&tokenAcesso=${encodeURIComponent(tokenAcesso)}`;
         const resp = await fetchComTimeout(url, 15000);
@@ -367,17 +363,14 @@ async function verificarTokenUrl() {
         if (res.valido) {
             _linkAutorizadoValido = true;
             sessionStorage.setItem('plataforma_link_token', tokenAcesso);
-
             const segundos = res.segundosRestantes || (15 * 60);
             iniciarTemporizadorSilencioso(segundos);
         } else {
             _linkAutorizadoValido = false;
             sessionStorage.removeItem('plataforma_link_token');
             exibirToast(res.mensagem || "O link temporário terminou.", "error");
-            executarLimpezaTotalESaida(true);
         }
     } catch (e) {
-        console.error("[Token] Falha ao verificar:", e);
         _linkAutorizadoValido = false;
     } finally {
         esconderLoader();
@@ -388,14 +381,21 @@ async function verificarTokenUrl() {
 /* ─── INÍCIO: iniciarTemporizadorSilencioso ──────────────────── */
 function iniciarTemporizadorSilencioso(segundosTotais) {
     pararTemporizadorSilencioso();
+
+    // Correção: NUNCA ativa o cronômetro para membros ou administradores
+    if (estadoSessao.papel !== 'visitante') return;
+
     _segundosRestantesLink = segundosTotais;
-
     _timerSilencioso = setInterval(() => {
-        _segundosRestantesLink--;
+        if (estadoSessao.papel !== 'visitante') {
+            pararTemporizadorSilencioso();
+            return;
+        }
 
+        _segundosRestantesLink--;
         if (_segundosRestantesLink <= 0) {
             pararTemporizadorSilencioso();
-            exibirToast("O seu período de acesso terminou. Solicite um novo link ao administrador.", "info");
+            exibirToast("O período do seu link de visitante terminou.", "info");
             executarLimpezaTotalESaida();
         }
     }, 1000);
@@ -421,22 +421,20 @@ function executarLimpezaTotalESaida(silencioso = false) {
     const tema = localStorage.getItem('plataforma_tema');
 
     try {
-        localStorage.clear();
+        localStorage.removeItem('plataforma_sessao');
         sessionStorage.clear();
     } catch (e) {}
 
     if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {} }
     if (tema) { try { localStorage.setItem('plataforma_tema', tema); } catch(e) {} }
 
-    document.cookie.split(";").forEach(c => {
-        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-    });
-
-    estadoSessao.papel       = 'visitante';
-    estadoSessao.token       = null;
-    estadoSessao.nomeUsuario = 'Visitante';
-    cestaCompras             = [];
-    _linkAutorizadoValido    = false;
+    estadoSessao.papel        = 'visitante';
+    estadoSessao.token        = null;
+    estadoSessao.refreshToken = null;
+    estadoSessao.hmacKey      = null;
+    estadoSessao.nomeUsuario  = 'Visitante';
+    cestaCompras              = [];
+    _linkAutorizadoValido     = false;
 
     atualizarBarraFlutuanteSacola();
 
@@ -444,9 +442,8 @@ function executarLimpezaTotalESaida(silencioso = false) {
     window.history.replaceState({}, document.title, urlLimpa);
 
     if (!silencioso) {
-        exibirToast("Sessão finalizada. Todos os dados foram reiniciados.", "info");
+        exibirToast("Sessão finalizada com sucesso.", "info");
     }
-
     atualizarInterfaceSessao();
 }
 /* ─── FIM: executarLimpezaTotalESaida ─────────────────────────── */
@@ -456,34 +453,26 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
     const controladorAborto = new AbortController();
     const temporizador = setTimeout(() => controladorAborto.abort(), limiteTempoMs);
 
-    const configuracao = {
-        mode: 'cors',
-        redirect: 'follow',
-        cache: 'no-cache',
-        ...opcoesExtras,
-        signal: controladorAborto.signal
-    };
-
     try {
-        return await fetch(url, configuracao);
+        return await fetch(url, {
+            mode: 'cors',
+            redirect: 'follow',
+            cache: 'no-cache',
+            ...opcoesExtras,
+            signal: controladorAborto.signal
+        });
     } finally {
         clearTimeout(temporizador);
     }
 }
 /* ─── FIM: fetchComTimeout ───────────────────────────────────── */
 
-/* ─── INÍCIO: executarRequisicaoAPI ──────────────────────────── */
+/* ─── INÍCIO: executarRequisicaoAPI (Resiliente) ─────────────── */
 async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
     try {
         const ts = Date.now();
         const payload = dadosExtras;
-
-        const corpo = {
-            acao,
-            payload,
-            ts,
-            fingerprint: FINGERPRINT
-        };
+        const corpo = { acao, payload, ts, fingerprint: FINGERPRINT };
 
         if (estadoSessao.token) {
             corpo.token = estadoSessao.token;
@@ -507,39 +496,50 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         try {
             json = JSON.parse(textoResposta);
         } catch (erroParse) {
-            console.error("[API] Resposta não-JSON:", textoResposta.substring(0, 300));
-            return { sucesso: false, mensagem: "Resposta inesperada do servidor." };
+            // Em falha temporária do Google Apps Script, NÃO desloga o usuário
+            return { sucesso: false, erroTransitório: true, mensagem: "Servidor ocupado. Tentando novamente..." };
         }
 
-        if (!json.sucesso && json.codigo === 'LINK_EXPIRED') {
-            exibirToast(json.mensagem || "O link temporário expirou.", "error");
-            executarLimpezaTotalESaida(true);
+        // Se o Administrador ativou o Modo Lockdown (Kill Switch)
+        if (!json.sucesso && json.codigo === 'SISTEMA_BLOQUEADO') {
+            exibirToast(json.mensagem || "Plataforma em manutenção.", "error");
+            if (estadoSessao.papel !== 'adm') {
+                navegarPara('bloqueado');
+            }
             return json;
         }
 
-        if (!json.sucesso && json.codigo === 'SESSION_EXPIRED' && tentarRefresh) {
-            const rt = sessionStorage.getItem('plataforma_refresh_token');
-            if (rt) {
-                const ok = await tentarRenovarSessao(rt);
-                if (ok) {
-                    return executarRequisicaoAPI(acao, dadosExtras, false);
-                }
-                exibirToast("Sua sessão expirou. Faça login novamente.", "error");
-                executarLogout();
-                return { sucesso: false, mensagem: "Sessão expirada." };
+        // Se o link do visitante expirou, apenas o visitante é direcionado
+        if (!json.sucesso && json.codigo === 'LINK_EXPIRED') {
+            if (estadoSessao.papel === 'visitante') {
+                exibirToast(json.mensagem || "O link temporário expirou.", "error");
+                executarLimpezaTotalESaida(true);
             }
+            return json;
+        }
+
+        // Auto-renovação determinística para contas autenticadas
+        if (!json.sucesso && json.codigo === 'SESSION_EXPIRED') {
+            if (tentarRefresh) {
+                const rt = estadoSessao.refreshToken || sessionStorage.getItem('plataforma_refresh_token');
+                if (rt) {
+                    const ok = await tentarRenovarSessao(rt);
+                    if (ok) {
+                        return executarRequisicaoAPI(acao, dadosExtras, false);
+                    }
+                }
+            }
+            exibirToast("Sua sessão foi encerrada. Faça login novamente.", "info");
+            executarLogout();
+            return { sucesso: false, mensagem: "Sessão expirada." };
         }
 
         return json;
 
     } catch (erroRede) {
-        console.error("[API] Falha de rede:", erroRede);
-        const semInternet = !navigator.onLine;
-        exibirToast(
-            semInternet ? "Sem conexão à internet." : "Falha na comunicação com o servidor.",
-            "error"
-        );
-        return { sucesso: false, mensagem: erroRede.toString() };
+        // NUNCA derruba o login por oscilação momentânea de sinal
+        console.warn("[API] Oscilação transitória:", erroRede);
+        return { sucesso: false, erroRede: true, mensagem: "Sem conexão momentânea com o servidor." };
     }
 }
 /* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
@@ -561,7 +561,9 @@ async function tentarRenovarSessao(refreshToken) {
 
         if (json.sucesso && json.token) {
             estadoSessao.token = json.token;
-            sessionStorage.setItem('plataforma_hmac_key', json.hmacKey);
+            if (json.refreshToken) estadoSessao.refreshToken = json.refreshToken;
+            if (json.hmacKey) estadoSessao.hmacKey = json.hmacKey;
+
             localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
             return true;
         }
@@ -573,7 +575,60 @@ async function tentarRenovarSessao(refreshToken) {
 /* ─── FIM: tentarRenovarSessao ───────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   5. LIGHTBOX (ZOOM DE FOTOS EM TELA CHEIA)
+   5. CONTROLE GLOBAL DE ACESSO (KILL SWITCH ADM)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: alternarModoAcessoSistema ──────────────────────── */
+async function alternarModoAcessoSistema(novoModo) {
+    if (estadoSessao.papel !== 'adm') return;
+
+    mostrarLoader("Alterando modo de acesso...");
+    const res = await executarRequisicaoAPI("alterar_modo_acesso", { novoModo });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast(res.mensagem, "success");
+        atualizarVisualModoAcesso(res.modo);
+    } else {
+        exibirToast(res.mensagem || "Não foi possível alterar o modo.", "error");
+    }
+}
+/* ─── FIM: alternarModoAcessoSistema ─────────────────────────── */
+
+/* ─── INÍCIO: consultarStatusAcessoSistema ───────────────────── */
+async function consultarStatusAcessoSistema() {
+    if (estadoSessao.papel !== 'adm') return;
+    const res = await executarRequisicaoAPI("obter_status_sistema");
+    if (res.sucesso && res.modoAcesso) {
+        atualizarVisualModoAcesso(res.modoAcesso);
+    }
+}
+/* ─── FIM: consultarStatusAcessoSistema ───────────────────────── */
+
+/* ─── INÍCIO: atualizarVisualModoAcesso ──────────────────────── */
+function atualizarVisualModoAcesso(modo) {
+    const badge = document.getElementById('badge-modo-acesso-adm');
+    const btnLockdown = document.getElementById('btn-lockdown-adm');
+    const btnPadrao = document.getElementById('btn-padrao-adm');
+
+    if (!badge) return;
+
+    if (modo === 'APENAS_ADM') {
+        badge.textContent = "BLOQUEADO (APENAS ADM)";
+        badge.className = "badge badge-adm";
+        if (btnLockdown) btnLockdown.classList.add('hidden');
+        if (btnPadrao) btnPadrao.classList.remove('hidden');
+    } else {
+        badge.textContent = "LIBERADO (PADRÃO)";
+        badge.className = "badge badge-membro";
+        if (btnLockdown) btnLockdown.classList.remove('hidden');
+        if (btnPadrao) btnPadrao.classList.add('hidden');
+    }
+}
+/* ─── FIM: atualizarVisualModoAcesso ─────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   6. LIGHTBOX (ZOOM DE FOTOS)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: abrirLightboxFoto ──────────────────────────────── */
@@ -596,7 +651,7 @@ function fecharLightbox() {
 /* ─── FIM: fecharLightbox ─────────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   6. VITRINE, CHIPS, COMPRA RÁPIDA E BARRA FLUTUANTE
+   7. VITRINE, CHIPS, COMPRA RÁPIDA E BARRA FLUTUANTE
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: sincronizarProdutosServidor ────────────────────── */
@@ -731,11 +786,6 @@ function renderizarVitrine() {
             const painelAdm = document.createElement('div');
             painelAdm.className = 'adm-visib-controls';
 
-            const tag = document.createElement('span');
-            tag.style.fontWeight = 'bold';
-            tag.style.color = p.visibilidade === 'adm' ? '#dc2626' : (p.visibilidade === 'registrado' ? '#2563eb' : '#16a34a');
-            tag.textContent = `[${String(p.visibilidade).toUpperCase()}]`;
-
             const selectVisib = document.createElement('select');
             selectVisib.innerHTML = `
                 <option value="publico" ${p.visibilidade === 'publico' ? 'selected' : ''}>Público</option>
@@ -744,7 +794,7 @@ function renderizarVitrine() {
             `;
             selectVisib.onchange = () => alterarVisibilidadeProdutoAdm(p.id, selectVisib.value);
 
-            painelAdm.append(tag, selectVisib);
+            painelAdm.append(selectVisib);
             body.appendChild(painelAdm);
 
             const btnExcluir = document.createElement('button');
@@ -793,9 +843,7 @@ function adicionarAoCarrinho(produto, btnElemento = null) {
         cestaCompras.push({
             id: produto.id,
             nome: produto.nome,
-            preco: typeof produto.preco === 'number'
-                ? produto.preco
-                : parseFloat(String(produto.preco).replace(',', '.')),
+            preco: typeof produto.preco === 'number' ? produto.preco : parseFloat(String(produto.preco).replace(',', '.')),
             quantidade: 1
         });
     }
@@ -837,21 +885,7 @@ function atualizarBarraFlutuanteSacola() {
     const totalValor = cestaCompras.reduce((acc, i) => acc + (i.preco * i.quantidade), 0);
 
     if (totalItens > 0 && estadoSessao.papel === 'membro') {
-        if (!bar) {
-            bar = document.createElement('div');
-            bar.id = 'floating-cart-bar';
-            bar.className = 'floating-cart-bar';
-            bar.innerHTML = `
-                <div class="floating-cart-bar__left">
-                    <span class="floating-cart-bar__count" id="float-cart-count">0 itens</span>
-                    <span class="floating-cart-bar__total" id="float-cart-total">R$ 0,00</span>
-                </div>
-                <div class="floating-cart-bar__cta">
-                    Ver Sacola ➔
-                </div>
-            `;
-            document.body.appendChild(bar);
-        }
+        if (!bar) return;
         const countEl = document.getElementById('float-cart-count');
         const totalEl = document.getElementById('float-cart-total');
         if (countEl) countEl.textContent = `${totalItens} ${totalItens === 1 ? 'item' : 'itens'}`;
@@ -971,7 +1005,7 @@ async function tratarCriacaoPedido() {
 /* ─── FIM: tratarCriacaoPedido ───────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   7. GESTÃO DO CATÁLOGO E EXCLUSÕES (ADM)
+   8. GESTÃO DO CATÁLOGO E EXCLUSÕES (ADM)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: alterarVisibilidadeProdutoAdm ──────────────────── */
@@ -1018,7 +1052,7 @@ async function excluirProdutoAdm(idProduto) {
 /* ─── FIM: excluirProdutoAdm ─────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   8. ATENDENTE VIRTUAL & DÚVIDAS
+   9. ATENDENTE VIRTUAL & DÚVIDAS
    ═══════════════════════════════════════════════════════════════ */
 
 const BASE_CONHECIMENTO = {
@@ -1117,7 +1151,7 @@ function responderDuvidaRapida(chave) {
 /* ─── FIM: responderDuvidaRapida ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   9. MEUS PEDIDOS, COMPARTILHAMENTO & CHAT
+   10. MEUS PEDIDOS, COMPARTILHAMENTO & CHAT
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: carregarMeusPedidos ────────────────────────────── */
@@ -1270,7 +1304,7 @@ async function abrirCobrancaPedido(idPedido, metodo) {
         const imgQr = document.createElement('img');
         imgQr.src = cobranca.qrCodeUrl;
         imgQr.alt = "QR Code PIX";
-        imgQr.style.cssText = 'width:190px;height:190px;margin-bottom:12px;border:1px solid var(--cor-borda-forte);border-radius:8px;';
+        imgQr.style.cssText = 'width:190px;height:190px;margin:0 auto 12px;display:block;border:1px solid var(--cor-borda-forte);border-radius:8px;';
 
         const instrucoes = document.createElement('p');
         instrucoes.style.cssText = 'font-size:.85rem;color:var(--cor-texto-suave);margin-bottom:8px;';
@@ -1297,7 +1331,7 @@ async function abrirCobrancaPedido(idPedido, metodo) {
         const imgQr = document.createElement('img');
         imgQr.src = cobranca.qrCodeUrl;
         imgQr.alt = "QR Code Cripto";
-        imgQr.style.cssText = 'width:180px;height:180px;margin-bottom:10px;border-radius:8px;';
+        imgQr.style.cssText = 'width:180px;height:180px;margin:0 auto 10px;display:block;border-radius:8px;';
 
         const valorTexto = document.createElement('p');
         valorTexto.innerHTML = `<strong>Transferir:</strong> ${escaparHtml(cobranca.quantidadeEstimada)} ${escaparHtml(cobranca.moeda)}`;
@@ -1394,9 +1428,9 @@ async function abrirChatPedido(pedidoId) {
 function iniciarAutoRefreshChat() {
     pararAutoRefreshChat();
     _timerChat = setInterval(async () => {
-        if (!pedidoChatAberto) return pararAutoRefreshChat();
+        if (!pedidoChatAberto || document.hidden) return;
         await renderizarChat(true);
-    }, 5000);
+    }, 6000);
 }
 /* ─── FIM: iniciarAutoRefreshChat ─────────────────────────────── */
 
@@ -1485,13 +1519,16 @@ async function enviarMensagemChat() {
 /* ─── FIM: enviarMensagemChat ─────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   10. PAINEL CENTRAL, LOTE E RELATÓRIO PDF (ADM)
+   11. PAINEL CENTRAL, LOTE E RELATÓRIO PDF (ADM)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: carregarPainelCentralAdm ───────────────────────── */
 async function carregarPainelCentralAdm() {
     if (estadoSessao.papel !== 'adm') return;
 
+    await consultarStatusAcessoSistema();
+
+    // 1. Cadastros Pendentes
     const divSolicitacoes = document.getElementById('adm-solicitacoes-lista');
     const toolbarLote = document.getElementById('adm-lote-toolbar');
     if (divSolicitacoes) divSolicitacoes.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
@@ -1540,6 +1577,7 @@ async function carregarPainelCentralAdm() {
     }
     atualizarContadorSelecaoLote();
 
+    // 2. Usuários Ativos
     const divUsuarios = document.getElementById('adm-usuarios-lista');
     if (divUsuarios) {
         divUsuarios.innerHTML = '<div class="loading-slot">Carregando usuários ativos...</div>';
@@ -1562,6 +1600,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
+    // 3. Métricas
     const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas");
     if (respostaMetricas.sucesso) {
         const elementoFaturamento = document.getElementById('metric-faturamento');
@@ -1584,6 +1623,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
+    // 4. Bloqueados
     const respostaBloqueados = await executarRequisicaoAPI("listar_bloqueados_adm");
     const divBloqueados = document.getElementById('adm-bloqueados-lista');
     if (divBloqueados) {
@@ -1607,6 +1647,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
+    // 5. Mensagens Recebidas
     const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm");
     const divComentarios = document.getElementById('adm-comentarios-lista');
     if (divComentarios) {
@@ -1663,30 +1704,23 @@ async function aprovarSolicitacoesSelecionadasLote() {
 }
 /* ─── FIM: aprovarSolicitacoesSelecionadasLote ─────────────────── */
 
+/* ─── INÍCIO: gerarRelatorioPdfVendas (Diário) ───────────────── */
 async function gerarRelatorioPdfVendas() {
     if (estadoSessao.papel !== 'adm') return;
 
-    mostrarLoader("Gerando relatório diário de vendas...");
-
+    mostrarLoader("Gerando relatório analítico do dia...");
     const hoje = new Date();
-    const ano = hoje.getFullYear();
-    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-    const dia = String(hoje.getDate()).padStart(2, '0');
-    const dataRef = `${ano}-${mes}-${dia}`;
+    const dataRef = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
 
-    const resposta = await executarRequisicaoAPI("obter_relatorio_diario_adm", { dataRef });
+    const res = await executarRequisicaoAPI("obter_relatorio_diario_adm", { dataRef });
     esconderLoader();
 
-    if (!resposta.sucesso) {
-        return exibirToast(resposta.mensagem || "Não foi possível carregar os dados do relatório.", "error");
-    }
-
-    imprimirRelatorioAnaliticoIframe(resposta);
+    if (!res.sucesso) return exibirToast("Erro ao carregar dados do relatório.", "error");
+    imprimirRelatorioAnaliticoIframe(res);
 }
+/* ─── FIM: gerarRelatorioPdfVendas ───────────────────────────── */
 
-/**
- * Cria um documento isolado e dispara a impressão limpa em folha A4.
- */
+/* ─── INÍCIO: imprimirRelatorioAnaliticoIframe ───────────────── */
 function imprimirRelatorioAnaliticoIframe(relatorio) {
     const horaEmissao = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -1840,7 +1874,7 @@ function imprimirRelatorioAnaliticoIframe(relatorio) {
         setTimeout(() => iframe.remove(), 2000);
     }, 400);
 }
-/* ─── FIM: gerarRelatorioPdfVendas ───────────────────────────── */
+/* ─── FIM: imprimirRelatorioAnaliticoIframe ───────────────── */
 
 /* ─── INÍCIO: aprovarMembroAdm ───────────────────────────────── */
 async function aprovarMembroAdm(idSolicitacao) {
@@ -1906,12 +1940,10 @@ function ligarAutoRefreshAdm() {
     consultarPendentesAdm();
 
     _timerPainelAdm = setInterval(() => {
-        if (estadoSessao.papel !== 'adm') {
-            desligarAutoRefreshAdm();
-            return;
-        }
+        if (estadoSessao.papel !== 'adm' || document.hidden) return;
         consultarPendentesAdm();
-    }, 20000);
+        consultarStatusAcessoSistema();
+    }, 25000);
 }
 /* ─── FIM: ligarAutoRefreshAdm ───────────────────────────────── */
 
@@ -1925,7 +1957,7 @@ function desligarAutoRefreshAdm() {
 /* ─── FIM: desligarAutoRefreshAdm ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   11. PIPELINE DE PEDIDOS COM ALERTA SONORO (ADM)
+   12. PIPELINE DE PEDIDOS COM ALERTA SONORO (ADM)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: carregarPedidosAdm ─────────────────────────────── */
@@ -2018,7 +2050,7 @@ async function avancarStatusAdm(idPedido, statusAtual) {
 /* ─── FIM: avancarStatusAdm ──────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   12. LINKS TEMPORÁRIOS, FOTOS E CADASTRO DE PRODUTOS
+   13. LINKS TEMPORÁRIOS, FOTOS E CADASTRO DE PRODUTOS
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: gerarLinkTemporarioAdm ─────────────────────────── */
@@ -2184,7 +2216,7 @@ async function tratarCadastroProduto(evento) {
 /* ─── FIM: tratarCadastroProduto ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   13. AUTENTICAÇÃO, CADASTRO E CONTROLE DE SESSÃO
+   14. AUTENTICAÇÃO, CADASTRO E CONTROLE DE SESSÃO
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: tratarSolicitacaoCadastro ──────────────────────── */
@@ -2235,16 +2267,18 @@ async function tratarLogin(evento) {
     botaoCarregando('btn-entrar', false);
 
     if (resposta.sucesso) {
-        estadoSessao.papel       = resposta.papel;
-        estadoSessao.token       = resposta.token;
-        estadoSessao.nomeUsuario = resposta.nome;
-
-        if (resposta.refreshToken) sessionStorage.setItem('plataforma_refresh_token', resposta.refreshToken);
-        if (resposta.hmacKey)      sessionStorage.setItem('plataforma_hmac_key', resposta.hmacKey);
+        estadoSessao.papel        = resposta.papel;
+        estadoSessao.token        = resposta.token;
+        estadoSessao.refreshToken = resposta.refreshToken;
+        estadoSessao.hmacKey      = resposta.hmacKey;
+        estadoSessao.nomeUsuario  = resposta.nome;
 
         _linkAutorizadoValido = true;
+        pararTemporizadorSilencioso(); // Desativa para membros e administradores
 
+        // Persistência com HMAC
         localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
+
         document.getElementById('form-login').reset();
         document.getElementById('box-desbloqueio-conta').classList.add('hidden');
         fecharModal('modal-login');
@@ -2293,42 +2327,8 @@ async function executarLogout() {
         mostrarLoader("Encerrando sessão...");
     }
 
-    pararTemporizadorSilencioso();
-    pararAutoRefreshChat();
-    desligarAutoRefreshAdm();
-
-    const fp = localStorage.getItem('plataforma_fingerprint');
-    const tema = localStorage.getItem('plataforma_tema');
-
-    try {
-        localStorage.clear();
-        sessionStorage.clear();
-    } catch (erro) {}
-
-    if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {} }
-    if (tema) { try { localStorage.setItem('plataforma_tema', tema); } catch(e) {} }
-
-    try {
-        document.cookie.split(";").forEach(c => {
-            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-        });
-    } catch (erro) {}
-
-    estadoSessao.papel       = 'visitante';
-    estadoSessao.token       = null;
-    estadoSessao.nomeUsuario = 'Visitante';
-    cestaCompras             = [];
-    catalogoProdutos         = [];
-    catalogoFiltrado         = [];
-    _linkAutorizadoValido    = false;
-
-    atualizarBarraFlutuanteSacola();
-
-    const urlLimpa = window.location.origin + window.location.pathname;
-    window.history.replaceState({}, document.title, urlLimpa);
-
+    executarLimpezaTotalESaida();
     esconderLoader();
-    window.location.replace(urlLimpa);
 }
 /* ─── FIM: executarLogout ─────────────────────────────────────── */
 
@@ -2338,9 +2338,11 @@ function restaurarSessaoLocal() {
     if (!dadosSalvos) return;
     try {
         const sessao = JSON.parse(dadosSalvos);
-        estadoSessao.papel       = sessao.papel || 'visitante';
-        estadoSessao.token       = sessao.token || null;
-        estadoSessao.nomeUsuario = sessao.nomeUsuario || 'Visitante';
+        estadoSessao.papel        = sessao.papel || 'visitante';
+        estadoSessao.token        = sessao.token || null;
+        estadoSessao.refreshToken = sessao.refreshToken || null;
+        estadoSessao.hmacKey      = sessao.hmacKey || null;
+        estadoSessao.nomeUsuario  = sessao.nomeUsuario || 'Visitante';
 
         if (estadoSessao.papel !== 'visitante') {
             _linkAutorizadoValido = true;
@@ -2352,7 +2354,7 @@ function restaurarSessaoLocal() {
 /* ─── FIM: restaurarSessaoLocal ───────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   14. CONTROLE VISUAL E NAVEGAÇÃO
+   15. CONTROLE VISUAL E NAVEGAÇÃO
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: atualizarInterfaceSessao ───────────────────────── */
@@ -2541,7 +2543,7 @@ function atualizarBadgeCarrinho(quantidade) {
 /* ─── FIM: atualizarBadgeCarrinho ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   15. CENTRAL DE DÚVIDAS E MODAIS GENÉRICOS
+   16. CENTRAL DE DÚVIDAS E MODAIS GENÉRICOS
    ═══════════════════════════════════════════════════════════════ */
 
 let listaDuvidasFaq = [
@@ -2769,7 +2771,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 });
 
 /* ═══════════════════════════════════════════════════════════════
-   16. EXPORTAÇÕES GLOBAIS (LIGAÇÃO COM BINDINGS)
+   17. EXPORTAÇÕES GLOBAIS (LIGAÇÃO COM BINDINGS)
    ═══════════════════════════════════════════════════════════════ */
 window.abrirModal                    = abrirModal;
 window.fecharModal                   = fecharModal;
@@ -2810,7 +2812,7 @@ window.toggleUserDropdown            = toggleUserDropdown;
 window.fecharUserDropdown            = fecharUserDropdown;
 window.atualizarBadgeCarrinho        = atualizarBadgeCarrinho;
 
-// Funções de acessibilidade e ações diretas
+// Funções de acessibilidade, relatórios e controle de acesso
 window.alternarModoEscuro                  = alternarModoEscuro;
 window.abrirLightboxFoto                   = abrirLightboxFoto;
 window.fecharLightbox                      = fecharLightbox;
@@ -2822,3 +2824,4 @@ window.atualizarContadorSelecaoLote        = atualizarContadorSelecaoLote;
 window.aprovarSolicitacoesSelecionadasLote = aprovarSolicitacoesSelecionadasLote;
 window.gerarRelatorioPdfVendas             = gerarRelatorioPdfVendas;
 window.tocarSomNotificacao                 = tocarSomNotificacao;
+window.alternarModoAcessoSistema           = alternarModoAcessoSistema;
