@@ -1,5 +1,5 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v21 — Sintaxe Verificada & Bearer Token)
+   app.js — Plataforma Comercial Segura (v23 — Correção de Modais, Exclusão & Kill Switch)
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
@@ -161,6 +161,12 @@ function fmtPreco(valor) {
 }
 /* ─── FIM: fmtPreco ─────────────────────────────────────────── */
 
+/* ─── INÍCIO: extrairApenasDigitos ───────────────────────────── */
+function extrairApenasDigitos(valor) {
+    return String(valor || '').replace(/\D/g, '');
+}
+/* ─── FIM: extrairApenasDigitos ─────────────────────────────── */
+
 /* ─── INÍCIO: mostrarLoader ──────────────────────────────────── */
 function mostrarLoader(texto = 'Carregando...') {
     const elementoTexto = document.getElementById('loader-text');
@@ -312,7 +318,6 @@ function obterUrlBasePlataforma() {
 
 /* ─── INÍCIO: verificarTokenUrl ──────────────────────────────── */
 async function verificarTokenUrl() {
-    // Membro ou ADM logado tem acesso garantido e não depende de link temporário
     if (estadoSessao.token && estadoSessao.papel !== 'visitante') {
         _linkAutorizadoValido = true;
         pararTemporizadorSilencioso();
@@ -355,7 +360,6 @@ async function verificarTokenUrl() {
 function iniciarTemporizadorSilencioso(segundosTotais) {
     pararTemporizadorSilencioso();
 
-    // NUNCA rodar timer de link se o usuário for membro ou administrador
     if (estadoSessao.papel !== 'visitante') return;
 
     _segundosRestantesLink = segundosTotais;
@@ -438,7 +442,7 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
 }
 /* ─── FIM: fetchComTimeout ───────────────────────────────────── */
 
-/* ─── INÍCIO: executarRequisicaoAPI (Blindada contra CORS) ───── */
+/* ─── INÍCIO: executarRequisicaoAPI ──────────────────────────── */
 async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
     try {
         const payload = dadosExtras;
@@ -466,8 +470,7 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         try {
             json = JSON.parse(textoResposta);
         } catch (erroParse) {
-            console.warn("[API] Resposta não-JSON do Apps Script:", textoResposta.substring(0, 200));
-            return { sucesso: false, mensagem: "O servidor retornou uma resposta inválida. Verifique se a implantação foi atualizada." };
+            return { sucesso: false, erroTransitorio: true, mensagem: "Servidor ocupado. Aguarde um instante..." };
         }
 
         if (!json.sucesso && json.codigo === 'SISTEMA_BLOQUEADO') {
@@ -504,11 +507,10 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         return json;
 
     } catch (erroRede) {
-        console.warn("[API] Erro de rede ou CORS:", erroRede);
-        return { sucesso: false, mensagem: "Falha de comunicação com o servidor. Verifique a URL de implantação." };
+        console.warn("[API] Oscilação de rede transitória:", erroRede);
+        return { sucesso: false, erroRede: true, mensagem: "Sem conexão momentânea com o servidor." };
     }
 }
-/* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
 /* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
 
 /* ─── INÍCIO: tentarRenovarSessao ────────────────────────────── */
@@ -546,7 +548,7 @@ async function tentarRenovarSessao(refreshToken) {
 async function alternarModoAcessoSistema(novoModo) {
     if (estadoSessao.papel !== 'adm') return;
 
-    mostrarLoader("Alterando modo de acesso...");
+    mostrarLoader("Alterando modo de usabilidade...");
     const res = await executarRequisicaoAPI("alterar_modo_acesso", { novoModo });
     esconderLoader();
 
@@ -735,13 +737,13 @@ function renderizarVitrine() {
             const btnComprar = document.createElement('button');
             btnComprar.type = 'button';
             btnComprar.className = 'btn btn-comprar-agora btn-block btn-sm';
-            btnComprar.textContent = '💰  Comprar Agora';
+            btnComprar.textContent = '⚡ Comprar Agora';
             btnComprar.onclick = () => comprarProdutoDireto(p.id);
 
             const btnCesta = document.createElement('button');
             btnCesta.type = 'button';
             btnCesta.className = 'btn btn-primary btn-block btn-sm';
-            btnCesta.textContent = '🛒 Cesta';
+            btnCesta.textContent = '+ Cesta';
             btnCesta.onclick = (e) => adicionarAoCarrinho(p, e.currentTarget);
 
             grupoAcoes.append(btnComprar, btnCesta);
@@ -812,7 +814,9 @@ function adicionarAoCarrinho(produto, btnElemento = null) {
         cestaCompras.push({
             id: produto.id,
             nome: produto.nome,
-            preco: typeof produto.preco === 'number' ? produto.preco : parseFloat(String(produto.preco).replace(',', '.')),
+            preco: typeof produto.preco === 'number'
+                ? produto.preco
+                : parseFloat(String(produto.preco).replace(',', '.')),
             quantidade: 1
         });
     }
@@ -854,7 +858,21 @@ function atualizarBarraFlutuanteSacola() {
     const totalValor = cestaCompras.reduce((acc, i) => acc + (i.preco * i.quantidade), 0);
 
     if (totalItens > 0 && estadoSessao.papel === 'membro') {
-        if (!bar) return;
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'floating-cart-bar';
+            bar.className = 'floating-cart-bar';
+            bar.innerHTML = `
+                <div class="floating-cart-bar__left">
+                    <span class="floating-cart-bar__count" id="float-cart-count">0 itens</span>
+                    <span class="floating-cart-bar__total" id="float-cart-total">R$ 0,00</span>
+                </div>
+                <div class="floating-cart-bar__cta">
+                    Ver Sacola ➔
+                </div>
+            `;
+            document.body.appendChild(bar);
+        }
         const countEl = document.getElementById('float-cart-count');
         const totalEl = document.getElementById('float-cart-total');
         if (countEl) countEl.textContent = `${totalItens} ${totalItens === 1 ? 'item' : 'itens'}`;
@@ -988,6 +1006,9 @@ async function alterarVisibilidadeProdutoAdm(idProduto, novaVisib) {
 
     if (res.sucesso) {
         exibirToast(res.mensagem || "Visibilidade atualizada!", "success");
+        CacheLoja.limpar('produtos_adm');
+        CacheLoja.limpar('produtos_membro');
+        CacheLoja.limpar('produtos_visitante');
         await sincronizarProdutosServidor();
     } else {
         exibirToast(res.mensagem || "Erro ao alterar visibilidade.", "error");
@@ -1013,6 +1034,9 @@ async function excluirProdutoAdm(idProduto) {
 
     if (res.sucesso) {
         exibirToast(res.mensagem || "Produto excluído com sucesso!", "success");
+        CacheLoja.limpar('produtos_adm');
+        CacheLoja.limpar('produtos_membro');
+        CacheLoja.limpar('produtos_visitante');
         await sincronizarProdutosServidor();
     } else {
         exibirToast(res.mensagem || "Não foi possível excluir o produto.", "error");
@@ -1026,7 +1050,7 @@ async function excluirProdutoAdm(idProduto) {
 
 const BASE_CONHECIMENTO = {
     visitante: {
-        saudacao: "Olá! Sou o assistente da Loja. Como posso te orientar hoje?",
+        saudacao: "Olá! Sou o assistente da LojaSegura. Como posso te orientar hoje?",
         duvidas: [
             {
                 pergunta: "Como consigo um link de acesso?",
@@ -1034,16 +1058,16 @@ const BASE_CONHECIMENTO = {
             },
             {
                 pergunta: "Como solicitar meu cadastro?",
-                resposta: "Basta clicar em 'Solicitar Cadastro' na tela de bloqueio e preencher seu nome, telefone WhatsApp e senha. A liberação acontecerá em breve."
+                resposta: "Basta clicar em 'Solicitar Cadastro' na tela de bloqueio e preencher seu nome, telefone WhatsApp e senha. O administrador fará a liberação em instantes."
             },
             {
-                pergunta: "Como posso falar sobre a plataforma?",
-                resposta: "Realize o cadastro e aguarde a liberação"
+                pergunta: "A plataforma é segura?",
+                resposta: "Sim. Todas as transações utilizam criptografia segura de ponta a ponta, com autenticação determinística para proteção de dados."
             }
         ]
     },
     membro: {
-        saudacao: "Olá! Em que posso ajudar com seus pedidos?",
+        saudacao: "Olá, membro! Em que posso ajudar com seus pedidos ou pagamentos?",
         duvidas: [
             {
                 pergunta: "Como pagar via PIX?",
@@ -1111,7 +1135,7 @@ function exibirRespostaAssistente(pergunta, resposta) {
         </div>
     `;
 }
-/* ─── FIM: exibirRespostaAssistente ───────────────────────────── */
+/* ─── FIM: exibirRespostaAssistente ───────────────────── */
 
 /* ─── INÍCIO: responderDuvidaRapida ──────────────────────────── */
 function responderDuvidaRapida(chave) {
@@ -1230,10 +1254,9 @@ async function carregarMeusPedidos() {
 async function compartilharPedidoWhatsApp(idPedido) {
     const pedido = (estadoSessao.pedidosRecentes || []).find(p => String(p.id) === String(idPedido));
     
-    // Mensagem atrativa e detalhada para o pedido
     const texto = pedido
         ? `Olá! Gostaria de validar os detalhes do meu Pedido #${pedido.id} no valor de ${fmtPreco(pedido.total)} via ${pedido.metodo} (Status: ${pedido.status.toUpperCase()}). Aguardo orientações!`
-        : `Olá! Vim pela Loja e gostaria de falar sobre o Pedido #${idPedido}.`;
+        : `Olá! Vim pela LojaSegura e gostaria de falar sobre o Pedido #${idPedido}.`;
 
     if (navigator.share) {
         try {
@@ -1245,7 +1268,7 @@ async function compartilharPedidoWhatsApp(idPedido) {
         } catch (e) {}
     }
 
-    const numeroLoja = "5574998048300"; // Código do país (55) + DDD (74) + Número
+    const numeroLoja = "5574998048300";
     const urlWa = `https://wa.me/${numeroLoja}?text=${encodeURIComponent(texto)}`;
     window.open(urlWa, '_blank');
 }
@@ -1557,7 +1580,7 @@ async function carregarPainelCentralAdm() {
         divUsuarios.innerHTML = '';
 
         if (respostaUsuarios.sucesso && Array.isArray(respostaUsuarios.usuarios) && respostaUsuarios.usuarios.length > 0) {
-            let html = '<table class="tabela-metricas"><thead><tr><th>Primeiro Nome</th><th>Login/Telefone</th><th>Papel</th></tr></thead><tbody>';
+            let html = '<table class="tabela-metricas"><thead><tr><th>Primeiro Nome</th><th>Login/WhatsApp</th><th>Papel</th></tr></thead><tbody>';
             respostaUsuarios.usuarios.forEach(u => {
                 html += `<tr>
                     <td><strong>${escaparHtml(u.primeiroNome)}</strong> <small style="color:var(--cor-texto-suave);">(${escaparHtml(u.nomeCompleto)})</small></td>
@@ -1572,7 +1595,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 3. Métricas
+    // 3. Métricas Gerais
     const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas");
     if (respostaMetricas.sucesso) {
         const elementoFaturamento = document.getElementById('metric-faturamento');
@@ -1583,7 +1606,7 @@ async function carregarPainelCentralAdm() {
         const divTabela = document.getElementById('tabela-metricas-produtos');
         if (divTabela) {
             if (!respostaMetricas.itensDetalhados || respostaMetricas.itensDetalhados.length === 0) {
-                divTabela.innerHTML = '<div class="loading-slot">Sem vendas registadas ainda.</div>';
+                divTabela.innerHTML = '<div class="loading-slot">Sem vendas registradas ainda.</div>';
             } else {
                 let html = '<table class="tabela-metricas"><thead><tr><th>Produto</th><th>Qtd</th></tr></thead><tbody>';
                 respostaMetricas.itensDetalhados.forEach(item => {
@@ -1595,7 +1618,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 4. Bloqueados
+    // 4. Contas Bloqueadas
     const respostaBloqueados = await executarRequisicaoAPI("listar_bloqueados_adm");
     const divBloqueados = document.getElementById('adm-bloqueados-lista');
     if (divBloqueados) {
@@ -1680,15 +1703,22 @@ async function aprovarSolicitacoesSelecionadasLote() {
 async function gerarRelatorioPdfVendas() {
     if (estadoSessao.papel !== 'adm') return;
 
-    mostrarLoader("Gerando relatório analítico do dia...");
-    const hoje = new Date();
-    const dataRef = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+    mostrarLoader("Gerando relatório diário de vendas...");
 
-    const res = await executarRequisicaoAPI("obter_relatorio_diario_adm", { dataRef });
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoje.getDate()).padStart(2, '0');
+    const dataRef = `${ano}-${mes}-${dia}`;
+
+    const resposta = await executarRequisicaoAPI("obter_relatorio_diario_adm", { dataRef });
     esconderLoader();
 
-    if (!res.sucesso) return exibirToast("Erro ao carregar dados do relatório.", "error");
-    imprimirRelatorioAnaliticoIframe(res);
+    if (!resposta.sucesso) {
+        return exibirToast(resposta.mensagem || "Não foi possível carregar os dados do relatório.", "error");
+    }
+
+    imprimirRelatorioAnaliticoIframe(resposta);
 }
 /* ─── FIM: gerarRelatorioPdfVendas ───────────────────────────── */
 
@@ -1763,7 +1793,7 @@ function imprimirRelatorioAnaliticoIframe(relatorio) {
         <body>
             <div class="cabecalho">
                 <div>
-                    <div class="titulo-empresa">Loja — Fechamento Diário</div>
+                    <div class="titulo-empresa">LojaSegura — Fechamento Diário</div>
                     <div class="subtitulo">Relatório Detalhado de Vendas e Saída de Itens</div>
                 </div>
                 <div class="meta-emissao">
@@ -1820,7 +1850,7 @@ function imprimirRelatorioAnaliticoIframe(relatorio) {
             </table>
 
             <div class="rodape">
-                <span>Relatório gerado para conferência administrativa.</span>
+                <span>Relatório analítico gerado para conferência administrativa.</span>
                 <span>Documento confidencial — Uso interno</span>
             </div>
         </body>
@@ -1894,7 +1924,7 @@ function atualizarBadgePendentesAdm(quantidade) {
 }
 /* ─── FIM: atualizarBadgePendentesAdm ─────────────────────────── */
 
-/* ─── INÍCIO: consultarPendentesAdm ──────────────────────────── */
+/* ─── INÍCIO: consultarPendentesAdm ──────────────────── */
 async function consultarPendentesAdm() {
     if (estadoSessao.papel !== 'adm') return;
     try {
@@ -1903,7 +1933,7 @@ async function consultarPendentesAdm() {
         atualizarBadgePendentesAdm(total);
     } catch (e) {}
 }
-/* ─── FIM: consultarPendentesAdm ─────────────────────────────── */
+/* ─── FIM: consultarPendentesAdm ─────────────────────── */
 
 /* ─── INÍCIO: ligarAutoRefreshAdm ────────────────────────────── */
 function ligarAutoRefreshAdm() {
@@ -2180,6 +2210,9 @@ async function tratarCadastroProduto(evento) {
         exibirToast("Produto adicionado ao catálogo!", "success");
         document.getElementById('form-novo-produto').reset();
         removerFotoCarregada();
+        CacheLoja.limpar('produtos_adm');
+        CacheLoja.limpar('produtos_membro');
+        CacheLoja.limpar('produtos_visitante');
         await sincronizarProdutosServidor();
     } else {
         exibirToast(resposta.mensagem || "Erro ao salvar produto.", "error");
@@ -2196,12 +2229,13 @@ async function tratarSolicitacaoCadastro(evento) {
     if (evento && evento.preventDefault) evento.preventDefault();
 
     const nome      = document.getElementById('cad-nome').value.trim();
-    const telefone  = document.getElementById('cad-telefone').value.replace(/\D/g, '');
+    const telefone  = extrairApenasDigitos(document.getElementById('cad-telefone').value);
     const senha     = document.getElementById('cad-senha').value;
     const senhaConf = document.getElementById('cad-senha-conf').value;
     const twitter   = document.getElementById('cad-twitter').value.trim();
     const telegram  = document.getElementById('cad-telegram').value.trim();
 
+    if (telefone.length < 10) return exibirToast("Informe seu WhatsApp completo com DDD (ex: 74998048300).", "error");
     if (senha !== senhaConf) return exibirToast("As senhas digitadas não coincidem.", "error");
     if (senha.length < 6)    return exibirToast("A senha deve conter no mínimo 6 caracteres.", "error");
 
@@ -2299,6 +2333,10 @@ async function executarLogout() {
 
     executarLimpezaTotalESaida();
     esconderLoader();
+
+    // Redirecionamento forçado para resetar completamente o estado da página
+    const urlLimpa = window.location.origin + window.location.pathname;
+    window.location.replace(urlLimpa);
 }
 /* ─── FIM: executarLogout ─────────────────────────────────────── */
 
@@ -2666,6 +2704,7 @@ function fecharModal(idModal) {
 
 let _callbackConfirmacao = null;
 
+/* ─── CORREÇÃO CRÍTICA DO CALLBACK DE CONFIRMAÇÃO ──────────── */
 function abrirConfirmacao(titulo, mensagemTextoOuHtml, callbackAcao) {
     const elementoTitulo = document.getElementById('confirmar-titulo');
     const elementoMensagem = document.getElementById('confirmar-mensagem');
@@ -2684,8 +2723,9 @@ function abrirConfirmacao(titulo, mensagemTextoOuHtml, callbackAcao) {
     const btnOk = document.getElementById('confirmar-btn-ok');
     if (btnOk) {
         btnOk.onclick = () => {
+            const cb = _callbackConfirmacao; // Salva a referência antes de limpar
             fecharConfirmacao();
-            if (typeof _callbackConfirmacao === 'function') _callbackConfirmacao();
+            if (typeof cb === 'function') cb();
         };
     }
 
@@ -2707,8 +2747,9 @@ function abrirConfirmacaoElemento(titulo, elementoDom, callbackAcao) {
     const btnOk = document.getElementById('confirmar-btn-ok');
     if (btnOk) {
         btnOk.onclick = () => {
+            const cb = _callbackConfirmacao; // Salva a referência antes de limpar
             fecharConfirmacao();
-            if (typeof _callbackConfirmacao === 'function') _callbackConfirmacao();
+            if (typeof cb === 'function') cb();
         };
     }
 
