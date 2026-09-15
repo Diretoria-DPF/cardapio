@@ -735,13 +735,13 @@ function renderizarVitrine() {
             const btnComprar = document.createElement('button');
             btnComprar.type = 'button';
             btnComprar.className = 'btn btn-comprar-agora btn-block btn-sm';
-            btnComprar.textContent = '⚡ Comprar Agora';
+            btnComprar.textContent = '💰  Comprar Agora';
             btnComprar.onclick = () => comprarProdutoDireto(p.id);
 
             const btnCesta = document.createElement('button');
             btnCesta.type = 'button';
             btnCesta.className = 'btn btn-primary btn-block btn-sm';
-            btnCesta.textContent = '+ Cesta';
+            btnCesta.textContent = '🛒 Cesta';
             btnCesta.onclick = (e) => adicionarAoCarrinho(p, e.currentTarget);
 
             grupoAcoes.append(btnComprar, btnCesta);
@@ -1026,7 +1026,7 @@ async function excluirProdutoAdm(idProduto) {
 
 const BASE_CONHECIMENTO = {
     visitante: {
-        saudacao: "Olá! Sou o assistente da LojaSegura. Como posso te orientar hoje?",
+        saudacao: "Olá! Sou o assistente da Loja. Como posso te orientar hoje?",
         duvidas: [
             {
                 pergunta: "Como consigo um link de acesso?",
@@ -1034,16 +1034,16 @@ const BASE_CONHECIMENTO = {
             },
             {
                 pergunta: "Como solicitar meu cadastro?",
-                resposta: "Basta clicar em 'Solicitar Cadastro' na tela de bloqueio e preencher seu nome, telefone WhatsApp e senha. O administrador fará a liberação em instantes."
+                resposta: "Basta clicar em 'Solicitar Cadastro' na tela de bloqueio e preencher seu nome, telefone WhatsApp e senha. A liberação acontecerá em breve."
             },
             {
-                pergunta: "A plataforma é segura?",
-                resposta: "Sim. Todas as transações usam criptografia SHA-256 de ponta a ponta, com auto-expiração de links para proteção absoluta de dados."
+                pergunta: "Como posso falar sobre a plataforma?",
+                resposta: "Realize o cadastro e aguarde a liberação"
             }
         ]
     },
     membro: {
-        saudacao: "Olá, membro! Em que posso ajudar com seus pedidos ou pagamentos?",
+        saudacao: "Olá! Em que posso ajudar com seus pedidos?",
         duvidas: [
             {
                 pergunta: "Como pagar via PIX?",
@@ -1229,9 +1229,11 @@ async function carregarMeusPedidos() {
 /* ─── INÍCIO: compartilharPedidoWhatsApp ─────────────────────── */
 async function compartilharPedidoWhatsApp(idPedido) {
     const pedido = (estadoSessao.pedidosRecentes || []).find(p => String(p.id) === String(idPedido));
+    
+    // Mensagem atrativa e detalhada para o pedido
     const texto = pedido
-        ? `Olá! Segue meu Pedido #${pedido.id} no valor de ${fmtPreco(pedido.total)} via ${pedido.metodo} (Status: ${pedido.status.toUpperCase()}).`
-        : `Olá! Segue meu comprovante de Pedido #${idPedido} gerado na plataforma.`;
+        ? `Olá! Gostaria de validar os detalhes do meu Pedido #${pedido.id} no valor de ${fmtPreco(pedido.total)} via ${pedido.metodo} (Status: ${pedido.status.toUpperCase()}). Aguardo orientações!`
+        : `Olá! Vim pela Loja e gostaria de falar sobre o Pedido #${idPedido}.`;
 
     if (navigator.share) {
         try {
@@ -1243,7 +1245,8 @@ async function compartilharPedidoWhatsApp(idPedido) {
         } catch (e) {}
     }
 
-    const urlWa = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+    const numeroLoja = "5574998048300"; // Código do país (55) + DDD (74) + Número
+    const urlWa = `https://wa.me/${numeroLoja}?text=${encodeURIComponent(texto)}`;
     window.open(urlWa, '_blank');
 }
 /* ─── FIM: compartilharPedidoWhatsApp ───────────────────────── */
@@ -1760,7 +1763,7 @@ function imprimirRelatorioAnaliticoIframe(relatorio) {
         <body>
             <div class="cabecalho">
                 <div>
-                    <div class="titulo-empresa">LojaSegura — Fechamento Diário</div>
+                    <div class="titulo-empresa">Loja — Fechamento Diário</div>
                     <div class="subtitulo">Relatório Detalhado de Vendas e Saída de Itens</div>
                 </div>
                 <div class="meta-emissao">
@@ -1817,7 +1820,7 @@ function imprimirRelatorioAnaliticoIframe(relatorio) {
             </table>
 
             <div class="rodape">
-                <span>Relatório analítico gerado para conferência administrativa.</span>
+                <span>Relatório gerado para conferência administrativa.</span>
                 <span>Documento confidencial — Uso interno</span>
             </div>
         </body>
