@@ -2283,6 +2283,29 @@ function atualizarInterfaceSessao() {
     atualizarBarraFlutuanteSacola();
 }
 /* ─── FIM: atualizarInterfaceSessao ───────────────────────────── */
+let instanciaMandala = null;
+
+function gerenciarMandalaNaSessao() {
+    const container = document.getElementById('mandala-container');
+    const telaBloqueio = document.getElementById('view-bloqueado');
+
+    // Se a tela de bloqueio estiver ativa e o usuário for visitante
+    if (telaBloqueio && !telaBloqueio.classList.contains('hidden') && container) {
+        if (!instanciaMandala && typeof THREE !== 'undefined') {
+            instanciaMandala = new MandalaScene(container, MANDALA_DEFAULTS);
+            instanciaMandala.setSize(container.clientWidth, container.clientHeight);
+
+            window.addEventListener('resize', () => {
+                if (instanciaMandala && container) {
+                    instanciaMandala.setSize(container.clientWidth, container.clientHeight);
+                }
+            });
+        }
+        instanciaMandala?.start();
+    } else {
+        // Pausa a renderização WebGL quando o usuário faz login ou entra via link
+        instanciaMandala?.stop();
+    }
 
 /* ─── INÍCIO: navegarPara ────────────────────────────────────── */
 function navegarPara(nomeAba) {
