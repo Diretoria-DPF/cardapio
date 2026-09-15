@@ -1627,40 +1627,5 @@ input:focus, select:focus, textarea:focus {
         border: 1px solid #000 !important;
         color: #000 !important;
     }
-
-   /* ─── MANDALA WEBGL NA TELA DE BLOQUEIO ──────────────────────── */
-#view-bloqueado {
-    position: relative;
-    min-height: calc(100vh - var(--altura-header));
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
-
-#mandala-container {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 0;
-    pointer-events: auto; /* Permite interagir com mouse/toque */
-}
-
-/* Deixa o card translúcido com desfoque de fundo (Glassmorphism) */
-#view-bloqueado .hero-screen {
-    position: relative;
-    z-index: 1;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    background: rgba(255, 255, 255, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-}
-
-[data-theme="dark"] #view-bloqueado .hero-screen {
-    background: rgba(17, 24, 39, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-   
-}
-/* ─── FIM: 26. ESTILOS DE IMPRESSÃO / PDF (@media print) ─────── */
+/* ─── FIM: 25. ESTILOS DE IMPRESSÃO / PDF (@media print) ─────── */
