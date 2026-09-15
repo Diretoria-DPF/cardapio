@@ -87,7 +87,7 @@
      ═══════════════════════════════════════════════════════════ -->
 <main class="app-main" id="app-main">
 
-    <!-- ─── INÍCIO: TELA DE BLOQUEIO (SEM LINK E SEM CONTA ATIVA) ─── -->
+    <!-- ─── INÍCIO: TELA DE BLOQUEIO ─── -->
     <section id="view-bloqueado" class="view-panel hidden">
         <div class="hero-screen">
             <div class="hero-screen__icon" aria-hidden="true">
@@ -104,6 +104,16 @@
                 você precisa de um <strong>link autorizado</strong> emitido pela administração ou de uma conta aprovada.
             </p>
             <div class="hero-screen__actions">
+                <!-- Atalho direto configurável via WhatsApp -->
+                <a href="https://wa.me/+numero?text=Ol%C3%A1!%20Gostaria%20de%20solicitar%20um%20link%20de%20acesso%20%C3%A0%20vitrine."
+                   target="_blank" rel="noopener noreferrer"
+                   class="btn btn-whatsapp btn-block" id="btn-solicitar-whatsapp">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24m4.52 11.66c-.19.53-1.09 1.04-1.52 1.1-.4.06-.9.08-1.46-.1-.36-.12-.83-.27-1.43-.53-2.53-1.1-4.18-3.66-4.31-3.83-.13-.17-1.03-1.37-1.03-2.62 0-1.25.65-1.86.88-2.11.23-.25.5-.31.67-.31.17 0 .34 0 .49.01.15.01.36-.06.56.43.21.5.71 1.73.77 1.86.06.13.1.28.02.45-.09.16-.13.26-.26.41-.13.15-.27.33-.38.45-.13.13-.26.27-.11.53.15.25.67 1.1 1.44 1.79.99.88 1.83 1.15 2.09 1.28.26.13.41.11.57-.07.15-.17.65-.76.83-1.02.17-.26.35-.21.59-.13.23.09 1.49.7 1.75.83.26.13.43.19.49.3.06.11.06.64-.13 1.17z"/>
+                    </svg>
+                    <span>Solicitar Acesso via WhatsApp</span>
+                </a>
+
                 <button type="button" class="btn btn-primary btn-block"
                         data-action="abrir-modal" data-modal="modal-cadastro">
                     Solicitar Cadastro
@@ -139,6 +149,19 @@
                    placeholder="Buscar produto..."
                    data-action="filtro-vitrine"
                    aria-label="Filtrar produtos por nome">
+        </div>
+
+        <!-- Pílulas deslizantes de categorias (Chips) -->
+        <div class="chips-container" id="vitrine-chips" role="tablist" aria-label="Categorias">
+            <button type="button" class="chip active" data-action="filtrar-categoria" data-categoria="todos" role="tab" aria-selected="true">
+                Todos
+            </button>
+            <button type="button" class="chip" data-action="filtrar-categoria" data-categoria="mais-vendidos" role="tab" aria-selected="false">
+                Mais Vendidos
+            </button>
+            <button type="button" class="chip" data-action="filtrar-categoria" data-categoria="destaque" role="tab" aria-selected="false">
+                Em Destaque
+            </button>
         </div>
 
         <div id="produtos-container" class="cards-grid"></div>
@@ -198,7 +221,7 @@
     <section id="view-meus-pedidos" class="view-panel">
         <header class="screen-header">
             <h2>Meus Pedidos</h2>
-            <p class="screen-header__desc">Acompanhe o status das suas compras.</p>
+            <p class="screen-header__desc">Acompanhe o status e a linha de entrega das suas compras.</p>
         </header>
         <div id="meus-pedidos-container"></div>
     </section>
@@ -216,7 +239,7 @@
             <form id="form-novo-produto" data-action="cadastrar-produto">
                 <div class="form-group">
                     <label for="adm-prod-nome">Nome do produto</label>
-                    <input type="text" id="adm-prod-nome" required placeholder="Ex: Camiseta Premium">
+                    <input type="text" id="adm-prod-nome" required placeholder="Ex: Refeição">
                 </div>
 
                 <div class="form-group">
@@ -299,7 +322,7 @@
         <!-- Emissão de Link temporário -->
         <div class="card">
             <h3 class="card__title">Emitir Link de Acesso</h3>
-            <p class="card__desc">Gere um link temporário para liberar acesso temporário.</p>
+            <p class="card__desc">Gere um link temporário para liberar acesso.</p>
 
             <div class="row-inline">
                 <select id="select-duracao-link" data-action="mudar-duracao-link" aria-label="Duração">
@@ -478,12 +501,13 @@
 
 
 <!-- ═══════════════════════════════════════════════════════════
-     INÍCIO: MODAIS DO SISTEMA
+     INÍCIO: MODAIS DO SISTEMA (BOTTOM SHEETS)
      ═══════════════════════════════════════════════════════════ -->
 
 <!-- ─── INÍCIO: MODAL DE LOGIN ─── -->
 <div id="modal-login" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
+        <div class="sheet-handle" aria-hidden="true"></div>
         <button type="button" class="btn-close"
                 data-action="fechar-modal" data-modal="modal-login"
                 aria-label="Fechar">&times;</button>
@@ -519,6 +543,7 @@
 <!-- ─── INÍCIO: MODAL DE CADASTRO ─── -->
 <div id="modal-cadastro" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
+        <div class="sheet-handle" aria-hidden="true"></div>
         <button type="button" class="btn-close"
                 data-action="fechar-modal" data-modal="modal-cadastro"
                 aria-label="Fechar">&times;</button>
@@ -570,6 +595,7 @@
 <!-- ─── INÍCIO: MODAL DE CHAT TEMPORÁRIO ─── -->
 <div id="modal-chat" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
+        <div class="sheet-handle" aria-hidden="true"></div>
         <button type="button" class="btn-close"
                 data-action="fechar-modal" data-modal="modal-chat"
                 aria-label="Fechar">&times;</button>
@@ -591,6 +617,7 @@
 <!-- ─── INÍCIO: MODAL DE CENTRAL DE DÚVIDAS E FAQ ─── -->
 <div id="modal-duvidas-central" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
+        <div class="sheet-handle" aria-hidden="true"></div>
         <button type="button" class="btn-close"
                 data-action="fechar-modal" data-modal="modal-duvidas-central"
                 aria-label="Fechar">&times;</button>
@@ -636,6 +663,7 @@
 <!-- ─── INÍCIO: MODAL DE CONFIRMAÇÃO ─── -->
 <div id="modal-confirmar" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog modal-sm">
+        <div class="sheet-handle" aria-hidden="true"></div>
         <div class="modal-body">
             <h3 id="confirmar-titulo">Confirmar</h3>
             <div id="confirmar-mensagem">Tem certeza?</div>
@@ -653,7 +681,7 @@
 <!-- ─── FIM: MODAL DE CONFIRMAÇÃO ─── -->
 
 <!-- ═══════════════════════════════════════════════════════════
-     FIM: MODAIS DO SISTEMA
+     FIM: MODAIS DO SISTEMA (BOTTOM SHEETS)
      ═══════════════════════════════════════════════════════════ -->
 
 
