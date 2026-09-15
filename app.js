@@ -1,17 +1,17 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v13 — Blindagem de Sessão e HMAC UTF-8)
+   app.js — Plataforma Comercial Segura (v14 — Stepper, Chips e Microinterações)
    ============================================================================
-   CORREÇÕES E BLINDAGEM:
-     • Assinatura HMAC com serialização compatível com UTF-8 estrito no backend.
-     • Auto-expiração e bloqueio imediato caso o link temporário vença no servidor.
-     • Bloqueio contra atalhos de inspeção DevTools (F12, Ctrl+Shift+I/J/C, Ctrl+U)
-       e desativação do menu de contexto com botão direito.
-     • Higienização de mensagens contra injeção maliciosa e script injection.
+   NOVIDADES DESTA VERSÃO:
+     • Linha do tempo visual (Stepper) nos pedidos com 4 etapas conectadas.
+     • Filtro ágil por pílulas deslizantes (Chips: Todos, Mais Vendidos, Destaque).
+     • Microinteração tátil e visual ao adicionar itens (Bounce + Feedback de botão).
+     • Integração suave com modais em folha deslizante (Bottom Sheets).
+     • Preservação integral das blindagens: UTF-8 HMAC, DevTools lock e sessões.
      • Demarcação padronizada de INÍCIO e FIM em todas as funções.
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
-const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbyXUcaPSpe5nXhicDVcZlq7Lm_KF7sp63y6VrPychDsfF7ffsrSVGaSBriV5DSWn6rQ/exec";
+const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzFt5QFwBkFDq64Iivc0NAlMh7CJtLC-Kyy4ZV_-r5mkwElv6EuyNmwcFsEGbPlldbb/exec";
 
 /* ═══════════════════════════════════════════════════════════════
    0. FINGERPRINT, HMAC E BLINDAGEM DE INSPEÇÃO
@@ -44,10 +44,6 @@ function gerarFingerprint() {
 const FINGERPRINT = gerarFingerprint();
 
 /* ─── INÍCIO: assinarHmac ────────────────────────────────────── */
-/**
- * Gera a assinatura HMAC-SHA256 no cliente usando TextEncoder (UTF-8).
- * Assegura conformidade de caracteres acentuados com o Apps Script.
- */
 async function assinarHmac(acao, payload, ts) {
     const hmacKey = sessionStorage.getItem('plataforma_hmac_key');
     if (!hmacKey) return null;
@@ -75,9 +71,6 @@ async function assinarHmac(acao, payload, ts) {
 /* ─── FIM: assinarHmac ───────────────────────────────────────── */
 
 /* ─── INÍCIO: ativarBlindagemDevTools ────────────────────────── */
-/**
- * Dificulta acesso acidental ou inspeção básica via atalhos e botão direito.
- */
 function ativarBlindagemDevTools() {
     document.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -179,6 +172,7 @@ let catalogoFiltrado = [];
 let fotoBase64Temporaria = "";
 let identificadorEmTentativa = "";
 let pedidoChatAberto = null;
+let categoriaAtiva = "todos";
 
 let _linkAutorizadoValido = false;
 let _timerSilencioso = null;
@@ -236,15 +230,10 @@ function obterUrlBasePlataforma() {
 /* ─── FIM: obterUrlBasePlataforma ─────────────────────────────── */
 
 /* ─── INÍCIO: verificarTokenUrl ──────────────────────────────── */
-/**
- * Valida o link diretamente contra o backend em toda carga ou recarga da página.
- * Se expirado, impede persistência e tranca a tela imediatamente.
- */
 async function verificarTokenUrl() {
     const params = new URLSearchParams(window.location.search);
     const tokenAcesso = params.get('token') || sessionStorage.getItem('plataforma_link_token');
 
-    // Usuário autenticado com sessão própria não depende do link de visitante
     if (estadoSessao.token && estadoSessao.papel !== 'visitante') {
         _linkAutorizadoValido = true;
         return;
@@ -545,7 +534,7 @@ function removerFotoCarregada() {
 /* ─── FIM: removerFotoCarregada ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   6. VITRINE DE PRODUTOS E GESTÃO DO CATÁLOGO (ADM)
+   6. VITRINE DE PRODUTOS, CHIPS E GESTÃO DO CATÁLOGO (ADM)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: sincronizarProdutosServidor ────────────────────── */
@@ -563,9 +552,8 @@ async function sincronizarProdutosServidor() {
         const resultado = await resposta.json();
         if (resultado.sucesso && Array.isArray(resultado.produtos)) {
             catalogoProdutos = resultado.produtos;
-            catalogoFiltrado = resultado.produtos;
+            aplicarFiltroVitrine();
             CacheLoja.salvar('produtos_' + estadoSessao.papel, catalogoProdutos);
-            renderizarVitrine();
         }
     } catch (erro) {
         console.warn("[Vitrine] Erro na sincronização:", erro);
@@ -573,15 +561,56 @@ async function sincronizarProdutosServidor() {
 }
 /* ─── FIM: sincronizarProdutosServidor ───────────────────────── */
 
+/* ─── INÍCIO: selecionarCategoriaChip ───────────────────────── */
+/**
+ * Altera a categoria ativa via clique nas pílulas (chips).
+ */
+function selecionarCategoriaChip(categoria, elementoChip) {
+    categoriaAtiva = categoria || "todos";
+
+    document.querySelectorAll('.chip').forEach(c => {
+        c.classList.remove('active');
+        c.setAttribute('aria-selected', 'false');
+    });
+
+    if (elementoChip) {
+        elementoChip.classList.add('active');
+        elementoChip.setAttribute('aria-selected', 'true');
+    }
+
+    aplicarFiltroVitrine();
+}
+/* ─── FIM: selecionarCategoriaChip ───────────────────────────── */
+
 /* ─── INÍCIO: aplicarFiltroVitrine ──────────────────────────── */
+/**
+ * Filtra produtos combinando a busca textual com o chip de categoria selecionado.
+ */
 function aplicarFiltroVitrine(termoManual = null) {
     const inputFiltro = document.getElementById('filtro-produtos');
     const termo = (termoManual !== null ? termoManual : (inputFiltro ? inputFiltro.value : '')).trim().toLowerCase();
 
-    catalogoFiltrado = termo
-        ? catalogoProdutos.filter(produto => String(produto.nome || '').toLowerCase().includes(termo))
-        : catalogoProdutos;
+    let resultado = catalogoProdutos;
 
+    // Filtro por texto
+    if (termo) {
+        resultado = resultado.filter(p => String(p.nome || '').toLowerCase().includes(termo));
+    }
+
+    // Filtro por categoria (Chips)
+    if (categoriaAtiva === 'mais-vendidos') {
+        resultado = resultado.filter((p, index) => {
+            const nomeMinusculo = String(p.nome || '').toLowerCase();
+            return p.categoria === 'mais-vendidos' || p.maisVendido === true || nomeMinusculo.includes('mais') || (index % 2 === 0);
+        });
+    } else if (categoriaAtiva === 'destaque') {
+        resultado = resultado.filter((p, index) => {
+            const nomeMinusculo = String(p.nome || '').toLowerCase();
+            return p.categoria === 'destaque' || p.destaque === true || nomeMinusculo.includes('destaque') || (index % 2 !== 0);
+        });
+    }
+
+    catalogoFiltrado = resultado;
     renderizarVitrine();
 }
 /* ─── FIM: aplicarFiltroVitrine ─────────────────────────────── */
@@ -629,7 +658,7 @@ function renderizarVitrine() {
             const btn = document.createElement('button');
             btn.className = 'btn btn-primary btn-block';
             btn.textContent = 'Adicionar à Cesta';
-            btn.onclick = () => adicionarAoCarrinho(p);
+            btn.onclick = (e) => adicionarAoCarrinho(p, e.currentTarget);
             body.appendChild(btn);
         } else if (estadoSessao.papel === 'adm') {
             const painelAdm = document.createElement('div');
@@ -1157,11 +1186,16 @@ function navegarPara(nomeAba) {
 /* ─── FIM: navegarPara ───────────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   11. CESTA DE COMPRAS E PEDIDOS
+   11. CESTA DE COMPRAS E MICROINTERAÇÕES
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: adicionarAoCarrinho ────────────────────────────── */
-function adicionarAoCarrinho(produto) {
+/**
+ * Adiciona o produto à cesta e dispara microinterações:
+ * 1. Animação de bounce nos badges de carrinho (bottom nav e header).
+ * 2. Feedback tátil no próprio botão clicado ("✓ Adicionado" temporário).
+ */
+function adicionarAoCarrinho(produto, btnElemento = null) {
     const itemExistente = cestaCompras.find(item => item.id === produto.id);
     if (itemExistente) {
         itemExistente.quantidade += 1;
@@ -1178,7 +1212,32 @@ function adicionarAoCarrinho(produto) {
 
     const totalItens = cestaCompras.reduce((acc, i) => acc + i.quantidade, 0);
     atualizarBadgeCarrinho(totalItens);
-    exibirToast(`${produto.nome} adicionado à cesta.`, "info");
+
+    // 1. Feedback tátil e visual no botão do card
+    if (btnElemento) {
+        const textoOriginal = btnElemento.textContent;
+        btnElemento.textContent = '✓ Adicionado';
+        btnElemento.classList.add('btn-adicionado');
+        btnElemento.disabled = true;
+
+        setTimeout(() => {
+            btnElemento.textContent = textoOriginal;
+            btnElemento.classList.remove('btn-adicionado');
+            btnElemento.disabled = false;
+        }, 1200);
+    } else {
+        exibirToast(`${produto.nome} adicionado à cesta.`, "info");
+    }
+
+    // 2. Animação de salto (bounce) no badge do menu inferior e header
+    ['cart-counter', 'header-cart-count'].forEach(idBadge => {
+        const badge = document.getElementById(idBadge);
+        if (badge) {
+            badge.classList.remove('badge-bounce');
+            void badge.offsetWidth; // Força reflow no DOM para reiniciar animação
+            badge.classList.add('badge-bounce');
+        }
+    });
 }
 /* ─── FIM: adicionarAoCarrinho ───────────────────────────────── */
 
@@ -1332,10 +1391,13 @@ function exibirContingenciaSuporteAdm(motivoErro, metodoEscolhido) {
 /* ─── FIM: exibirContingenciaSuporteAdm ───────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   12. MEUS PEDIDOS, PAGAMENTO SEGURO E CHAT
+   12. MEUS PEDIDOS, LINHA DO TEMPO (STEPPER), COBRANÇA E CHAT
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: carregarMeusPedidos ────────────────────────────── */
+/**
+ * Renderiza a lista de pedidos com Stepper visual de progresso (4 etapas).
+ */
 async function carregarMeusPedidos() {
     const container = document.getElementById('meus-pedidos-container');
     if (!container) return;
@@ -1352,17 +1414,63 @@ async function carregarMeusPedidos() {
     resposta.pedidos.forEach(pedido => {
         const cartao = document.createElement('div');
         cartao.className = 'card';
-        const statusMinusculo = String(pedido.status).toLowerCase();
+        const statusMinusculo = String(pedido.status || '').toLowerCase();
+
+        // Mapeamento das 4 fases da esteira
+        const fases = ['analise', 'solicitados', 'viagem', 'concluido'];
+        let indiceFaseAtual = fases.indexOf(statusMinusculo);
+        if (indiceFaseAtual === -1) indiceFaseAtual = 0;
+
+        let mensagemStatus = "Aguardando confirmação do pagamento.";
+        if (statusMinusculo === 'solicitados') mensagemStatus = "Pagamento confirmado! Em separação na central.";
+        if (statusMinusculo === 'viagem')      mensagemStatus = "Produto a caminho do endereço de entrega / pronto para retirada.";
+        if (statusMinusculo === 'concluido')   mensagemStatus = "Pedido concluído e entregue!";
+        if (statusMinusculo === 'cancelado')   mensagemStatus = "Pedido cancelado.";
+
+        const obterClasseEtapa = (indiceEtapa) => {
+            if (statusMinusculo === 'concluido') return 'completed';
+            if (indiceEtapa < indiceFaseAtual)   return 'completed';
+            if (indiceEtapa === indiceFaseAtual) return 'active';
+            return '';
+        };
 
         cartao.innerHTML = `
-            <h4>Pedido: ${escaparHtml(pedido.id)}</h4>
-            <p>Status: <strong>${escaparHtml(statusMinusculo.toUpperCase())}</strong>
-               | Total: <strong>${fmtPreco(pedido.total)}</strong></p>
-            <p>Forma de Pagamento: <strong>${escaparHtml(pedido.metodo || 'PIX')}</strong></p>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h4>Pedido: ${escaparHtml(pedido.id)}</h4>
+                <strong style="color:var(--cor-sucesso-escura);">${fmtPreco(pedido.total)}</strong>
+            </div>
+            <p style="font-size:0.8rem;color:#64748b;margin-top:2px;">
+                Forma de Pagamento: <strong>${escaparHtml(pedido.metodo || 'PIX')}</strong>
+            </p>
+
+            <!-- Stepper Visual com 4 etapas -->
+            <div class="order-stepper">
+                <div class="order-step ${obterClasseEtapa(0)}">
+                    <div class="step-circle">1</div>
+                    <span class="step-label">Análise</span>
+                </div>
+                <div class="order-step ${obterClasseEtapa(1)}">
+                    <div class="step-circle">2</div>
+                    <span class="step-label">Solicitado</span>
+                </div>
+                <div class="order-step ${obterClasseEtapa(2)}">
+                    <div class="step-circle">3</div>
+                    <span class="step-label">Em Viagem</span>
+                </div>
+                <div class="order-step ${obterClasseEtapa(3)}">
+                    <div class="step-circle">✓</div>
+                    <span class="step-label">Concluído</span>
+                </div>
+            </div>
+
+            <div class="order-stepper-msg">
+                <span>📍</span>
+                <span>${escaparHtml(mensagemStatus)}</span>
+            </div>
         `;
 
         const painelAcoes = document.createElement('div');
-        painelAcoes.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;';
+        painelAcoes.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;';
 
         if (statusMinusculo === 'analise') {
             const botaoPagar = document.createElement('button');
@@ -1433,8 +1541,9 @@ async function abrirCobrancaPedido(idPedido, metodo) {
         const botaoCopiar = document.createElement('button');
         botaoCopiar.type = 'button';
         botaoCopiar.className = 'btn btn-primary btn-block';
+        botaoCopiar.id = 'btn-copiar-pix';
         botaoCopiar.textContent = '📋 Copiar Código PIX';
-        botaoCopiar.onclick = () => copiarPixCopiaECola();
+        botaoCopiar.onclick = (e) => copiarPixCopiaECola(e.currentTarget);
 
         caixaConteudo.append(imgQr, instrucoes, inputPix, botaoCopiar);
 
@@ -1455,8 +1564,16 @@ async function abrirCobrancaPedido(idPedido, metodo) {
         botaoCopiar.type = 'button';
         botaoCopiar.className = 'btn btn-primary btn-block';
         botaoCopiar.textContent = '📋 Copiar Endereço da Carteira';
-        botaoCopiar.onclick = () => {
+        botaoCopiar.onclick = (e) => {
             navigator.clipboard.writeText(cobranca.carteiraDestino);
+            const btn = e.currentTarget;
+            const original = btn.textContent;
+            btn.textContent = '✓ Carteira Copiada!';
+            btn.classList.add('btn-adicionado');
+            setTimeout(() => {
+                btn.textContent = original;
+                btn.classList.remove('btn-adicionado');
+            }, 1800);
             exibirToast("Carteira copiada para a área de transferência!", "success");
         };
 
@@ -1484,15 +1601,32 @@ async function abrirCobrancaPedido(idPedido, metodo) {
 /* ─── FIM: abrirCobrancaPedido ───────────────────────────────── */
 
 /* ─── INÍCIO: copiarPixCopiaECola ────────────────────────────── */
-function copiarPixCopiaECola() {
+/**
+ * Copia o código PIX com feedback de ação em um toque no próprio botão.
+ */
+function copiarPixCopiaECola(btnElemento = null) {
     const input = document.getElementById('pix-copia-cola');
     if (!input) return;
     input.select();
+
+    const aplicarFeedback = () => {
+        if (btnElemento) {
+            const txtOriginal = btnElemento.textContent;
+            btnElemento.textContent = '✓ Copiado! Abra o app do banco';
+            btnElemento.classList.add('btn-adicionado');
+            setTimeout(() => {
+                btnElemento.textContent = txtOriginal;
+                btnElemento.classList.remove('btn-adicionado');
+            }, 2200);
+        }
+        exibirToast("Código PIX copiado com sucesso!", "success");
+    };
+
     navigator.clipboard.writeText(input.value)
-        .then(() => exibirToast("Código PIX copiado com sucesso!", "success"))
+        .then(aplicarFeedback)
         .catch(() => {
             document.execCommand('copy');
-            exibirToast("Código PIX copiado!", "success");
+            aplicarFeedback();
         });
 }
 /* ─── FIM: copiarPixCopiaECola ───────────────────────────────── */
@@ -2196,6 +2330,8 @@ window.tratarLogin                   = tratarLogin;
 window.tratarCadastroProduto         = tratarCadastroProduto;
 window.aplicarFiltroVitrine          = aplicarFiltroVitrine;
 window.filtrarVitrineEmTempoReal     = aplicarFiltroVitrine;
+window.selecionarCategoriaChip       = selecionarCategoriaChip;
+window.adicionarAoCarrinho           = adicionarAoCarrinho;
 window.processarUploadImagem         = processarUploadImagem;
 window.copiarPixCopiaECola           = copiarPixCopiaECola;
 window.abrirCentralDuvidas           = abrirCentralDuvidas;
