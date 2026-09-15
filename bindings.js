@@ -1,15 +1,15 @@
 /* ============================================================================
-   bindings.js — Delegação Central de Eventos (v8 — Acessibilidade & Gestão ADM)
+   bindings.js — Delegação Central de Eventos (v9 — Conexão Persistente & Kill Switch)
    ============================================================================
-   NOVIDADES DESTA VERSÃO:
-     • Máscara automática de telefone para formato (00) 00000-0000 em tempo real.
-     • Duplo toque / clique em imagens de produto para abrir visualizador Lightbox.
-     • Alternância dinâmica de tema (Modo Escuro / Claro).
-     • Barra flutuante de sacola e gatilho de compra rápida em 1 toque.
-     • Gestão em lote no ADM: seleção individual e botão "Selecionar Todos".
-     • Disparo de exportação em PDF e compartilhamento de pedido via WhatsApp.
-     • Acionador do Atendente Virtual e pílulas de dúvidas rápidas.
-     • Demarcação de INÍCIO e FIM em cada bloco funcional.
+   RECURSOS INTEGRADOS:
+     • Escuta ativa do Kill Switch do ADM (alterar-modo-acesso: PADRAO / APENAS_ADM).
+     • Formatação automática e progressiva de telefone: (00) 00000-0000.
+     • Duplo toque no celular (<300ms) ou duplo clique para Lightbox de imagens.
+     • Gestão em lote: checkbox mestre "Selecionar Todos" e aprovação coletiva.
+     • Disparo do Relatório Diário de Vendas em formato PDF analítico.
+     • Atendente virtual com pílulas interativas de dúvidas rápidas.
+     • Navegação por abas, modais, esteira de pedidos e chat em tempo real.
+     • Demarcação padronizada de INÍCIO e FIM em cada bloco funcional.
    ============================================================================ */
 
 (function () {
@@ -50,7 +50,7 @@
 
   /* ─── INÍCIO: Listener Global de Clique (click) ─────────────── */
   document.addEventListener('click', function (e) {
-    // 1. Fechamento de Lightbox ao tocar fora da imagem ou no botão fechar
+    // 1. Fechamento de Lightbox ao tocar fora ou no botão fechar
     if (e.target.closest('#lightbox-fechar') || e.target.id === 'modal-lightbox') {
       e.preventDefault();
       chamarComSeguranca('fecharLightbox');
@@ -83,7 +83,13 @@
     }
 
     switch (acao) {
-      /* Tema (Modo Escuro / Claro) */
+      /* Controle Geral de Acesso (Kill Switch ADM) */
+      case 'alterar-modo-acesso':
+        e.preventDefault();
+        chamarComSeguranca('alternarModoAcessoSistema', el.dataset.modo);
+        break;
+
+      /* Alternador de Tema (Modo Escuro / Claro) */
       case 'alternar-tema':
         e.preventDefault();
         chamarComSeguranca('alternarModoEscuro');
@@ -108,7 +114,7 @@
       /* Sessão e Acesso */
       case 'confirmar-logout':
         e.preventDefault();
-        chamarComSeguranca('executarLogout');
+        chamarComSeguranca('confirmarLogout');
         break;
 
       case 'pedir-desbloqueio':
@@ -116,7 +122,7 @@
         chamarComSeguranca('enviarPedidoDesbloqueio');
         break;
 
-      /* Navegação */
+      /* Navegação por Abas */
       case 'navegar':
         e.preventDefault();
         chamarComSeguranca('navegarPara', el.dataset.view);
@@ -144,7 +150,7 @@
         chamarComSeguranca('compartilharPedidoWhatsApp', el.dataset.id);
         break;
 
-      /* Atendente Virtual & Dúvidas */
+      /* Atendente Virtual & Central de Ajuda */
       case 'abrir-assistente':
         e.preventDefault();
         chamarComSeguranca('abrirAssistenteVirtual');
@@ -165,11 +171,7 @@
         el.closest('.faq-item')?.classList.toggle('active');
         break;
 
-      /* Gestão em Lote e Relatórios (ADM) */
-      case 'toggle-selecionar-todos':
-        // Gerenciado pelo listener 'change'
-        break;
-
+      /* Gestão Administrativa, Lote e Relatórios */
       case 'aprovar-lote':
         e.preventDefault();
         chamarComSeguranca('aprovarSolicitacoesSelecionadasLote');
@@ -200,14 +202,10 @@
         chamarComSeguranca('carregarPainelCentralAdm');
         break;
 
-      /* Chat */
+      /* Chat do Pedido */
       case 'enviar-chat':
         e.preventDefault();
-        if (typeof window.enviarMensagemChat === 'function') {
-          chamarComSeguranca('enviarMensagemChat');
-        } else {
-          chamarComSeguranca('tratarEnvioMensagemChat');
-        }
+        chamarComSeguranca('enviarMensagemChat');
         break;
 
       case 'abrir-chat':
@@ -222,7 +220,7 @@
   /* ─── FIM: Listener Global de Clique (click) ────────────────── */
 
   /* ─── INÍCIO: Listener Duplo Toque / Clique (Lightbox) ──────── */
-  // Duplo clique com mouse
+  // Duplo clique com o mouse
   document.addEventListener('dblclick', function (e) {
     const thumb = e.target.closest('.product-thumb');
     if (thumb && thumb.src) {
@@ -231,7 +229,7 @@
     }
   });
 
-  // Duplo toque no mobile (<300ms)
+  // Duplo toque em dispositivos móveis (<300ms)
   document.addEventListener('touchend', function (e) {
     const thumb = e.target.closest('.product-thumb');
     if (!thumb) return;
@@ -293,16 +291,12 @@
 
   /* ─── INÍCIO: Listener de Entrada de Texto (input) ──────────── */
   document.addEventListener('input', function (e) {
-    // 1. Filtro em tempo real na vitrine com debounce
+    // 1. Filtro instantâneo da vitrine com debounce (150ms)
     if (e.target.matches('[data-action="filtro-vitrine"]')) {
       const termo = e.target.value;
       clearTimeout(temporizadorBusca);
       temporizadorBusca = setTimeout(function () {
-        if (typeof window.aplicarFiltroVitrine === 'function') {
-          chamarComSeguranca('aplicarFiltroVitrine', termo);
-        } else if (typeof window.filtrarVitrineEmTempoReal === 'function') {
-          chamarComSeguranca('filtrarVitrineEmTempoReal', termo);
-        }
+        chamarComSeguranca('aplicarFiltroVitrine', termo);
       }, 150);
       return;
     }
@@ -322,7 +316,7 @@
       return;
     }
 
-    // Duração do link temporário
+    // Seleção de duração do link temporário
     if (e.target.matches('[data-action="mudar-duracao-link"]')) {
       const inputPersonalizado = document.getElementById('input-duracao-personalizada');
       if (inputPersonalizado) {
@@ -336,7 +330,7 @@
       return;
     }
 
-    // Checkbox master "Selecionar Todos" (ADM)
+    // Checkbox mestre "Selecionar Todos" (ADM)
     if (e.target.id === 'chk-selecionar-todos-cadastros') {
       const checked = e.target.checked;
       document.querySelectorAll('.chk-solicitacao-item').forEach(chk => {
@@ -356,7 +350,7 @@
 
   /* ─── INÍCIO: Listener de Teclado (keydown) ─────────────────── */
   document.addEventListener('keydown', function (e) {
-    // ESC fecha Lightbox, modais e menus flutuantes
+    // ESC fecha visualizador Lightbox, modais e caixas de confirmação
     if (e.key === 'Escape' || e.key === 'Esc') {
       chamarComSeguranca('fecharLightbox');
       const modaisAbertos = document.querySelectorAll('.modal-overlay.active, .modal.active');
@@ -365,14 +359,10 @@
       return;
     }
 
-    // Enter no chat envia mensagem (sem Shift)
+    // Enter no input do chat envia a mensagem diretamente (sem Shift)
     if (e.key === 'Enter' && !e.shiftKey && e.target && e.target.id === 'chat-input') {
       e.preventDefault();
-      if (typeof window.enviarMensagemChat === 'function') {
-        chamarComSeguranca('enviarMensagemChat');
-      } else {
-        chamarComSeguranca('tratarEnvioMensagemChat');
-      }
+      chamarComSeguranca('enviarMensagemChat');
     }
   }, false);
   /* ─── FIM: Listener de Teclado (keydown) ─────────────────────── */
