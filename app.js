@@ -1663,10 +1663,182 @@ async function aprovarSolicitacoesSelecionadasLote() {
 }
 /* ─── FIM: aprovarSolicitacoesSelecionadasLote ─────────────────── */
 
-/* ─── INÍCIO: gerarRelatorioPdfVendas ────────────────────────── */
-function gerarRelatorioPdfVendas() {
+async function gerarRelatorioPdfVendas() {
     if (estadoSessao.papel !== 'adm') return;
-    window.print();
+
+    mostrarLoader("Gerando relatório diário de vendas...");
+
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoje.getDate()).padStart(2, '0');
+    const dataRef = `${ano}-${mes}-${dia}`;
+
+    const resposta = await executarRequisicaoAPI("obter_relatorio_diario_adm", { dataRef });
+    esconderLoader();
+
+    if (!resposta.sucesso) {
+        return exibirToast(resposta.mensagem || "Não foi possível carregar os dados do relatório.", "error");
+    }
+
+    imprimirRelatorioAnaliticoIframe(resposta);
+}
+
+/**
+ * Cria um documento isolado e dispara a impressão limpa em folha A4.
+ */
+function imprimirRelatorioAnaliticoIframe(relatorio) {
+    const horaEmissao = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    let linhasItens = '';
+    if (relatorio.itens && relatorio.itens.length > 0) {
+        relatorio.itens.forEach((it, idx) => {
+            linhasItens += `
+                <tr>
+                    <td style="text-align:center;width:40px;">${idx + 1}</td>
+                    <td><strong>${escaparHtml(it.nome)}</strong></td>
+                    <td style="text-align:center;font-weight:bold;">${it.quantidade} un</td>
+                    <td style="text-align:right;">${fmtPreco(it.precoUnitario)}</td>
+                    <td style="text-align:right;font-weight:bold;">${fmtPreco(it.totalVendido)}</td>
+                </tr>
+            `;
+        });
+    } else {
+        linhasItens = `<tr><td colspan="5" style="text-align:center;padding:16px;color:#666;">Nenhum produto vendido nesta data.</td></tr>`;
+    }
+
+    let linhasPedidos = '';
+    if (relatorio.pedidos && relatorio.pedidos.length > 0) {
+        relatorio.pedidos.forEach(ped => {
+            linhasPedidos += `
+                <tr>
+                    <td><strong>#${escaparHtml(ped.id)}</strong></td>
+                    <td style="text-align:center;">${escaparHtml(ped.hora)}</td>
+                    <td style="text-align:center;">${escaparHtml(ped.metodo)}</td>
+                    <td style="text-align:center;"><span class="tag-status">${escaparHtml(ped.status)}</span></td>
+                    <td style="text-align:right;font-weight:bold;">${fmtPreco(ped.total)}</td>
+                </tr>
+            `;
+        });
+    } else {
+        linhasPedidos = `<tr><td colspan="5" style="text-align:center;padding:16px;color:#666;">Nenhum pedido registrado nesta data.</td></tr>`;
+    }
+
+    const htmlRelatorio = `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <title>Relatorio_Vendas_${relatorio.data.replace(/\//g, '-')}</title>
+            <style>
+                @page { size: A4; margin: 15mm; }
+                * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+                body { margin: 0; padding: 0; color: #0f172a; font-size: 12px; }
+                .cabecalho { border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-end; }
+                .titulo-empresa { font-size: 18px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.5px; }
+                .subtitulo { font-size: 12px; color: #475569; margin-top: 2px; }
+                .meta-emissao { text-align: right; font-size: 11px; color: #475569; }
+                
+                .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+                .kpi-card { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #f8fafc; }
+                .kpi-rotulo { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+                .kpi-valor { font-size: 18px; font-weight: 800; margin-top: 4px; color: #0f172a; }
+                .kpi-valor.destaque { color: #16a34a; }
+
+                .secao-titulo { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 11px; }
+                th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: 700; color: #334155; }
+                td { border: 1px solid #e2e8f0; padding: 6px 8px; }
+                .tag-status { display: inline-block; padding: 2px 6px; font-size: 9px; font-weight: 700; border-radius: 4px; background: #e2e8f0; }
+
+                .rodape { margin-top: 28px; border-top: 1px dashed #cbd5e1; padding-top: 10px; display: flex; justify-content: space-between; font-size: 10px; color: #64748b; }
+            </style>
+        </head>
+        <body>
+            <div class="cabecalho">
+                <div>
+                    <div class="titulo-empresa">LojaSegura — Fechamento Diário</div>
+                    <div class="subtitulo">Relatório Detalhado de Vendas e Saída de Itens</div>
+                </div>
+                <div class="meta-emissao">
+                    <strong>Data:</strong> ${relatorio.data}<br>
+                    <strong>Emitido às:</strong> ${horaEmissao}
+                </div>
+            </div>
+
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-rotulo">Faturamento Total do Dia</div>
+                    <div class="kpi-valor destaque">${fmtPreco(relatorio.faturamento)}</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-rotulo">Pedidos Concluídos / Ativos</div>
+                    <div class="kpi-valor">${relatorio.totalPedidos}</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-rotulo">Ticket Médio do Dia</div>
+                    <div class="kpi-valor">${fmtPreco(relatorio.ticketMedio)}</div>
+                </div>
+            </div>
+
+            <div class="secao-titulo">1. Balanço de Produtos Vendidos (Saída de Estoque)</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="text-align:center;">#</th>
+                        <th>Produto</th>
+                        <th style="text-align:center;">Qtd Vendida</th>
+                        <th style="text-align:right;">Preço Unitário</th>
+                        <th style="text-align:right;">Total Faturado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${linhasItens}
+                </tbody>
+            </table>
+
+            <div class="secao-titulo">2. Relação Individual de Pedidos do Dia</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cód. Pedido</th>
+                        <th style="text-align:center;">Horário</th>
+                        <th style="text-align:center;">Pagamento</th>
+                        <th style="text-align:center;">Status</th>
+                        <th style="text-align:right;">Valor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${linhasPedidos}
+                </tbody>
+            </table>
+
+            <div class="rodape">
+                <span>Relatório analítico gerado para conferência administrativa.</span>
+                <span>Documento confidencial — Uso interno</span>
+            </div>
+        </body>
+        </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(htmlRelatorio);
+    iframe.contentDocument.close();
+
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => iframe.remove(), 2000);
+    }, 400);
 }
 /* ─── FIM: gerarRelatorioPdfVendas ───────────────────────────── */
 
