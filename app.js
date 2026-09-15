@@ -1,20 +1,25 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v14 — Stepper, Chips e Microinterações)
+   app.js — Plataforma Comercial Segura (v15 — UX, Áudio Nativo, Lote & Acessibilidade)
    ============================================================================
    NOVIDADES DESTA VERSÃO:
-     • Linha do tempo visual (Stepper) nos pedidos com 4 etapas conectadas.
-     • Filtro ágil por pílulas deslizantes (Chips: Todos, Mais Vendidos, Destaque).
-     • Microinteração tátil e visual ao adicionar itens (Bounce + Feedback de botão).
-     • Integração suave com modais em folha deslizante (Bottom Sheets).
-     • Preservação integral das blindagens: UTF-8 HMAC, DevTools lock e sessões.
+     • Web Audio API nativa: avisos sonoros para novas mensagens e novos pedidos.
+     • Alternância dinâmica de Modo Escuro (Dark Mode) com persistência em cache.
+     • Barra flutuante de sacola (estilo iFood) com atualização dinâmica de total.
+     • Ação rápida "Comprar Agora" (1 Toque) direto para a esteira de pagamento.
+     • Visualizador Lightbox de fotos em tela cheia com duplo toque ou duplo clique.
+     • Aprovação em lote com seleção múltipla e contagem de itens para o ADM.
+     • Exportação de relatório em PDF otimizado para impressão nativa.
+     • Compartilhamento de resumo de pedidos via Web Share API e WhatsApp.
+     • Atendente virtual com base de conhecimento segmentada por perfil.
+     • Preservação de todas as blindagens de segurança, HMAC UTF-8 e DevTools.
      • Demarcação padronizada de INÍCIO e FIM em todas as funções.
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
-const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzFt5QFwBkFDq64Iivc0NAlMh7CJtLC-Kyy4ZV_-r5mkwElv6EuyNmwcFsEGbPlldbb/exec";
+const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbyXUcaPSpe5nXhicDVcZlq7Lm_KF7sp63y6VrPychDsfF7ffsrSVGaSBriV5DSWn6rQ/exec";
 
 /* ═══════════════════════════════════════════════════════════════
-   0. FINGERPRINT, HMAC E BLINDAGEM DE INSPEÇÃO
+   0. FINGERPRINT, HMAC, DEVTOOLS E ÁUDIO NATIVO
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: gerarFingerprint ───────────────────────────────── */
@@ -89,15 +94,96 @@ function ativarBlindagemDevTools() {
 }
 /* ─── FIM: ativarBlindagemDevTools ──────────────────────────── */
 
+/* ─── INÍCIO: tocarSomNotificacao ───────────────────────────── */
+/**
+ * Emite bipes harmônicos via Web Audio API sem dependências externas.
+ */
+function tocarSomNotificacao(tipo = 'mensagem') {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+
+        if (tipo === 'pedido') {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+            osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.12); // A5
+            gain.gain.setValueAtTime(0.18, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.35);
+        } else {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(784.00, ctx.currentTime); // G5
+            gain.gain.setValueAtTime(0.14, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.22);
+        }
+    } catch (e) {
+        // Bloqueio automático de autoplay pelo navegador contornado após primeiro clique
+    }
+}
+/* ─── FIM: tocarSomNotificacao ───────────────────────────────── */
+
 /* ═══════════════════════════════════════════════════════════════
-   1. FUNÇÕES AUXILIARES (HELPERS)
+   1. MODO ESCURO (DARK MODE)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: alternarModoEscuro ─────────────────────────────── */
+function alternarModoEscuro() {
+    const escuroAtivo = document.documentElement.getAttribute('data-theme') === 'dark';
+    const novoTema = escuroAtivo ? 'light' : 'dark';
+    aplicarTema(novoTema);
+    try { localStorage.setItem('plataforma_tema', novoTema); } catch(e) {}
+}
+/* ─── FIM: alternarModoEscuro ─────────────────────────────────── */
+
+/* ─── INÍCIO: aplicarTema ────────────────────────────────────── */
+function aplicarTema(tema) {
+    const iconDark = document.getElementById('theme-icon-dark');
+    const iconLight = document.getElementById('theme-icon-light');
+
+    if (tema === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        if (iconDark) iconDark.classList.add('hidden');
+        if (iconLight) iconLight.classList.remove('hidden');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        if (iconDark) iconDark.classList.remove('hidden');
+        if (iconLight) iconLight.classList.add('hidden');
+    }
+}
+/* ─── FIM: aplicarTema ───────────────────────────────────────── */
+
+/* ─── INÍCIO: inicializarTema ────────────────────────────────── */
+function inicializarTema() {
+    const temaSalvo = localStorage.getItem('plataforma_tema') || 'light';
+    aplicarTema(temaSalvo);
+}
+/* ─── FIM: inicializarTema ───────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   2. FUNÇÕES AUXILIARES (HELPERS)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: escaparHtml ────────────────────────────────────── */
 function escaparHtml(valor) {
-    return String(valor ?? '').replace(/[&<>"']/g, caractere => ({
+    return String(valor ?? '').replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[caractere]));
+    }[c]));
 }
 /* ─── FIM: escaparHtml ───────────────────────────────────────── */
 
@@ -134,14 +220,14 @@ function botaoCarregando(idBotao, carregando = true) {
 /* ─── FIM: botaoCarregando ───────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   2. CACHE LOCAL
+   3. CACHE LOCAL E ESTADO GLOBAL
    ═══════════════════════════════════════════════════════════════ */
 const CacheLoja = {
     salvar(chave, dados) {
         try {
             localStorage.setItem('cache_' + chave, JSON.stringify({ dados, hora: Date.now() }));
         } catch (erro) {
-            console.warn("[Cache] Limite de armazenamento local excedido:", erro);
+            console.warn("[Cache] Limite excedido:", erro);
         }
     },
     obter(chave) {
@@ -157,13 +243,11 @@ const CacheLoja = {
     }
 };
 
-/* ═══════════════════════════════════════════════════════════════
-   3. ESTADO GLOBAL DA APLICAÇÃO
-   ═══════════════════════════════════════════════════════════════ */
 const estadoSessao = {
     papel: 'visitante',
     token: null,
-    nomeUsuario: 'Visitante'
+    nomeUsuario: 'Visitante',
+    pedidosRecentes: []
 };
 
 let cestaCompras = [];
@@ -173,6 +257,8 @@ let fotoBase64Temporaria = "";
 let identificadorEmTentativa = "";
 let pedidoChatAberto = null;
 let categoriaAtiva = "todos";
+let totalMensagensChatAnterior = 0;
+let totalPedidosAnaliseAnterior = 0;
 
 let _linkAutorizadoValido = false;
 let _timerSilencioso = null;
@@ -187,9 +273,11 @@ let _timerChat = null;
 /* ─── INÍCIO: DOMContentLoaded ───────────────────────────────── */
 document.addEventListener('DOMContentLoaded', async () => {
     ativarBlindagemDevTools();
+    inicializarTema();
     restaurarSessaoLocal();
     await verificarTokenUrl();
     atualizarInterfaceSessao();
+    assegurarElementosAuxiliares();
 
     if (_linkAutorizadoValido || estadoSessao.papel !== 'visitante') {
         const produtosEmCache = CacheLoja.obter('produtos_' + estadoSessao.papel);
@@ -223,6 +311,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 /* ─── FIM: DOMContentLoaded ─────────────────────────────────── */
 
+/* ─── INÍCIO: assegurarElementosAuxiliares ────────────────────── */
+/**
+ * Garante a presença do botão flutuante de ajuda e do container de Lightbox no DOM.
+ */
+function assegurarElementosAuxiliares() {
+    if (!document.getElementById('btn-flutuante-ajuda')) {
+        const fab = document.createElement('button');
+        fab.type = 'button';
+        fab.id = 'btn-flutuante-ajuda';
+        fab.className = 'floating-help-btn';
+        fab.setAttribute('data-action', 'abrir-assistente');
+        fab.setAttribute('aria-label', 'Atendente Virtual e Ajuda');
+        fab.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>Ajuda</span>
+        `;
+        document.body.appendChild(fab);
+    }
+
+    if (!document.getElementById('modal-lightbox')) {
+        const lb = document.createElement('div');
+        lb.id = 'modal-lightbox';
+        lb.className = 'lightbox-modal';
+        lb.innerHTML = `
+            <button type="button" class="lightbox-modal__close" id="lightbox-fechar" aria-label="Fechar">&times;</button>
+            <img class="lightbox-modal__img" id="lightbox-img" src="" alt="Imagem ampliada">
+        `;
+        document.body.appendChild(lb);
+    }
+}
+/* ─── FIM: assegurarElementosAuxiliares ──────────────────────── */
+
 /* ─── INÍCIO: obterUrlBasePlataforma ─────────────────────────── */
 function obterUrlBasePlataforma() {
     return window.location.href.split('?')[0];
@@ -244,7 +367,7 @@ async function verificarTokenUrl() {
         return;
     }
 
-    mostrarLoader('Validando autorização de acesso...');
+    mostrarLoader('Validando link temporário...');
     try {
         const url = `${URL_BACKEND_APPS_SCRIPT}?acao=validar_link&tokenAcesso=${encodeURIComponent(tokenAcesso)}`;
         const resp = await fetchComTimeout(url, 15000);
@@ -259,7 +382,7 @@ async function verificarTokenUrl() {
         } else {
             _linkAutorizadoValido = false;
             sessionStorage.removeItem('plataforma_link_token');
-            exibirToast(res.mensagem || "O período do link de acesso terminou.", "error");
+            exibirToast(res.mensagem || "O link temporário terminou.", "error");
             executarLimpezaTotalESaida(true);
         }
     } catch (e) {
@@ -304,6 +427,7 @@ function executarLimpezaTotalESaida(silencioso = false) {
     desligarAutoRefreshAdm();
 
     const fp = localStorage.getItem('plataforma_fingerprint');
+    const tema = localStorage.getItem('plataforma_tema');
 
     try {
         localStorage.clear();
@@ -311,6 +435,7 @@ function executarLimpezaTotalESaida(silencioso = false) {
     } catch (e) {}
 
     if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {} }
+    if (tema) { try { localStorage.setItem('plataforma_tema', tema); } catch(e) {} }
 
     document.cookie.split(";").forEach(c => {
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
@@ -321,6 +446,8 @@ function executarLimpezaTotalESaida(silencioso = false) {
     estadoSessao.nomeUsuario = 'Visitante';
     cestaCompras             = [];
     _linkAutorizadoValido    = false;
+
+    atualizarBarraFlutuanteSacola();
 
     const urlLimpa = window.location.origin + window.location.pathname;
     window.history.replaceState({}, document.title, urlLimpa);
@@ -415,7 +542,7 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         return json;
 
     } catch (erroRede) {
-        console.error("[API] Falha de comunicação:", erroRede);
+        console.error("[API] Falha de rede:", erroRede);
         const semInternet = !navigator.onLine;
         exibirToast(
             semInternet ? "Sem conexão à internet." : "Falha na comunicação com o servidor.",
@@ -455,86 +582,30 @@ async function tentarRenovarSessao(refreshToken) {
 /* ─── FIM: tentarRenovarSessao ───────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   5. UPLOAD DE FOTOS E GIFS
+   5. LIGHTBOX (ZOOM DE FOTOS EM TELA CHEIA)
    ═══════════════════════════════════════════════════════════════ */
 
-/* ─── INÍCIO: processarUploadImagem ─────────────────────────── */
-function processarUploadImagem(evento) {
-    const ficheiro = evento.target.files[0];
-    if (!ficheiro) return;
+/* ─── INÍCIO: abrirLightboxFoto ──────────────────────────────── */
+function abrirLightboxFoto(src, alt) {
+    const modal = document.getElementById('modal-lightbox');
+    const img = document.getElementById('lightbox-img');
+    if (!modal || !img) return;
 
-    if (ficheiro.type === "image/gif") {
-        if (ficheiro.size > 200 * 1024) {
-            exibirToast("O GIF é muito pesado. Escolha um ficheiro de até 200KB.", "error");
-            evento.target.value = "";
-            return;
-        }
-        const leitor = new FileReader();
-        leitor.onload = e => {
-            fotoBase64Temporaria = e.target.result;
-            exibirPreviewImagem(fotoBase64Temporaria);
-        };
-        leitor.readAsDataURL(ficheiro);
-        return;
-    }
-
-    const leitor = new FileReader();
-    leitor.onload = e => {
-        const imagem = new Image();
-        imagem.onload = () => {
-            const canvas = document.createElement('canvas');
-            const LIMITE_MAX = 350;
-            let { width: largura, height: altura } = imagem;
-
-            if (largura > altura && largura > LIMITE_MAX) {
-                altura *= LIMITE_MAX / largura;
-                largura = LIMITE_MAX;
-            } else if (altura >= largura && altura > LIMITE_MAX) {
-                largura *= LIMITE_MAX / altura;
-                altura = LIMITE_MAX;
-            }
-
-            canvas.width = largura;
-            canvas.height = altura;
-            const contexto = canvas.getContext('2d');
-            contexto.drawImage(imagem, 0, 0, largura, altura);
-
-            fotoBase64Temporaria = canvas.toDataURL('image/jpeg', 0.7);
-            exibirPreviewImagem(fotoBase64Temporaria);
-        };
-        imagem.src = e.target.result;
-    };
-    leitor.readAsDataURL(ficheiro);
+    img.src = src;
+    img.alt = alt || 'Produto ampliado';
+    modal.classList.add('active');
 }
-/* ─── FIM: processarUploadImagem ─────────────────────────────── */
+/* ─── FIM: abrirLightboxFoto ─────────────────────────────────── */
 
-/* ─── INÍCIO: exibirPreviewImagem ───────────────────────────── */
-function exibirPreviewImagem(origemBase64) {
-    const imgPreview = document.getElementById('img-preview');
-    const containerPreview = document.getElementById('preview-container');
-    const inputUrl = document.getElementById('adm-prod-foto-url');
-
-    if (imgPreview) imgPreview.src = origemBase64;
-    if (containerPreview) containerPreview.classList.remove('hidden');
-    if (inputUrl) inputUrl.value = "";
+/* ─── INÍCIO: fecharLightbox ─────────────────────────────────── */
+function fecharLightbox() {
+    const modal = document.getElementById('modal-lightbox');
+    if (modal) modal.classList.remove('active');
 }
-/* ─── FIM: exibirPreviewImagem ───────────────────────────────── */
-
-/* ─── INÍCIO: removerFotoCarregada ──────────────────────────── */
-function removerFotoCarregada() {
-    fotoBase64Temporaria = "";
-    const containerPreview = document.getElementById('preview-container');
-    const inputArquivo = document.getElementById('adm-prod-arquivo');
-    const imgPreview = document.getElementById('img-preview');
-
-    if (containerPreview) containerPreview.classList.add('hidden');
-    if (inputArquivo) inputArquivo.value = "";
-    if (imgPreview) imgPreview.src = "";
-}
-/* ─── FIM: removerFotoCarregada ─────────────────────────────── */
+/* ─── FIM: fecharLightbox ─────────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   6. VITRINE DE PRODUTOS, CHIPS E GESTÃO DO CATÁLOGO (ADM)
+   6. VITRINE, CHIPS, COMPRA RÁPIDA E BARRA FLUTUANTE
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: sincronizarProdutosServidor ────────────────────── */
@@ -562,9 +633,6 @@ async function sincronizarProdutosServidor() {
 /* ─── FIM: sincronizarProdutosServidor ───────────────────────── */
 
 /* ─── INÍCIO: selecionarCategoriaChip ───────────────────────── */
-/**
- * Altera a categoria ativa via clique nas pílulas (chips).
- */
 function selecionarCategoriaChip(categoria, elementoChip) {
     categoriaAtiva = categoria || "todos";
 
@@ -583,21 +651,16 @@ function selecionarCategoriaChip(categoria, elementoChip) {
 /* ─── FIM: selecionarCategoriaChip ───────────────────────────── */
 
 /* ─── INÍCIO: aplicarFiltroVitrine ──────────────────────────── */
-/**
- * Filtra produtos combinando a busca textual com o chip de categoria selecionado.
- */
 function aplicarFiltroVitrine(termoManual = null) {
     const inputFiltro = document.getElementById('filtro-produtos');
     const termo = (termoManual !== null ? termoManual : (inputFiltro ? inputFiltro.value : '')).trim().toLowerCase();
 
     let resultado = catalogoProdutos;
 
-    // Filtro por texto
     if (termo) {
         resultado = resultado.filter(p => String(p.nome || '').toLowerCase().includes(termo));
     }
 
-    // Filtro por categoria (Chips)
     if (categoriaAtiva === 'mais-vendidos') {
         resultado = resultado.filter((p, index) => {
             const nomeMinusculo = String(p.nome || '').toLowerCase();
@@ -640,6 +703,7 @@ function renderizarVitrine() {
         img.src = p.foto || 'https://via.placeholder.com/300x200?text=Sem+Foto';
         img.alt = p.nome || 'Produto';
         img.loading = 'lazy';
+        img.title = 'Toque duas vezes para ampliar a foto';
 
         const body = document.createElement('div');
         body.className = 'product-details';
@@ -655,11 +719,23 @@ function renderizarVitrine() {
         body.append(t, pr);
 
         if (estadoSessao.papel === 'membro' || estadoSessao.papel === 'entregador') {
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-primary btn-block';
-            btn.textContent = 'Adicionar à Cesta';
-            btn.onclick = (e) => adicionarAoCarrinho(p, e.currentTarget);
-            body.appendChild(btn);
+            const grupoAcoes = document.createElement('div');
+            grupoAcoes.className = 'card-actions-group';
+
+            const btnComprar = document.createElement('button');
+            btnComprar.type = 'button';
+            btnComprar.className = 'btn btn-comprar-agora btn-block btn-sm';
+            btnComprar.textContent = '⚡ Comprar Agora';
+            btnComprar.onclick = () => comprarProdutoDireto(p.id);
+
+            const btnCesta = document.createElement('button');
+            btnCesta.type = 'button';
+            btnCesta.className = 'btn btn-primary btn-block btn-sm';
+            btnCesta.textContent = '+ Cesta';
+            btnCesta.onclick = (e) => adicionarAoCarrinho(p, e.currentTarget);
+
+            grupoAcoes.append(btnComprar, btnCesta);
+            body.appendChild(grupoAcoes);
         } else if (estadoSessao.papel === 'adm') {
             const painelAdm = document.createElement('div');
             painelAdm.className = 'adm-visib-controls';
@@ -699,502 +775,28 @@ function renderizarVitrine() {
 }
 /* ─── FIM: renderizarVitrine ─────────────────────────────────── */
 
-/* ─── INÍCIO: alterarVisibilidadeProdutoAdm ──────────────────── */
-async function alterarVisibilidadeProdutoAdm(idProduto, novaVisib) {
-    mostrarLoader("Alterando visibilidade...");
-    const res = await executarRequisicaoAPI("alterar_visibilidade_produto", {
-        idProduto: idProduto,
-        novaVisibilidade: novaVisib
-    });
-    esconderLoader();
+/* ─── INÍCIO: comprarProdutoDireto ───────────────────────────── */
+/**
+ * Botão "Comprar Agora": isola o produto na cesta e vai direto para a tela de finalização.
+ */
+function comprarProdutoDireto(idProduto) {
+    const prod = catalogoProdutos.find(p => String(p.id) === String(idProduto));
+    if (!prod) return;
 
-    if (res.sucesso) {
-        exibirToast(res.mensagem || "Visibilidade atualizada!", "success");
-        await sincronizarProdutosServidor();
-    } else {
-        exibirToast(res.mensagem || "Erro ao alterar visibilidade.", "error");
-    }
+    cestaCompras = [{
+        id: prod.id,
+        nome: prod.nome,
+        preco: typeof prod.preco === 'number' ? prod.preco : parseFloat(String(prod.preco).replace(',', '.')),
+        quantidade: 1
+    }];
+
+    atualizarBadgeCarrinho(1);
+    atualizarBarraFlutuanteSacola();
+    navegarPara('carrinho');
 }
-/* ─── FIM: alterarVisibilidadeProdutoAdm ──────────────────────── */
-
-/* ─── INÍCIO: confirmarExclusaoProdutoAdm ────────────────────── */
-function confirmarExclusaoProdutoAdm(idProduto, nomeProduto) {
-    abrirConfirmacao(
-        "Excluir Produto",
-        `Deseja realmente excluir permanentemente "${escaparHtml(nomeProduto)}"? Esta ação não poderá ser desfeita.`,
-        () => excluirProdutoAdm(idProduto)
-    );
-}
-/* ─── FIM: confirmarExclusaoProdutoAdm ────────────────────────── */
-
-/* ─── INÍCIO: excluirProdutoAdm ──────────────────────────────── */
-async function excluirProdutoAdm(idProduto) {
-    mostrarLoader("Excluindo produto...");
-    const res = await executarRequisicaoAPI("excluir_produto", { idProduto });
-    esconderLoader();
-
-    if (res.sucesso) {
-        exibirToast(res.mensagem || "Produto excluído com sucesso!", "success");
-        await sincronizarProdutosServidor();
-    } else {
-        exibirToast(res.mensagem || "Não foi possível excluir o produto.", "error");
-    }
-}
-/* ─── FIM: excluirProdutoAdm ─────────────────────────────────── */
-
-/* ═══════════════════════════════════════════════════════════════
-   7. CENTRAL DE DÚVIDAS (FAQ) E SUGESTÕES
-   ═══════════════════════════════════════════════════════════════ */
-
-let listaDuvidasFaq = [
-    {
-        pergunta: "Como funciona a retirada e entrega do produto?",
-        resposta: "Após a confirmação do pagamento, um chat exclusivo é aberto no seu pedido com todas as orientações de retirada ou envio pelo entregador."
-    },
-    {
-        pergunta: "Quais são as formas de pagamento aceitas?",
-        resposta: "Aceitamos PIX com confirmação dinâmica imediata, Cartão de Crédito e Criptomoedas (Bitcoin, Ethereum e Tether USDT)."
-    },
-    {
-        pergunta: "Quanto tempo dura o chat temporário do pedido?",
-        resposta: "O chat temporário permanece ativo enquanto a entrega estiver em andamento. Ao ser concluído pelo Administrador, o canal é finalizado com segurança."
-    }
-];
-
-/* ─── INÍCIO: carregarFaqMemoria ─────────────────────────────── */
-function carregarFaqMemoria() {
-    const salvo = localStorage.getItem('loja_faq_dados');
-    if (salvo) {
-        try { listaDuvidasFaq = JSON.parse(salvo); } catch(e) {}
-    }
-}
-/* ─── FIM: carregarFaqMemoria ─────────────────────────────────── */
-carregarFaqMemoria();
-
-/* ─── INÍCIO: abrirCentralDuvidas ────────────────────────────── */
-function abrirCentralDuvidas() {
-    if (estadoSessao.papel === 'visitante') {
-        exibirToast("A Central de Dúvidas e Sugestões é exclusiva para membros.", "info");
-        abrirModal('modal-login');
-        return;
-    }
-
-    renderizarListaFaq();
-
-    const editorAdm = document.getElementById('adm-editor-faq-area');
-    if (editorAdm) {
-        if (estadoSessao.papel === 'adm') {
-            editorAdm.classList.remove('hidden');
-        } else {
-            editorAdm.classList.add('hidden');
-        }
-    }
-
-    abrirModal('modal-duvidas-central');
-}
-/* ─── FIM: abrirCentralDuvidas ───────────────────────────────── */
-
-/* ─── INÍCIO: renderizarListaFaq ─────────────────────────────── */
-function renderizarListaFaq() {
-    const container = document.getElementById('lista-faq-perguntas');
-    if (!container) return;
-    container.innerHTML = '';
-
-    listaDuvidasFaq.forEach((item, index) => {
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'faq-item';
-
-        const questao = document.createElement('div');
-        questao.className = 'faq-question';
-        questao.setAttribute('data-action', 'toggle-faq');
-        questao.innerHTML = `<span>${escaparHtml(item.pergunta)}</span> <small>▼</small>`;
-
-        const resposta = document.createElement('div');
-        resposta.className = 'faq-answer';
-        resposta.textContent = item.resposta;
-
-        if (estadoSessao.papel === 'adm') {
-            const btnExcluir = document.createElement('button');
-            btnExcluir.className = 'btn btn-danger-outline btn-sm';
-            btnExcluir.style.cssText = 'margin-top:6px;font-size:0.65rem;padding:2px 6px;';
-            btnExcluir.textContent = 'Excluir Dúvida';
-            btnExcluir.onclick = (e) => {
-                e.stopPropagation();
-                listaDuvidasFaq.splice(index, 1);
-                localStorage.setItem('loja_faq_dados', JSON.stringify(listaDuvidasFaq));
-                renderizarListaFaq();
-                exibirToast("Dúvida removida com sucesso.", "info");
-            };
-            resposta.appendChild(btnExcluir);
-        }
-
-        itemDiv.append(questao, resposta);
-        container.appendChild(itemDiv);
-    });
-}
-/* ─── FIM: renderizarListaFaq ─────────────────────────────────── */
-
-/* ─── INÍCIO: tratarEnvioSugestao ────────────────────────────── */
-async function tratarEnvioSugestao(e) {
-    if (e && e.preventDefault) e.preventDefault();
-
-    const campo = document.getElementById('campo-sugestao-texto');
-    const texto = campo ? campo.value.trim() : '';
-    if (!texto) return;
-
-    mostrarLoader("A enviar sugestão...");
-    const res = await executarRequisicaoAPI("enviar_comentario", {
-        nome: `[SUGESTÃO] ${estadoSessao.nomeUsuario}`,
-        mensagem: texto
-    });
-    esconderLoader();
-
-    if (res.sucesso) {
-        exibirToast("Sugestão enviada com sucesso à administração!", "success");
-        if (campo) campo.value = '';
-        fecharModal('modal-duvidas-central');
-    } else {
-        exibirToast(res.mensagem || "Erro ao enviar sugestão.", "error");
-    }
-}
-/* ─── FIM: tratarEnvioSugestao ───────────────────────────────── */
-
-/* ─── INÍCIO: tratarEnvioComentario ──────────────────────────── */
-async function tratarEnvioComentario(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    const nomeInput = document.getElementById('comentario-nome');
-    const msgInput = document.getElementById('comentario-mensagem');
-    const nome = nomeInput ? nomeInput.value.trim() : estadoSessao.nomeUsuario;
-    const mensagem = msgInput ? msgInput.value.trim() : '';
-    if (!mensagem) return;
-
-    mostrarLoader("Enviando mensagem...");
-    const res = await executarRequisicaoAPI("enviar_comentario", { nome, mensagem });
-    esconderLoader();
-
-    if (res.sucesso) {
-        exibirToast("Mensagem enviada com sucesso!", "success");
-        if (msgInput) msgInput.value = '';
-    } else {
-        exibirToast(res.mensagem || "Erro ao enviar mensagem.", "error");
-    }
-}
-/* ─── FIM: tratarEnvioComentario ─────────────────────────────── */
-
-/* ─── INÍCIO: tratarAdicionarFaq ─────────────────────────────── */
-function tratarAdicionarFaq(e) {
-    if (e && e.preventDefault) e.preventDefault();
-
-    const inputP = document.getElementById('faq-nova-pergunta');
-    const inputR = document.getElementById('faq-nova-resposta');
-
-    const pergunta = inputP ? inputP.value.trim() : '';
-    const resposta = inputR ? inputR.value.trim() : '';
-
-    if (!pergunta || !resposta) return;
-
-    listaDuvidasFaq.push({ pergunta, resposta });
-    localStorage.setItem('loja_faq_dados', JSON.stringify(listaDuvidasFaq));
-
-    if (inputP) inputP.value = '';
-    if (inputR) inputR.value = '';
-
-    renderizarListaFaq();
-    exibirToast("Nova dúvida adicionada ao FAQ!", "success");
-}
-/* ─── FIM: tratarAdicionarFaq ─────────────────────────────────── */
-
-/* ═══════════════════════════════════════════════════════════════
-   8. SOLICITAÇÃO DE CADASTRO
-   ═══════════════════════════════════════════════════════════════ */
-
-/* ─── INÍCIO: tratarSolicitacaoCadastro ──────────────────────── */
-async function tratarSolicitacaoCadastro(evento) {
-    if (evento && evento.preventDefault) evento.preventDefault();
-
-    const nome      = document.getElementById('cad-nome').value.trim();
-    const telefone  = document.getElementById('cad-telefone').value.trim();
-    const senha     = document.getElementById('cad-senha').value;
-    const senhaConf = document.getElementById('cad-senha-conf').value;
-    const twitter   = document.getElementById('cad-twitter').value.trim();
-    const telegram  = document.getElementById('cad-telegram').value.trim();
-
-    if (senha !== senhaConf) return exibirToast("As senhas digitadas não coincidem.", "error");
-    if (senha.length < 6)    return exibirToast("A senha deve conter no mínimo 6 caracteres.", "error");
-
-    botaoCarregando('btn-enviar-cadastro', true);
-    exibirToast("A enviar solicitação...", "info");
-
-    const resposta = await executarRequisicaoAPI("solicitar_cadastro", {
-        nome, telefone, senha, twitter, telegram
-    });
-
-    botaoCarregando('btn-enviar-cadastro', false);
-
-    if (resposta.sucesso) {
-        exibirToast(resposta.mensagem || "Solicitação enviada com sucesso!", "success");
-        document.getElementById('form-registro').reset();
-        fecharModal('modal-cadastro');
-    } else {
-        exibirToast(resposta.mensagem || "Erro ao registrar solicitação.", "error");
-    }
-}
-/* ─── FIM: tratarSolicitacaoCadastro ─────────────────────────── */
-
-/* ═══════════════════════════════════════════════════════════════
-   9. AUTENTICAÇÃO E CONTROLE DE SESSÃO
-   ═══════════════════════════════════════════════════════════════ */
-
-/* ─── INÍCIO: tratarLogin ────────────────────────────────────── */
-async function tratarLogin(evento) {
-    if (evento && evento.preventDefault) evento.preventDefault();
-
-    const usuario = document.getElementById('login-usuario').value.trim();
-    const senha   = document.getElementById('login-senha').value;
-    identificadorEmTentativa = usuario;
-
-    botaoCarregando('btn-entrar', true);
-
-    const resposta = await executarRequisicaoAPI("login", { identificador: usuario, senha });
-
-    botaoCarregando('btn-entrar', false);
-
-    if (resposta.sucesso) {
-        estadoSessao.papel       = resposta.papel;
-        estadoSessao.token       = resposta.token;
-        estadoSessao.nomeUsuario = resposta.nome;
-
-        if (resposta.refreshToken) sessionStorage.setItem('plataforma_refresh_token', resposta.refreshToken);
-        if (resposta.hmacKey)      sessionStorage.setItem('plataforma_hmac_key', resposta.hmacKey);
-
-        _linkAutorizadoValido = true;
-
-        localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
-        document.getElementById('form-login').reset();
-        document.getElementById('box-desbloqueio-conta').classList.add('hidden');
-        fecharModal('modal-login');
-        atualizarInterfaceSessao();
-
-        CacheLoja.limpar('produtos_visitante');
-        await sincronizarProdutosServidor();
-        exibirToast(resposta.mensagem || `Bem-vindo(a), ${resposta.nome}!`, "success");
-    } else {
-        exibirToast(resposta.mensagem || "Credenciais inválidas.", "error");
-        if (resposta.requerLiberacaoAdm) {
-            document.getElementById('box-desbloqueio-conta').classList.remove('hidden');
-        }
-    }
-}
-/* ─── FIM: tratarLogin ───────────────────────────────────────── */
-
-/* ─── INÍCIO: enviarPedidoDesbloqueio ────────────────────────── */
-async function enviarPedidoDesbloqueio() {
-    if (!identificadorEmTentativa) return;
-    const resposta = await executarRequisicaoAPI("pedir_desbloqueio", { identificador: identificadorEmTentativa });
-    if (resposta.sucesso) {
-        exibirToast(resposta.mensagem || "Pedido de liberação enviado com sucesso.", "success");
-        const btn = document.getElementById('btn-solicitar-desbloqueio');
-        if (btn) btn.disabled = true;
-    }
-}
-/* ─── FIM: enviarPedidoDesbloqueio ───────────────────────────── */
-
-/* ─── INÍCIO: confirmarLogout ────────────────────────────────── */
-function confirmarLogout() {
-    abrirConfirmacao("Sair da conta", "Deseja realmente encerrar a sessão?", executarLogout);
-}
-/* ─── FIM: confirmarLogout ───────────────────────────────────── */
-
-/* ─── INÍCIO: executarLogout ─────────────────────────────────── */
-async function executarLogout() {
-    const tokenLink = sessionStorage.getItem('plataforma_link_token');
-
-    if (tokenLink) {
-        mostrarLoader("Encerrando sessão e revogando link...");
-        try {
-            await executarRequisicaoAPI("invalidar_link", { tokenAcesso: tokenLink });
-        } catch (erro) {}
-    } else {
-        mostrarLoader("Encerrando sessão...");
-    }
-
-    pararTemporizadorSilencioso();
-    pararAutoRefreshChat();
-    desligarAutoRefreshAdm();
-
-    const fp = localStorage.getItem('plataforma_fingerprint');
-
-    try {
-        localStorage.clear();
-        sessionStorage.clear();
-    } catch (erro) {}
-
-    if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {} }
-
-    try {
-        document.cookie.split(";").forEach(c => {
-            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-        });
-    } catch (erro) {}
-
-    estadoSessao.papel       = 'visitante';
-    estadoSessao.token       = null;
-    estadoSessao.nomeUsuario = 'Visitante';
-    cestaCompras             = [];
-    catalogoProdutos         = [];
-    catalogoFiltrado         = [];
-    _linkAutorizadoValido    = false;
-
-    const urlLimpa = window.location.origin + window.location.pathname;
-    window.history.replaceState({}, document.title, urlLimpa);
-
-    esconderLoader();
-    window.location.replace(urlLimpa);
-}
-/* ─── FIM: executarLogout ─────────────────────────────────────── */
-
-/* ─── INÍCIO: restaurarSessaoLocal ───────────────────────────── */
-function restaurarSessaoLocal() {
-    const dadosSalvos = localStorage.getItem('plataforma_sessao');
-    if (!dadosSalvos) return;
-    try {
-        const sessao = JSON.parse(dadosSalvos);
-        estadoSessao.papel       = sessao.papel || 'visitante';
-        estadoSessao.token       = sessao.token || null;
-        estadoSessao.nomeUsuario = sessao.nomeUsuario || 'Visitante';
-
-        if (estadoSessao.papel !== 'visitante') {
-            _linkAutorizadoValido = true;
-        }
-    } catch {
-        localStorage.removeItem('plataforma_sessao');
-    }
-}
-/* ─── FIM: restaurarSessaoLocal ───────────────────────────────── */
-
-/* ═══════════════════════════════════════════════════════════════
-   10. CONTROLE VISUAL E PERMISSÕES DE TELA
-   ═══════════════════════════════════════════════════════════════ */
-
-/* ─── INÍCIO: atualizarInterfaceSessao ───────────────────────── */
-function atualizarInterfaceSessao() {
-    const anonBox        = document.getElementById('anon-buttons');
-    const authBox        = document.getElementById('auth-buttons');
-    const userLabel      = document.getElementById('user-display-name');
-    const badge          = document.getElementById('role-badge');
-    const navBar         = document.getElementById('app-nav-bar');
-    const headerCartBtn  = document.getElementById('header-cart-btn');
-
-    const viewBloqueado  = document.getElementById('view-bloqueado');
-    const containerDuvidas = document.getElementById('container-duvidas-discreto');
-
-    if (badge) {
-        badge.textContent = estadoSessao.papel.toUpperCase();
-        badge.className   = `badge badge-${estadoSessao.papel}`;
-    }
-    if (userLabel) {
-        userLabel.textContent = estadoSessao.nomeUsuario || 'Olá';
-    }
-    atualizarAvatarUsuario();
-
-    aplicarNavPorPapel(estadoSessao.papel);
-
-    if (containerDuvidas) containerDuvidas.classList.add('hidden');
-
-    if (!_linkAutorizadoValido && estadoSessao.papel === 'visitante') {
-        if (navBar) navBar.classList.add('hidden');
-        document.querySelectorAll('.view-panel').forEach(painel => {
-            painel.classList.add('hidden');
-            painel.classList.remove('active');
-        });
-        if (viewBloqueado) {
-            viewBloqueado.classList.remove('hidden');
-            viewBloqueado.classList.add('active');
-        }
-        if (anonBox) anonBox.classList.remove('hidden');
-        if (authBox) authBox.classList.add('hidden');
-        if (headerCartBtn) headerCartBtn.classList.add('hidden');
-        fecharUserDropdown();
-        return;
-    }
-
-    if (navBar) navBar.classList.remove('hidden');
-    if (viewBloqueado) {
-        viewBloqueado.classList.add('hidden');
-        viewBloqueado.classList.remove('active');
-    }
-
-    if (estadoSessao.papel === 'visitante') {
-        if (anonBox) anonBox.classList.remove('hidden');
-        if (authBox) authBox.classList.add('hidden');
-        if (headerCartBtn) headerCartBtn.classList.add('hidden');
-    } else {
-        if (anonBox) anonBox.classList.add('hidden');
-        if (authBox) authBox.classList.remove('hidden');
-
-        if (headerCartBtn) {
-            if (estadoSessao.papel === 'membro') {
-                headerCartBtn.classList.remove('hidden');
-            } else {
-                headerCartBtn.classList.add('hidden');
-            }
-        }
-    }
-
-    if (['membro', 'entregador', 'adm'].includes(estadoSessao.papel)) {
-        if (containerDuvidas) containerDuvidas.classList.remove('hidden');
-    }
-
-    const algumPainelVisivel = document.querySelector('.view-panel.active:not(.hidden)');
-    if (!algumPainelVisivel) navegarPara('vitrine');
-
-    if (estadoSessao.papel === 'adm') {
-        ligarAutoRefreshAdm();
-    } else {
-        desligarAutoRefreshAdm();
-        atualizarBadgePendentesAdm(0);
-    }
-}
-/* ─── FIM: atualizarInterfaceSessao ───────────────────────────── */
-
-/* ─── INÍCIO: navegarPara ────────────────────────────────────── */
-function navegarPara(nomeAba) {
-    document.querySelectorAll('.bottom-nav__item').forEach(botao => botao.classList.remove('active'));
-    document.querySelectorAll('.nav-tab').forEach(botao => botao.classList.remove('active'));
-    document.querySelectorAll('.view-panel').forEach(painel => painel.classList.remove('active'));
-
-    const botaoAtivo  = document.getElementById(`tab-btn-${nomeAba}`);
-    const painelAtivo = document.getElementById(`view-${nomeAba}`);
-
-    if (botaoAtivo && painelAtivo) {
-        botaoAtivo.classList.add('active');
-        painelAtivo.classList.remove('hidden');
-        painelAtivo.classList.add('active');
-    }
-
-    fecharUserDropdown();
-
-    if (nomeAba === 'vitrine')      sincronizarProdutosServidor();
-    if (nomeAba === 'carrinho')     renderizarCarrinho();
-    if (nomeAba === 'meus-pedidos') carregarMeusPedidos();
-    if (nomeAba === 'pedidos-adm')  carregarPedidosAdm();
-    if (nomeAba === 'adm') {
-        carregarPainelCentralAdm();
-        consultarPendentesAdm();
-    }
-}
-/* ─── FIM: navegarPara ───────────────────────────────────────── */
-
-/* ═══════════════════════════════════════════════════════════════
-   11. CESTA DE COMPRAS E MICROINTERAÇÕES
-   ═══════════════════════════════════════════════════════════════ */
+/* ─── FIM: comprarProdutoDireto ───────────────────────────────── */
 
 /* ─── INÍCIO: adicionarAoCarrinho ────────────────────────────── */
-/**
- * Adiciona o produto à cesta e dispara microinterações:
- * 1. Animação de bounce nos badges de carrinho (bottom nav e header).
- * 2. Feedback tátil no próprio botão clicado ("✓ Adicionado" temporário).
- */
 function adicionarAoCarrinho(produto, btnElemento = null) {
     const itemExistente = cestaCompras.find(item => item.id === produto.id);
     if (itemExistente) {
@@ -1212,11 +814,11 @@ function adicionarAoCarrinho(produto, btnElemento = null) {
 
     const totalItens = cestaCompras.reduce((acc, i) => acc + i.quantidade, 0);
     atualizarBadgeCarrinho(totalItens);
+    atualizarBarraFlutuanteSacola();
 
-    // 1. Feedback tátil e visual no botão do card
     if (btnElemento) {
         const textoOriginal = btnElemento.textContent;
-        btnElemento.textContent = '✓ Adicionado';
+        btnElemento.textContent = '✓ Salvo';
         btnElemento.classList.add('btn-adicionado');
         btnElemento.disabled = true;
 
@@ -1224,22 +826,54 @@ function adicionarAoCarrinho(produto, btnElemento = null) {
             btnElemento.textContent = textoOriginal;
             btnElemento.classList.remove('btn-adicionado');
             btnElemento.disabled = false;
-        }, 1200);
+        }, 1100);
     } else {
         exibirToast(`${produto.nome} adicionado à cesta.`, "info");
     }
 
-    // 2. Animação de salto (bounce) no badge do menu inferior e header
     ['cart-counter', 'header-cart-count'].forEach(idBadge => {
         const badge = document.getElementById(idBadge);
         if (badge) {
             badge.classList.remove('badge-bounce');
-            void badge.offsetWidth; // Força reflow no DOM para reiniciar animação
+            void badge.offsetWidth;
             badge.classList.add('badge-bounce');
         }
     });
 }
 /* ─── FIM: adicionarAoCarrinho ───────────────────────────────── */
+
+/* ─── INÍCIO: atualizarBarraFlutuanteSacola ──────────────────── */
+function atualizarBarraFlutuanteSacola() {
+    let bar = document.getElementById('floating-cart-bar');
+    const totalItens = cestaCompras.reduce((acc, i) => acc + i.quantidade, 0);
+    const totalValor = cestaCompras.reduce((acc, i) => acc + (i.preco * i.quantidade), 0);
+
+    if (totalItens > 0 && estadoSessao.papel === 'membro') {
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'floating-cart-bar';
+            bar.className = 'floating-cart-bar';
+            bar.innerHTML = `
+                <div class="floating-cart-bar__left">
+                    <span class="floating-cart-bar__count" id="float-cart-count">0</span>
+                    <span class="floating-cart-bar__total" id="float-cart-total">R$ 0,00</span>
+                </div>
+                <div class="floating-cart-bar__cta">
+                    Ver Sacola ➔
+                </div>
+            `;
+            document.body.appendChild(bar);
+        }
+        const countEl = document.getElementById('float-cart-count');
+        const totalEl = document.getElementById('float-cart-total');
+        if (countEl) countEl.textContent = `${totalItens} ${totalItens === 1 ? 'item' : 'itens'}`;
+        if (totalEl) totalEl.textContent = fmtPreco(totalValor);
+        bar.classList.remove('hidden');
+    } else if (bar) {
+        bar.classList.add('hidden');
+    }
+}
+/* ─── FIM: atualizarBarraFlutuanteSacola ──────────────────────── */
 
 /* ─── INÍCIO: renderizarCarrinho ─────────────────────────────── */
 function renderizarCarrinho() {
@@ -1256,6 +890,7 @@ function renderizarCarrinho() {
         const totalEl = document.getElementById('carrinho-total-valor');
         if (totalEl) totalEl.textContent = 'R$ 0,00';
         atualizarBadgeCarrinho(0);
+        atualizarBarraFlutuanteSacola();
         return;
     }
 
@@ -1307,6 +942,7 @@ function renderizarCarrinho() {
 
     const totalItens = cestaCompras.reduce((acc, i) => acc + i.quantidade, 0);
     atualizarBadgeCarrinho(totalItens);
+    atualizarBarraFlutuanteSacola();
 }
 /* ─── FIM: renderizarCarrinho ─────────────────────────────────── */
 
@@ -1330,74 +966,173 @@ async function tratarCriacaoPedido() {
     botaoCarregando('btn-confirmar-pedido', false);
 
     if (resposta.sucesso) {
-        exibirToast(`Pedido ${resposta.idPedido} gerado!`, "success");
+        exibirToast(`Pedido ${resposta.idPedido} gerado com sucesso!`, "success");
+        tocarSomNotificacao('pedido');
 
         const metodoEscolhido = metodo;
         cestaCompras = [];
         atualizarBadgeCarrinho(0);
+        atualizarBarraFlutuanteSacola();
 
         navegarPara('meus-pedidos');
         abrirCobrancaPedido(resposta.idPedido, metodoEscolhido);
     } else {
         exibirToast(resposta.mensagem || "Não foi possível gerar o pedido.", "error");
-        exibirContingenciaSuporteAdm(resposta.mensagem, metodo);
     }
 }
 /* ─── FIM: tratarCriacaoPedido ───────────────────────────────── */
 
-/* ─── INÍCIO: exibirContingenciaSuporteAdm ───────────────────── */
-function exibirContingenciaSuporteAdm(motivoErro, metodoEscolhido) {
-    const itensDescricao = cestaCompras.map(item => `${item.nome} (x${item.quantidade})`).join(', ');
-    const totalEstimado = document.getElementById('carrinho-total-valor')?.textContent || "R$ 0,00";
+/* ═══════════════════════════════════════════════════════════════
+   7. GESTÃO DO CATÁLOGO E EXCLUSÕES (ADM)
+   ═══════════════════════════════════════════════════════════════ */
 
-    const corpoMensagem = `
-        <div style="text-align:left;font-size:0.9rem;color:#334155;">
-            <p style="color:#b91c1c;font-weight:600;margin-bottom:8px;">
-                ⚠️ Não foi possível concluir o pedido de forma automática:
-            </p>
-            <p style="background:#fef2f2;padding:8px;border-radius:6px;border:1px solid #fca5a5;font-size:0.8rem;margin-bottom:12px;">
-                ${escaparHtml(motivoErro || "Instabilidade na ligação com o servidor.")}
-            </p>
-            <p style="margin-bottom:6px;">
-                Pode contactar o Administrador agora mesmo para regularizar sua conta ou obter chave de pagamento manual.
-            </p>
-            <p style="font-size:0.8rem;color:#64748b;margin-bottom:12px;">
-                <strong>Itens:</strong> ${escaparHtml(itensDescricao)}<br>
-                <strong>Total:</strong> ${escaparHtml(totalEstimado)} | <strong>Forma:</strong> ${escaparHtml(metodoEscolhido)}
-            </p>
-        </div>
-    `;
+/* ─── INÍCIO: alterarVisibilidadeProdutoAdm ──────────────────── */
+async function alterarVisibilidadeProdutoAdm(idProduto, novaVisib) {
+    mostrarLoader("Alterando visibilidade...");
+    const res = await executarRequisicaoAPI("alterar_visibilidade_produto", {
+        idProduto: idProduto,
+        novaVisibilidade: novaVisib
+    });
+    esconderLoader();
 
-    abrirConfirmacao(
-        "Suporte com o Administrador",
-        corpoMensagem,
-        async () => {
-            mostrarLoader("A contactar o Administrador...");
-            const textoMensagem = `[PEDIDO MANUAL] O utilizador ${estadoSessao.nomeUsuario} tentou pedir [${itensDescricao}] totalizando ${totalEstimado} via ${metodoEscolhido}, com aviso: "${motivoErro}". Por favor, enviar link manual.`;
-
-            await executarRequisicaoAPI("enviar_comentario", {
-                nome: estadoSessao.nomeUsuario,
-                mensagem: textoMensagem
-            });
-
-            esconderLoader();
-            exibirToast("O Administrador foi notificado com sucesso!", "success");
-        }
-    );
-
-    const btnOk = document.getElementById('confirmar-btn-ok');
-    if (btnOk) btnOk.textContent = "Chamar Administrador";
+    if (res.sucesso) {
+        exibirToast(res.mensagem || "Visibilidade atualizada!", "success");
+        await sincronizarProdutosServidor();
+    } else {
+        exibirToast(res.mensagem || "Erro ao alterar visibilidade.", "error");
+    }
 }
-/* ─── FIM: exibirContingenciaSuporteAdm ───────────────────────── */
+/* ─── FIM: alterarVisibilidadeProdutoAdm ──────────────────────── */
+
+/* ─── INÍCIO: confirmarExclusaoProdutoAdm ────────────────────── */
+function confirmarExclusaoProdutoAdm(idProduto, nomeProduto) {
+    abrirConfirmacao(
+        "Excluir Produto",
+        `Deseja realmente excluir permanentemente "${escaparHtml(nomeProduto)}"? Esta ação não poderá ser desfeita.`,
+        () => excluirProdutoAdm(idProduto)
+    );
+}
+/* ─── FIM: confirmarExclusaoProdutoAdm ────────────────────────── */
+
+/* ─── INÍCIO: excluirProdutoAdm ──────────────────────────────── */
+async function excluirProdutoAdm(idProduto) {
+    mostrarLoader("Excluindo produto...");
+    const res = await executarRequisicaoAPI("excluir_produto", { idProduto });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast(res.mensagem || "Produto excluído com sucesso!", "success");
+        await sincronizarProdutosServidor();
+    } else {
+        exibirToast(res.mensagem || "Não foi possível excluir o produto.", "error");
+    }
+}
+/* ─── FIM: excluirProdutoAdm ─────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   12. MEUS PEDIDOS, LINHA DO TEMPO (STEPPER), COBRANÇA E CHAT
+   8. ATENDENTE VIRTUAL & DÚVIDAS
+   ═══════════════════════════════════════════════════════════════ */
+
+const BASE_CONHECIMENTO = {
+    visitante: {
+        saudacao: "Olá! Sou o assistente da LojaSegura. Como posso te orientar hoje?",
+        duvidas: [
+            {
+                pergunta: "Como consigo um link de acesso?",
+                resposta: "Os links de acesso temporário são concedidos exclusivamente pela administração via WhatsApp. Clique no botão de WhatsApp na tela inicial para falar direto com o atendente."
+            },
+            {
+                pergunta: "Como solicitar meu cadastro?",
+                resposta: "Basta clicar em 'Solicitar Cadastro' na tela de bloqueio e preencher seu nome, telefone WhatsApp e senha. O administrador fará a liberação em instantes."
+            },
+            {
+                pergunta: "A plataforma é segura?",
+                resposta: "Sim. Todas as transações usam criptografia HMAC e SHA-256 de ponta a ponta, com auto-expiração de links para proteção absoluta de dados."
+            }
+        ]
+    },
+    membro: {
+        saudacao: "Olá, membro! Em que posso ajudar com seus pedidos ou pagamentos?",
+        duvidas: [
+            {
+                pergunta: "Como pagar via PIX?",
+                resposta: "Na tela do pedido, toque em 'Pagar / Ver Cobrança', copie o código com um toque no botão verde e cole na área 'PIX Copia e Cola' do aplicativo do seu banco."
+            },
+            {
+                pergunta: "Como funciona a entrega?",
+                resposta: "Assim que o pagamento é identificado, nosso atendente entra em contato pelo chat do próprio pedido e o status muda na esteira para 'Em Viagem'."
+            },
+            {
+                pergunta: "Como falar com o atendente humano?",
+                resposta: "Você pode abrir o chat dentro de qualquer pedido ativo ou mandar uma sugestão/mensagem direta na nossa Central de Ajuda."
+            }
+        ]
+    }
+};
+
+/* ─── INÍCIO: abrirAssistenteVirtual ─────────────────────────── */
+function abrirAssistenteVirtual() {
+    const papel = estadoSessao.papel === 'visitante' ? 'visitante' : 'membro';
+    const dados = BASE_CONHECIMENTO[papel];
+
+    const container = document.createElement('div');
+    container.style.cssText = 'text-align:left;padding:4px 0;';
+
+    const saudacao = document.createElement('p');
+    saudacao.style.cssText = 'font-size:0.9rem;color:var(--cor-texto);margin-bottom:12px;font-weight:600;';
+    saudacao.textContent = dados.saudacao;
+
+    const boxPerguntas = document.createElement('div');
+    boxPerguntas.className = 'assistant-quick-box';
+
+    dados.duvidas.forEach(d => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'assistant-quick-chip';
+        chip.textContent = d.pergunta;
+        chip.onclick = () => {
+            exibirRespostaAssistente(d.pergunta, d.resposta);
+        };
+        boxPerguntas.appendChild(chip);
+    });
+
+    const respostaArea = document.createElement('div');
+    respostaArea.id = 'assistant-resposta-area';
+    respostaArea.style.cssText = 'margin-top:12px;font-size:0.85rem;line-height:1.45;color:var(--cor-texto-suave);';
+
+    container.append(saudacao, boxPerguntas, respostaArea);
+
+    abrirConfirmacaoElemento("Atendente Virtual", container, () => {});
+    const btnOk = document.getElementById('confirmar-btn-ok');
+    if (btnOk) btnOk.textContent = "Fechar";
+}
+/* ─── FIM: abrirAssistenteVirtual ─────────────────────────────── */
+
+/* ─── INÍCIO: exibirRespostaAssistente ───────────────────────── */
+function exibirRespostaAssistente(pergunta, resposta) {
+    const area = document.getElementById('assistant-resposta-area');
+    if (!area) return;
+
+    area.innerHTML = `
+        <div style="background:var(--cor-fundo-elevado);padding:10px 12px;border-radius:8px;border:1px solid var(--cor-borda);">
+            <strong style="color:var(--cor-primaria);display:block;margin-bottom:4px;">${escaparHtml(pergunta)}</strong>
+            <span>${escaparHtml(resposta)}</span>
+        </div>
+    `;
+}
+/* ─── FIM: exibirRespostaAssistente ───────────────────────────── */
+
+/* ─── INÍCIO: responderDuvidaRapida ──────────────────────────── */
+function responderDuvidaRapida(chave) {
+    abrirAssistenteVirtual();
+}
+/* ─── FIM: responderDuvidaRapida ─────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   9. MEUS PEDIDOS, COMPARTILHAMENTO & CHAT
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: carregarMeusPedidos ────────────────────────────── */
-/**
- * Renderiza a lista de pedidos com Stepper visual de progresso (4 etapas).
- */
 async function carregarMeusPedidos() {
     const container = document.getElementById('meus-pedidos-container');
     if (!container) return;
@@ -1411,19 +1146,20 @@ async function carregarMeusPedidos() {
         return;
     }
 
+    estadoSessao.pedidosRecentes = resposta.pedidos;
+
     resposta.pedidos.forEach(pedido => {
         const cartao = document.createElement('div');
         cartao.className = 'card';
         const statusMinusculo = String(pedido.status || '').toLowerCase();
 
-        // Mapeamento das 4 fases da esteira
         const fases = ['analise', 'solicitados', 'viagem', 'concluido'];
         let indiceFaseAtual = fases.indexOf(statusMinusculo);
         if (indiceFaseAtual === -1) indiceFaseAtual = 0;
 
         let mensagemStatus = "Aguardando confirmação do pagamento.";
-        if (statusMinusculo === 'solicitados') mensagemStatus = "Pagamento confirmado! Em separação na central.";
-        if (statusMinusculo === 'viagem')      mensagemStatus = "Produto a caminho do endereço de entrega / pronto para retirada.";
+        if (statusMinusculo === 'solicitados') mensagemStatus = "Pagamento aprovado! Em separação no estoque.";
+        if (statusMinusculo === 'viagem')      mensagemStatus = "Produto a caminho do endereço / pronto para entrega.";
         if (statusMinusculo === 'concluido')   mensagemStatus = "Pedido concluído e entregue!";
         if (statusMinusculo === 'cancelado')   mensagemStatus = "Pedido cancelado.";
 
@@ -1439,11 +1175,10 @@ async function carregarMeusPedidos() {
                 <h4>Pedido: ${escaparHtml(pedido.id)}</h4>
                 <strong style="color:var(--cor-sucesso-escura);">${fmtPreco(pedido.total)}</strong>
             </div>
-            <p style="font-size:0.8rem;color:#64748b;margin-top:2px;">
-                Forma de Pagamento: <strong>${escaparHtml(pedido.metodo || 'PIX')}</strong>
+            <p style="font-size:0.8rem;color:var(--cor-texto-suave);margin-top:2px;">
+                Forma: <strong>${escaparHtml(pedido.metodo || 'PIX')}</strong>
             </p>
 
-            <!-- Stepper Visual com 4 etapas -->
             <div class="order-stepper">
                 <div class="order-step ${obterClasseEtapa(0)}">
                     <div class="step-circle">1</div>
@@ -1475,10 +1210,16 @@ async function carregarMeusPedidos() {
         if (statusMinusculo === 'analise') {
             const botaoPagar = document.createElement('button');
             botaoPagar.className = 'btn btn-success btn-sm';
-            botaoPagar.textContent = '💳 Pagar / Ver Cobrança';
+            botaoPagar.textContent = '💳 Pagar / Instruções';
             botaoPagar.onclick = () => abrirCobrancaPedido(pedido.id, pedido.metodo);
             painelAcoes.appendChild(botaoPagar);
         }
+
+        const botaoShare = document.createElement('button');
+        botaoShare.className = 'btn btn-outline-dark btn-sm';
+        botaoShare.textContent = '📲 Enviar no WhatsApp';
+        botaoShare.onclick = () => compartilharPedidoWhatsApp(pedido.id);
+        painelAcoes.appendChild(botaoShare);
 
         if (pedido.chatAtivo) {
             const botaoChat = document.createElement('button');
@@ -1486,11 +1227,6 @@ async function carregarMeusPedidos() {
             botaoChat.textContent = '💬 Abrir Chat';
             botaoChat.onclick = () => abrirChatPedido(pedido.id);
             painelAcoes.appendChild(botaoChat);
-        } else {
-            const avisoChat = document.createElement('small');
-            avisoChat.style.color = '#94a3b8';
-            avisoChat.textContent = 'Chat temporário encerrado.';
-            painelAcoes.appendChild(avisoChat);
         }
 
         cartao.appendChild(painelAcoes);
@@ -1498,6 +1234,28 @@ async function carregarMeusPedidos() {
     });
 }
 /* ─── FIM: carregarMeusPedidos ───────────────────────────────── */
+
+/* ─── INÍCIO: compartilharPedidoWhatsApp ─────────────────────── */
+async function compartilharPedidoWhatsApp(idPedido) {
+    const pedido = (estadoSessao.pedidosRecentes || []).find(p => String(p.id) === String(idPedido));
+    const texto = pedido
+        ? `Olá! Segue meu Pedido #${pedido.id} no valor de ${fmtPreco(pedido.total)} via ${pedido.metodo} (Status: ${pedido.status.toUpperCase()}).`
+        : `Olá! Segue meu comprovante de Pedido #${idPedido} gerado na plataforma.`;
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: `Pedido #${idPedido}`,
+                text: texto
+            });
+            return;
+        } catch (e) {}
+    }
+
+    const urlWa = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+    window.open(urlWa, '_blank');
+}
+/* ─── FIM: compartilharPedidoWhatsApp ───────────────────────── */
 
 /* ─── INÍCIO: abrirCobrancaPedido ────────────────────────────── */
 async function abrirCobrancaPedido(idPedido, metodo) {
@@ -1524,10 +1282,10 @@ async function abrirCobrancaPedido(idPedido, metodo) {
         const imgQr = document.createElement('img');
         imgQr.src = cobranca.qrCodeUrl;
         imgQr.alt = "QR Code PIX";
-        imgQr.style.cssText = 'width:200px;height:200px;margin-bottom:12px;border:1px solid #cbd5e1;border-radius:8px;';
+        imgQr.style.cssText = 'width:190px;height:190px;margin-bottom:12px;border:1px solid var(--cor-borda-forte);border-radius:8px;';
 
         const instrucoes = document.createElement('p');
-        instrucoes.style.cssText = 'font-size:.85rem;color:#475569;margin-bottom:8px;';
+        instrucoes.style.cssText = 'font-size:.85rem;color:var(--cor-texto-suave);margin-bottom:8px;';
         instrucoes.textContent = cobranca.instrucoes;
 
         const inputPix = document.createElement('input');
@@ -1557,13 +1315,13 @@ async function abrirCobrancaPedido(idPedido, metodo) {
         valorTexto.innerHTML = `<strong>Transferir:</strong> ${escaparHtml(cobranca.quantidadeEstimada)} ${escaparHtml(cobranca.moeda)}`;
 
         const carteiraTexto = document.createElement('p');
-        carteiraTexto.style.cssText = 'font-size:.75rem;color:#64748b;word-break:break-all;margin:6px 0;';
+        carteiraTexto.style.cssText = 'font-size:.75rem;color:var(--cor-texto-suave);word-break:break-all;margin:6px 0;';
         carteiraTexto.innerHTML = `<strong>Carteira:</strong><br>${escaparHtml(cobranca.carteiraDestino)}`;
 
         const botaoCopiar = document.createElement('button');
         botaoCopiar.type = 'button';
         botaoCopiar.className = 'btn btn-primary btn-block';
-        botaoCopiar.textContent = '📋 Copiar Endereço da Carteira';
+        botaoCopiar.textContent = '📋 Copiar Carteira';
         botaoCopiar.onclick = (e) => {
             navigator.clipboard.writeText(cobranca.carteiraDestino);
             const btn = e.currentTarget;
@@ -1574,7 +1332,7 @@ async function abrirCobrancaPedido(idPedido, metodo) {
                 btn.textContent = original;
                 btn.classList.remove('btn-adicionado');
             }, 1800);
-            exibirToast("Carteira copiada para a área de transferência!", "success");
+            exibirToast("Carteira copiada com sucesso!", "success");
         };
 
         caixaConteudo.append(imgQr, valorTexto, carteiraTexto, botaoCopiar);
@@ -1601,9 +1359,6 @@ async function abrirCobrancaPedido(idPedido, metodo) {
 /* ─── FIM: abrirCobrancaPedido ───────────────────────────────── */
 
 /* ─── INÍCIO: copiarPixCopiaECola ────────────────────────────── */
-/**
- * Copia o código PIX com feedback de ação em um toque no próprio botão.
- */
 function copiarPixCopiaECola(btnElemento = null) {
     const input = document.getElementById('pix-copia-cola');
     if (!input) return;
@@ -1612,7 +1367,7 @@ function copiarPixCopiaECola(btnElemento = null) {
     const aplicarFeedback = () => {
         if (btnElemento) {
             const txtOriginal = btnElemento.textContent;
-            btnElemento.textContent = '✓ Copiado! Abra o app do banco';
+            btnElemento.textContent = '✓ Copiado! Abra o app do seu banco';
             btnElemento.classList.add('btn-adicionado');
             setTimeout(() => {
                 btnElemento.textContent = txtOriginal;
@@ -1634,6 +1389,7 @@ function copiarPixCopiaECola(btnElemento = null) {
 /* ─── INÍCIO: abrirChatPedido ────────────────────────────────── */
 async function abrirChatPedido(pedidoId) {
     pedidoChatAberto = pedidoId;
+    totalMensagensChatAnterior = 0;
     const elementoTitulo = document.getElementById('chat-pedido-id');
     const caixaMensagens = document.getElementById('chat-mensagens');
 
@@ -1679,6 +1435,15 @@ async function renderizarChat(silencioso = false) {
         if (!silencioso) caixaMensagens.innerHTML = '<div class="loading-slot">Sem mensagens ainda.</div>';
         return;
     }
+
+    const novas = resposta.mensagens.length;
+    if (totalMensagensChatAnterior > 0 && novas > totalMensagensChatAnterior) {
+        const ultima = resposta.mensagens[novas - 1];
+        if (ultima && ultima.autorNome !== estadoSessao.nomeUsuario) {
+            tocarSomNotificacao('mensagem');
+        }
+    }
+    totalMensagensChatAnterior = novas;
 
     const estavaNoFim = (caixaMensagens.scrollHeight - caixaMensagens.scrollTop) <= (caixaMensagens.clientHeight + 50);
     caixaMensagens.innerHTML = '';
@@ -1732,15 +1497,16 @@ async function enviarMensagemChat() {
 /* ─── FIM: enviarMensagemChat ─────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   13. PAINEL CENTRAL ADMINISTRATIVO E MONITORIA
+   10. PAINEL CENTRAL, LOTE E RELATÓRIO PDF (ADM)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: carregarPainelCentralAdm ───────────────────────── */
 async function carregarPainelCentralAdm() {
     if (estadoSessao.papel !== 'adm') return;
 
-    // 1. Cadastros pendentes de aprovação
+    // 1. Cadastros pendentes com checkboxes
     const divSolicitacoes = document.getElementById('adm-solicitacoes-lista');
+    const toolbarLote = document.getElementById('adm-lote-toolbar');
     if (divSolicitacoes) divSolicitacoes.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
 
     const respostaSolic = await executarRequisicaoAPI("listar_solicitacoes_adm");
@@ -1750,32 +1516,44 @@ async function carregarPainelCentralAdm() {
     if (divSolicitacoes) {
         divSolicitacoes.innerHTML = '';
         if (totalPendentes > 0) {
+            if (toolbarLote) toolbarLote.classList.remove('hidden');
+
             respostaSolic.solicitacoes.forEach(solicitacao => {
                 const linha = document.createElement('div');
-                linha.style.cssText = 'padding:10px 0;border-bottom:1px solid #e2e8f0;';
+                linha.style.cssText = 'padding:10px 0;border-bottom:1px solid var(--cor-borda);display:flex;align-items:flex-start;gap:10px;';
 
-                linha.innerHTML = `
+                const chk = document.createElement('input');
+                chk.type = 'checkbox';
+                chk.className = 'chk-solicitacao-item';
+                chk.value = solicitacao.id;
+                chk.style.cssText = 'width:auto;margin-top:4px;';
+
+                const info = document.createElement('div');
+                info.style.flex = '1';
+                info.innerHTML = `
                     <p><strong>${escaparHtml(solicitacao.nome)}</strong> (Login: ${escaparHtml(solicitacao.telefone)})</p>
-                    <p style="font-size:.78rem;color:#64748b;">
+                    <p style="font-size:.78rem;color:var(--cor-texto-suave);">
                         Twitter: ${escaparHtml(solicitacao.twitter || '-')} | Telegram: ${escaparHtml(solicitacao.telegram || '-')}
                     </p>
                 `;
 
                 const botaoAprovar = document.createElement('button');
                 botaoAprovar.className = 'btn btn-success btn-sm';
-                botaoAprovar.style.marginTop = '5px';
-                botaoAprovar.textContent = 'Aprovar Membro';
+                botaoAprovar.style.marginTop = '4px';
+                botaoAprovar.textContent = 'Aprovar';
                 botaoAprovar.onclick = () => aprovarMembroAdm(solicitacao.id);
-                linha.appendChild(botaoAprovar);
 
+                linha.append(chk, info, botaoAprovar);
                 divSolicitacoes.appendChild(linha);
             });
         } else {
+            if (toolbarLote) toolbarLote.classList.add('hidden');
             divSolicitacoes.innerHTML = '<div class="loading-slot">Nenhuma solicitação pendente.</div>';
         }
     }
+    atualizarContadorSelecaoLote();
 
-    // 2. Usuários Ativos Cadastrados (Primeiro Nome em Destaque)
+    // 2. Usuários Ativos
     const divUsuarios = document.getElementById('adm-usuarios-lista');
     if (divUsuarios) {
         divUsuarios.innerHTML = '<div class="loading-slot">Carregando usuários ativos...</div>';
@@ -1786,7 +1564,7 @@ async function carregarPainelCentralAdm() {
             let html = '<table class="tabela-metricas"><thead><tr><th>Primeiro Nome</th><th>Login/Telefone</th><th>Papel</th></tr></thead><tbody>';
             respostaUsuarios.usuarios.forEach(u => {
                 html += `<tr>
-                    <td><strong>${escaparHtml(u.primeiroNome)}</strong> <small style="color:#64748b;">(${escaparHtml(u.nomeCompleto)})</small></td>
+                    <td><strong>${escaparHtml(u.primeiroNome)}</strong> <small style="color:var(--cor-texto-suave);">(${escaparHtml(u.nomeCompleto)})</small></td>
                     <td>${escaparHtml(u.telefone)}</td>
                     <td><span class="badge badge-${u.papel}">${escaparHtml(u.papel.toUpperCase())}</span></td>
                 </tr>`;
@@ -1798,7 +1576,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 3. Métricas de Vendas
+    // 3. Métricas
     const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas");
     if (respostaMetricas.sucesso) {
         const elementoFaturamento = document.getElementById('metric-faturamento');
@@ -1821,7 +1599,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 4. Contas Bloqueadas
+    // 4. Bloqueados
     const respostaBloqueados = await executarRequisicaoAPI("listar_bloqueados_adm");
     const divBloqueados = document.getElementById('adm-bloqueados-lista');
     if (divBloqueados) {
@@ -1845,7 +1623,7 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 5. Mensagens e Comentários Recebidos
+    // 5. Mensagens
     const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm");
     const divComentarios = document.getElementById('adm-comentarios-lista');
     if (divComentarios) {
@@ -1853,9 +1631,9 @@ async function carregarPainelCentralAdm() {
         if (respostaComentarios.sucesso && Array.isArray(respostaComentarios.comentarios) && respostaComentarios.comentarios.length > 0) {
             respostaComentarios.comentarios.forEach(comentario => {
                 const paragrafo = document.createElement('p');
-                paragrafo.style.cssText = 'font-size:.8rem;padding:6px 0;border-bottom:1px solid #e2e8f0;';
+                paragrafo.style.cssText = 'font-size:.8rem;padding:6px 0;border-bottom:1px solid var(--cor-borda);';
                 const dataFormatada = comentario.data ? new Date(comentario.data).toLocaleString() : '';
-                paragrafo.innerHTML = `<strong>${escaparHtml(comentario.nome || 'Anônimo')}</strong> <small style="color:#94a3b8;">${escaparHtml(dataFormatada)}</small><br>${escaparHtml(comentario.texto || '')}`;
+                paragrafo.innerHTML = `<strong>${escaparHtml(comentario.nome || 'Anônimo')}</strong> <small style="color:var(--cor-texto-suave);">${escaparHtml(dataFormatada)}</small><br>${escaparHtml(comentario.texto || '')}`;
                 divComentarios.appendChild(paragrafo);
             });
         } else {
@@ -1864,6 +1642,50 @@ async function carregarPainelCentralAdm() {
     }
 }
 /* ─── FIM: carregarPainelCentralAdm ─────────────────────────── */
+
+/* ─── INÍCIO: atualizarContadorSelecaoLote ───────────────────── */
+function atualizarContadorSelecaoLote() {
+    const selecionados = document.querySelectorAll('.chk-solicitacao-item:checked');
+    const labelContador = document.getElementById('count-selecionados-lote');
+    const chkMaster = document.getElementById('chk-selecionar-todos-cadastros');
+    const todos = document.querySelectorAll('.chk-solicitacao-item');
+
+    if (labelContador) labelContador.textContent = selecionados.length;
+    if (chkMaster && todos.length > 0) {
+        chkMaster.checked = (selecionados.length === todos.length);
+    }
+}
+/* ─── FIM: atualizarContadorSelecaoLote ───────────────────────── */
+
+/* ─── INÍCIO: aprovarSolicitacoesSelecionadasLote ─────────────── */
+async function aprovarSolicitacoesSelecionadasLote() {
+    const selecionados = Array.from(document.querySelectorAll('.chk-solicitacao-item:checked')).map(c => c.value);
+
+    if (selecionados.length === 0) {
+        return exibirToast("Selecione pelo menos um cadastro para aprovação.", "info");
+    }
+
+    mostrarLoader(`Aprovando ${selecionados.length} membros em lote...`);
+    const res = await executarRequisicaoAPI("aprovar_cadastros_lote", {
+        idsSolicitacoes: selecionados
+    });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast(res.mensagem || `${selecionados.length} membros aprovados com sucesso!`, "success");
+        await carregarPainelCentralAdm();
+    } else {
+        exibirToast(res.mensagem || "Erro ao aprovar cadastros em lote.", "error");
+    }
+}
+/* ─── FIM: aprovarSolicitacoesSelecionadasLote ─────────────────── */
+
+/* ─── INÍCIO: gerarRelatorioPdfVendas ────────────────────────── */
+function gerarRelatorioPdfVendas() {
+    if (estadoSessao.papel !== 'adm') return;
+    window.print();
+}
+/* ─── FIM: gerarRelatorioPdfVendas ───────────────────────────── */
 
 /* ─── INÍCIO: aprovarMembroAdm ───────────────────────────────── */
 async function aprovarMembroAdm(idSolicitacao) {
@@ -1948,7 +1770,7 @@ function desligarAutoRefreshAdm() {
 /* ─── FIM: desligarAutoRefreshAdm ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   14. ESTEIRA DE PEDIDOS (ADM)
+   11. PIPELINE DE PEDIDOS COM ALERTA SONORO (ADM)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: carregarPedidosAdm ─────────────────────────────── */
@@ -1969,14 +1791,20 @@ async function carregarPedidosAdm() {
     if (colunaConcluido)   colunaConcluido.innerHTML = '';
 
     if (resposta.sucesso && Array.isArray(resposta.pedidos)) {
+        const emAnalise = resposta.pedidos.filter(p => String(p.status).toLowerCase() === 'analise').length;
+        if (totalPedidosAnaliseAnterior > 0 && emAnalise > totalPedidosAnaliseAnterior) {
+            tocarSomNotificacao('pedido');
+        }
+        totalPedidosAnaliseAnterior = emAnalise;
+
         resposta.pedidos.forEach(pedido => {
             const divCartao = document.createElement('div');
-            divCartao.style.cssText = 'background:#fff;padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid #cbd5e1;';
+            divCartao.style.cssText = 'background:var(--cor-fundo-card);padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid var(--cor-borda);';
 
             divCartao.innerHTML = `
                 <small><strong>${escaparHtml(pedido.id)}</strong></small><br>
                 <small>${fmtPreco(pedido.total)}</small><br>
-                <small style="color:#64748b;">Forma: ${escaparHtml(pedido.metodo || 'PIX')}</small>
+                <small style="color:var(--cor-texto-suave);">Forma: ${escaparHtml(pedido.metodo || 'PIX')}</small>
             `;
 
             const painelBotoes = document.createElement('div');
@@ -1985,7 +1813,7 @@ async function carregarPedidosAdm() {
             if (pedido.status !== 'concluido') {
                 const botaoAvancar = document.createElement('button');
                 botaoAvancar.className = 'btn btn-primary btn-sm';
-                botaoAvancar.textContent = 'Avançar Fase';
+                botaoAvancar.textContent = 'Avançar';
                 botaoAvancar.onclick = () => avancarStatusAdm(pedido.id, pedido.status);
                 painelBotoes.appendChild(botaoAvancar);
             }
@@ -1993,7 +1821,7 @@ async function carregarPedidosAdm() {
             const botaoChatAdm = document.createElement('button');
             botaoChatAdm.className = 'btn btn-outline-dark btn-sm';
             botaoChatAdm.textContent = '💬';
-            botaoChatAdm.title = 'Abrir Chat com o Cliente';
+            botaoChatAdm.title = 'Abrir Chat';
             botaoChatAdm.onclick = () => abrirChatPedido(pedido.id);
             painelBotoes.appendChild(botaoChatAdm);
 
@@ -2035,7 +1863,7 @@ async function avancarStatusAdm(idPedido, statusAtual) {
 /* ─── FIM: avancarStatusAdm ──────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   15. GERAÇÃO DE LINKS TEMPORÁRIOS E CADASTRO DE PRODUTOS
+   12. LINKS TEMPORÁRIOS, FOTOS E CADASTRO DE PRODUTOS
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: gerarLinkTemporarioAdm ─────────────────────────── */
@@ -2090,6 +1918,81 @@ function copiarLinkGerado() {
 }
 /* ─── FIM: copiarLinkGerado ───────────────────────────────────── */
 
+/* ─── INÍCIO: processarUploadImagem ─────────────────────────── */
+function processarUploadImagem(evento) {
+    const ficheiro = evento.target.files[0];
+    if (!ficheiro) return;
+
+    if (ficheiro.type === "image/gif") {
+        if (ficheiro.size > 200 * 1024) {
+            exibirToast("O GIF é muito pesado. Escolha um ficheiro de até 200KB.", "error");
+            evento.target.value = "";
+            return;
+        }
+        const leitor = new FileReader();
+        leitor.onload = e => {
+            fotoBase64Temporaria = e.target.result;
+            exibirPreviewImagem(fotoBase64Temporaria);
+        };
+        leitor.readAsDataURL(ficheiro);
+        return;
+    }
+
+    const leitor = new FileReader();
+    leitor.onload = e => {
+        const imagem = new Image();
+        imagem.onload = () => {
+            const canvas = document.createElement('canvas');
+            const LIMITE_MAX = 350;
+            let { width: largura, height: altura } = imagem;
+
+            if (largura > altura && largura > LIMITE_MAX) {
+                altura *= LIMITE_MAX / largura;
+                largura = LIMITE_MAX;
+            } else if (altura >= largura && altura > LIMITE_MAX) {
+                largura *= LIMITE_MAX / altura;
+                altura = LIMITE_MAX;
+            }
+
+            canvas.width = largura;
+            canvas.height = altura;
+            const contexto = canvas.getContext('2d');
+            contexto.drawImage(imagem, 0, 0, largura, altura);
+
+            fotoBase64Temporaria = canvas.toDataURL('image/jpeg', 0.7);
+            exibirPreviewImagem(fotoBase64Temporaria);
+        };
+        imagem.src = e.target.result;
+    };
+    leitor.readAsDataURL(ficheiro);
+}
+/* ─── FIM: processarUploadImagem ─────────────────────────────── */
+
+/* ─── INÍCIO: exibirPreviewImagem ───────────────────────────── */
+function exibirPreviewImagem(origemBase64) {
+    const imgPreview = document.getElementById('img-preview');
+    const containerPreview = document.getElementById('preview-container');
+    const inputUrl = document.getElementById('adm-prod-foto-url');
+
+    if (imgPreview) imgPreview.src = origemBase64;
+    if (containerPreview) containerPreview.classList.remove('hidden');
+    if (inputUrl) inputUrl.value = "";
+}
+/* ─── FIM: exibirPreviewImagem ───────────────────────────────── */
+
+/* ─── INÍCIO: removerFotoCarregada ──────────────────────────── */
+function removerFotoCarregada() {
+    fotoBase64Temporaria = "";
+    const containerPreview = document.getElementById('preview-container');
+    const inputArquivo = document.getElementById('adm-prod-arquivo');
+    const imgPreview = document.getElementById('img-preview');
+
+    if (containerPreview) containerPreview.classList.add('hidden');
+    if (inputArquivo) inputArquivo.value = "";
+    if (imgPreview) imgPreview.src = "";
+}
+/* ─── FIM: removerFotoCarregada ─────────────────────────────── */
+
 /* ─── INÍCIO: tratarCadastroProduto ─────────────────────────── */
 async function tratarCadastroProduto(evento) {
     if (evento && evento.preventDefault) evento.preventDefault();
@@ -2106,7 +2009,7 @@ async function tratarCadastroProduto(evento) {
     }
 
     botaoCarregando('btn-salvar-produto', true);
-    exibirToast("A guardar produto na planilha...", "info");
+    exibirToast("A guardar produto...", "info");
 
     const resposta = await executarRequisicaoAPI("cadastrar_produto", {
         produto: { nome, preco, foto: fotoFinal, visibilidade }
@@ -2126,110 +2029,287 @@ async function tratarCadastroProduto(evento) {
 /* ─── FIM: tratarCadastroProduto ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   16. MODAIS, DIÁLOGOS DE CONFIRMAÇÃO E TOASTS
+   13. AUTENTICAÇÃO, CADASTRO E CONTROLE DE SESSÃO
    ═══════════════════════════════════════════════════════════════ */
 
-/* ─── INÍCIO: abrirModal ─────────────────────────────────────── */
-function abrirModal(idModal) {
-    const modal = document.getElementById(idModal);
-    if (modal) modal.classList.add('active');
-}
-/* ─── FIM: abrirModal ─────────────────────────────────────────── */
+/* ─── INÍCIO: tratarSolicitacaoCadastro ──────────────────────── */
+async function tratarSolicitacaoCadastro(evento) {
+    if (evento && evento.preventDefault) evento.preventDefault();
 
-/* ─── INÍCIO: fecharModal ────────────────────────────────────── */
-function fecharModal(idModal) {
-    const modal = document.getElementById(idModal);
-    if (modal) modal.classList.remove('active');
-    if (idModal === 'modal-chat') pararAutoRefreshChat();
-}
-/* ─── FIM: fecharModal ───────────────────────────────────────── */
+    const nome      = document.getElementById('cad-nome').value.trim();
+    const telefone  = document.getElementById('cad-telefone').value.trim();
+    const senha     = document.getElementById('cad-senha').value;
+    const senhaConf = document.getElementById('cad-senha-conf').value;
+    const twitter   = document.getElementById('cad-twitter').value.trim();
+    const telegram  = document.getElementById('cad-telegram').value.trim();
 
-let _callbackConfirmacao = null;
+    if (senha !== senhaConf) return exibirToast("As senhas digitadas não coincidem.", "error");
+    if (senha.length < 6)    return exibirToast("A senha deve conter no mínimo 6 caracteres.", "error");
 
-/* ─── INÍCIO: abrirConfirmacao ───────────────────────────────── */
-function abrirConfirmacao(titulo, mensagemTextoOuHtml, callbackAcao) {
-    const elementoTitulo = document.getElementById('confirmar-titulo');
-    const elementoMensagem = document.getElementById('confirmar-mensagem');
+    botaoCarregando('btn-enviar-cadastro', true);
+    exibirToast("A enviar solicitação...", "info");
 
-    if (elementoTitulo) elementoTitulo.textContent = titulo;
-    if (elementoMensagem) {
-        if (typeof mensagemTextoOuHtml === 'string' && mensagemTextoOuHtml.startsWith('<div')) {
-            elementoMensagem.innerHTML = mensagemTextoOuHtml;
-        } else {
-            elementoMensagem.textContent = mensagemTextoOuHtml;
-        }
-    }
-
-    _callbackConfirmacao = callbackAcao;
-
-    const btnOk = document.getElementById('confirmar-btn-ok');
-    if (btnOk) {
-        btnOk.onclick = () => {
-            fecharConfirmacao();
-            if (typeof _callbackConfirmacao === 'function') _callbackConfirmacao();
-        };
-    }
-
-    abrirModal('modal-confirmar');
-}
-/* ─── FIM: abrirConfirmacao ──────────────────────────────────── */
-
-/* ─── INÍCIO: abrirConfirmacaoElemento ───────────────────────── */
-function abrirConfirmacaoElemento(titulo, elementoDom, callbackAcao) {
-    const elementoTitulo = document.getElementById('confirmar-titulo');
-    const elementoMensagem = document.getElementById('confirmar-mensagem');
-
-    if (elementoTitulo) elementoTitulo.textContent = titulo;
-    if (elementoMensagem) {
-        elementoMensagem.innerHTML = '';
-        elementoMensagem.appendChild(elementoDom);
-    }
-
-    _callbackConfirmacao = callbackAcao;
-
-    const btnOk = document.getElementById('confirmar-btn-ok');
-    if (btnOk) {
-        btnOk.onclick = () => {
-            fecharConfirmacao();
-            if (typeof _callbackConfirmacao === 'function') _callbackConfirmacao();
-        };
-    }
-
-    abrirModal('modal-confirmar');
-}
-/* ─── FIM: abrirConfirmacaoElemento ───────────────────────────── */
-
-/* ─── INÍCIO: fecharConfirmacao ──────────────────────────────── */
-function fecharConfirmacao() {
-    fecharModal('modal-confirmar');
-    _callbackConfirmacao = null;
-}
-/* ─── FIM: fecharConfirmacao ─────────────────────────────────── */
-
-/* ─── INÍCIO: exibirToast ────────────────────────────────────── */
-function exibirToast(mensagem, tipo = 'info') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${tipo}`;
-    toast.textContent = mensagem;
-    container.appendChild(toast);
-    setTimeout(() => toast.remove(), 3500);
-}
-/* ─── FIM: exibirToast ───────────────────────────────────────── */
-
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', evento => {
-        if (evento.target === overlay) {
-            overlay.classList.remove('active');
-            if (overlay.id === 'modal-chat') pararAutoRefreshChat();
-        }
+    const resposta = await executarRequisicaoAPI("solicitar_cadastro", {
+        nome, telefone, senha, twitter, telegram
     });
-});
+
+    botaoCarregando('btn-enviar-cadastro', false);
+
+    if (resposta.sucesso) {
+        exibirToast(resposta.mensagem || "Solicitação enviada com sucesso!", "success");
+        document.getElementById('form-registro').reset();
+        fecharModal('modal-cadastro');
+    } else {
+        exibirToast(resposta.mensagem || "Erro ao registrar solicitação.", "error");
+    }
+}
+/* ─── FIM: tratarSolicitacaoCadastro ─────────────────────────── */
+
+/* ─── INÍCIO: tratarLogin ────────────────────────────────────── */
+async function tratarLogin(evento) {
+    if (evento && evento.preventDefault) evento.preventDefault();
+
+    const usuario = document.getElementById('login-usuario').value.trim();
+    const senha   = document.getElementById('login-senha').value;
+    identificadorEmTentativa = usuario;
+
+    botaoCarregando('btn-entrar', true);
+
+    const resposta = await executarRequisicaoAPI("login", { identificador: usuario, senha });
+
+    botaoCarregando('btn-entrar', false);
+
+    if (resposta.sucesso) {
+        estadoSessao.papel       = resposta.papel;
+        estadoSessao.token       = resposta.token;
+        estadoSessao.nomeUsuario = resposta.nome;
+
+        if (resposta.refreshToken) sessionStorage.setItem('plataforma_refresh_token', resposta.refreshToken);
+        if (resposta.hmacKey)      sessionStorage.setItem('plataforma_hmac_key', resposta.hmacKey);
+
+        _linkAutorizadoValido = true;
+
+        localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
+        document.getElementById('form-login').reset();
+        document.getElementById('box-desbloqueio-conta').classList.add('hidden');
+        fecharModal('modal-login');
+        atualizarInterfaceSessao();
+
+        CacheLoja.limpar('produtos_visitante');
+        await sincronizarProdutosServidor();
+        exibirToast(resposta.mensagem || `Bem-vindo(a), ${resposta.nome}!`, "success");
+    } else {
+        exibirToast(resposta.mensagem || "Credenciais inválidas.", "error");
+        if (resposta.requerLiberacaoAdm) {
+            document.getElementById('box-desbloqueio-conta').classList.remove('hidden');
+        }
+    }
+}
+/* ─── FIM: tratarLogin ───────────────────────────────────────── */
+
+/* ─── INÍCIO: enviarPedidoDesbloqueio ────────────────────────── */
+async function enviarPedidoDesbloqueio() {
+    if (!identificadorEmTentativa) return;
+    const resposta = await executarRequisicaoAPI("pedir_desbloqueio", { identificador: identificadorEmTentativa });
+    if (resposta.sucesso) {
+        exibirToast(resposta.mensagem || "Pedido de liberação enviado com sucesso.", "success");
+        const btn = document.getElementById('btn-solicitar-desbloqueio');
+        if (btn) btn.disabled = true;
+    }
+}
+/* ─── FIM: enviarPedidoDesbloqueio ───────────────────────────── */
+
+/* ─── INÍCIO: confirmarLogout ────────────────────────────────── */
+function confirmarLogout() {
+    abrirConfirmacao("Sair da conta", "Deseja realmente encerrar a sessão?", executarLogout);
+}
+/* ─── FIM: confirmarLogout ───────────────────────────────────── */
+
+/* ─── INÍCIO: executarLogout ─────────────────────────────────── */
+async function executarLogout() {
+    const tokenLink = sessionStorage.getItem('plataforma_link_token');
+
+    if (tokenLink) {
+        mostrarLoader("Encerrando sessão...");
+        try {
+            await executarRequisicaoAPI("invalidar_link", { tokenAcesso: tokenLink });
+        } catch (erro) {}
+    } else {
+        mostrarLoader("Encerrando sessão...");
+    }
+
+    pararTemporizadorSilencioso();
+    pararAutoRefreshChat();
+    desligarAutoRefreshAdm();
+
+    const fp = localStorage.getItem('plataforma_fingerprint');
+    const tema = localStorage.getItem('plataforma_tema');
+
+    try {
+        localStorage.clear();
+        sessionStorage.clear();
+    } catch (erro) {}
+
+    if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {} }
+    if (tema) { try { localStorage.setItem('plataforma_tema', tema); } catch(e) {} }
+
+    try {
+        document.cookie.split(";").forEach(c => {
+            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+        });
+    } catch (erro) {}
+
+    estadoSessao.papel       = 'visitante';
+    estadoSessao.token       = null;
+    estadoSessao.nomeUsuario = 'Visitante';
+    cestaCompras             = [];
+    catalogoProdutos         = [];
+    catalogoFiltrado         = [];
+    _linkAutorizadoValido    = false;
+
+    atualizarBarraFlutuanteSacola();
+
+    const urlLimpa = window.location.origin + window.location.pathname;
+    window.history.replaceState({}, document.title, urlLimpa);
+
+    esconderLoader();
+    window.location.replace(urlLimpa);
+}
+/* ─── FIM: executarLogout ─────────────────────────────────────── */
+
+/* ─── INÍCIO: restaurarSessaoLocal ───────────────────────────── */
+function restaurarSessaoLocal() {
+    const dadosSalvos = localStorage.getItem('plataforma_sessao');
+    if (!dadosSalvos) return;
+    try {
+        const sessao = JSON.parse(dadosSalvos);
+        estadoSessao.papel       = sessao.papel || 'visitante';
+        estadoSessao.token       = sessao.token || null;
+        estadoSessao.nomeUsuario = sessao.nomeUsuario || 'Visitante';
+
+        if (estadoSessao.papel !== 'visitante') {
+            _linkAutorizadoValido = true;
+        }
+    } catch {
+        localStorage.removeItem('plataforma_sessao');
+    }
+}
+/* ─── FIM: restaurarSessaoLocal ───────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   17. HELPERS DE INTERFACE E NAVEGAÇÃO
+   14. CONTROLE VISUAL E NAVEGAÇÃO
    ═══════════════════════════════════════════════════════════════ */
+
+/* ─── INÍCIO: atualizarInterfaceSessao ───────────────────────── */
+function atualizarInterfaceSessao() {
+    const anonBox        = document.getElementById('anon-buttons');
+    const authBox        = document.getElementById('auth-buttons');
+    const userLabel      = document.getElementById('user-display-name');
+    const badge          = document.getElementById('role-badge');
+    const navBar         = document.getElementById('app-nav-bar');
+    const headerCartBtn  = document.getElementById('header-cart-btn');
+
+    const viewBloqueado  = document.getElementById('view-bloqueado');
+    const containerDuvidas = document.getElementById('container-duvidas-discreto');
+
+    if (badge) {
+        badge.textContent = estadoSessao.papel.toUpperCase();
+        badge.className   = `badge badge-${estadoSessao.papel}`;
+    }
+    if (userLabel) {
+        userLabel.textContent = estadoSessao.nomeUsuario || 'Olá';
+    }
+    atualizarAvatarUsuario();
+
+    aplicarNavPorPapel(estadoSessao.papel);
+
+    if (containerDuvidas) containerDuvidas.classList.add('hidden');
+
+    if (!_linkAutorizadoValido && estadoSessao.papel === 'visitante') {
+        if (navBar) navBar.classList.add('hidden');
+        document.querySelectorAll('.view-panel').forEach(painel => {
+            painel.classList.add('hidden');
+            painel.classList.remove('active');
+        });
+        if (viewBloqueado) {
+            viewBloqueado.classList.remove('hidden');
+            viewBloqueado.classList.add('active');
+        }
+        if (anonBox) anonBox.classList.remove('hidden');
+        if (authBox) authBox.classList.add('hidden');
+        if (headerCartBtn) headerCartBtn.classList.add('hidden');
+        fecharUserDropdown();
+        atualizarBarraFlutuanteSacola();
+        return;
+    }
+
+    if (navBar) navBar.classList.remove('hidden');
+    if (viewBloqueado) {
+        viewBloqueado.classList.add('hidden');
+        viewBloqueado.classList.remove('active');
+    }
+
+    if (estadoSessao.papel === 'visitante') {
+        if (anonBox) anonBox.classList.remove('hidden');
+        if (authBox) authBox.classList.add('hidden');
+        if (headerCartBtn) headerCartBtn.classList.add('hidden');
+    } else {
+        if (anonBox) anonBox.classList.add('hidden');
+        if (authBox) authBox.classList.remove('hidden');
+
+        if (headerCartBtn) {
+            if (estadoSessao.papel === 'membro') {
+                headerCartBtn.classList.remove('hidden');
+            } else {
+                headerCartBtn.classList.add('hidden');
+            }
+        }
+    }
+
+    if (['membro', 'entregador', 'adm'].includes(estadoSessao.papel)) {
+        if (containerDuvidas) containerDuvidas.classList.remove('hidden');
+    }
+
+    const algumPainelVisivel = document.querySelector('.view-panel.active:not(.hidden)');
+    if (!algumPainelVisivel) navegarPara('vitrine');
+
+    if (estadoSessao.papel === 'adm') {
+        ligarAutoRefreshAdm();
+    } else {
+        desligarAutoRefreshAdm();
+        atualizarBadgePendentesAdm(0);
+    }
+
+    atualizarBarraFlutuanteSacola();
+}
+/* ─── FIM: atualizarInterfaceSessao ───────────────────────────── */
+
+/* ─── INÍCIO: navegarPara ────────────────────────────────────── */
+function navegarPara(nomeAba) {
+    document.querySelectorAll('.bottom-nav__item').forEach(botao => botao.classList.remove('active'));
+    document.querySelectorAll('.view-panel').forEach(painel => painel.classList.remove('active'));
+
+    const botaoAtivo  = document.getElementById(`tab-btn-${nomeAba}`);
+    const painelAtivo = document.getElementById(`view-${nomeAba}`);
+
+    if (botaoAtivo && painelAtivo) {
+        botaoAtivo.classList.add('active');
+        painelAtivo.classList.remove('hidden');
+        painelAtivo.classList.add('active');
+    }
+
+    fecharUserDropdown();
+
+    if (nomeAba === 'vitrine')      sincronizarProdutosServidor();
+    if (nomeAba === 'carrinho')     renderizarCarrinho();
+    if (nomeAba === 'meus-pedidos') carregarMeusPedidos();
+    if (nomeAba === 'pedidos-adm')  carregarPedidosAdm();
+    if (nomeAba === 'adm') {
+        carregarPainelCentralAdm();
+        consultarPendentesAdm();
+    }
+}
+/* ─── FIM: navegarPara ───────────────────────────────────────── */
 
 /* ─── INÍCIO: aplicarNavPorPapel ─────────────────────────────── */
 function aplicarNavPorPapel(papel) {
@@ -2306,7 +2386,235 @@ function atualizarBadgeCarrinho(quantidade) {
 /* ─── FIM: atualizarBadgeCarrinho ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   18. EXPORTAÇÕES GLOBAIS (LIGAÇÃO COM BINDINGS)
+   15. CENTRAL DE DÚVIDAS E MODAIS GENÉRICOS
+   ═══════════════════════════════════════════════════════════════ */
+
+let listaDuvidasFaq = [
+    {
+        pergunta: "Como funciona a entrega do pedido?",
+        resposta: "Após a confirmação do pagamento, um chat exclusivo é aberto no seu pedido com todas as orientações da rota de entrega."
+    },
+    {
+        pergunta: "Quais são as formas de pagamento aceitas?",
+        resposta: "Aceitamos PIX dinâmico com confirmação imediata, Cartão de Crédito e Criptomoedas."
+    },
+    {
+        pergunta: "Quanto tempo dura o chat temporário do pedido?",
+        resposta: "Permanece ativo durante toda a entrega. Ao ser concluído pela administração, ele é finalizado com segurança."
+    }
+];
+
+function carregarFaqMemoria() {
+    const salvo = localStorage.getItem('loja_faq_dados');
+    if (salvo) {
+        try { listaDuvidasFaq = JSON.parse(salvo); } catch(e) {}
+    }
+}
+carregarFaqMemoria();
+
+function abrirCentralDuvidas() {
+    if (estadoSessao.papel === 'visitante') {
+        exibirToast("A Central de Dúvidas é exclusiva para membros.", "info");
+        abrirModal('modal-login');
+        return;
+    }
+
+    renderizarListaFaq();
+    const editorAdm = document.getElementById('adm-editor-faq-area');
+    if (editorAdm) {
+        editorAdm.classList.toggle('hidden', estadoSessao.papel !== 'adm');
+    }
+
+    abrirModal('modal-duvidas-central');
+}
+
+function renderizarListaFaq() {
+    const container = document.getElementById('lista-faq-perguntas');
+    if (!container) return;
+    container.innerHTML = '';
+
+    listaDuvidasFaq.forEach((item, index) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'faq-item';
+
+        const questao = document.createElement('div');
+        questao.className = 'faq-question';
+        questao.setAttribute('data-action', 'toggle-faq');
+        questao.innerHTML = `<span>${escaparHtml(item.pergunta)}</span> <small>▼</small>`;
+
+        const resposta = document.createElement('div');
+        resposta.className = 'faq-answer';
+        resposta.textContent = item.resposta;
+
+        if (estadoSessao.papel === 'adm') {
+            const btnExcluir = document.createElement('button');
+            btnExcluir.className = 'btn btn-danger-outline btn-sm';
+            btnExcluir.style.cssText = 'margin-top:6px;font-size:0.65rem;padding:2px 6px;';
+            btnExcluir.textContent = 'Excluir Dúvida';
+            btnExcluir.onclick = (e) => {
+                e.stopPropagation();
+                listaDuvidasFaq.splice(index, 1);
+                localStorage.setItem('loja_faq_dados', JSON.stringify(listaDuvidasFaq));
+                renderizarListaFaq();
+                exibirToast("Dúvida removida com sucesso.", "info");
+            };
+            resposta.appendChild(btnExcluir);
+        }
+
+        itemDiv.append(questao, resposta);
+        container.appendChild(itemDiv);
+    });
+}
+
+async function tratarEnvioSugestao(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const campo = document.getElementById('campo-sugestao-texto');
+    const texto = campo ? campo.value.trim() : '';
+    if (!texto) return;
+
+    mostrarLoader("A enviar sugestão...");
+    const res = await executarRequisicaoAPI("enviar_comentario", {
+        nome: `[SUGESTÃO] ${estadoSessao.nomeUsuario}`,
+        mensagem: texto
+    });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast("Sugestão enviada com sucesso à administração!", "success");
+        if (campo) campo.value = '';
+        fecharModal('modal-duvidas-central');
+    } else {
+        exibirToast(res.mensagem || "Erro ao enviar sugestão.", "error");
+    }
+}
+
+async function tratarEnvioComentario(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const nomeInput = document.getElementById('comentario-nome');
+    const msgInput = document.getElementById('comentario-mensagem');
+    const nome = nomeInput ? nomeInput.value.trim() : estadoSessao.nomeUsuario;
+    const mensagem = msgInput ? msgInput.value.trim() : '';
+    if (!mensagem) return;
+
+    mostrarLoader("Enviando mensagem...");
+    const res = await executarRequisicaoAPI("enviar_comentario", { nome, mensagem });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast("Mensagem enviada com sucesso!", "success");
+        if (msgInput) msgInput.value = '';
+    } else {
+        exibirToast(res.mensagem || "Erro ao enviar mensagem.", "error");
+    }
+}
+
+function tratarAdicionarFaq(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const inputP = document.getElementById('faq-nova-pergunta');
+    const inputR = document.getElementById('faq-nova-resposta');
+    const pergunta = inputP ? inputP.value.trim() : '';
+    const resposta = inputR ? inputR.value.trim() : '';
+
+    if (!pergunta || !resposta) return;
+
+    listaDuvidasFaq.push({ pergunta, resposta });
+    localStorage.setItem('loja_faq_dados', JSON.stringify(listaDuvidasFaq));
+
+    if (inputP) inputP.value = '';
+    if (inputR) inputR.value = '';
+
+    renderizarListaFaq();
+    exibirToast("Nova dúvida adicionada ao FAQ!", "success");
+}
+
+function abrirModal(idModal) {
+    const modal = document.getElementById(idModal);
+    if (modal) modal.classList.add('active');
+}
+
+function fecharModal(idModal) {
+    const modal = document.getElementById(idModal);
+    if (modal) modal.classList.remove('active');
+    if (idModal === 'modal-chat') pararAutoRefreshChat();
+}
+
+let _callbackConfirmacao = null;
+
+function abrirConfirmacao(titulo, mensagemTextoOuHtml, callbackAcao) {
+    const elementoTitulo = document.getElementById('confirmar-titulo');
+    const elementoMensagem = document.getElementById('confirmar-mensagem');
+
+    if (elementoTitulo) elementoTitulo.textContent = titulo;
+    if (elementoMensagem) {
+        if (typeof mensagemTextoOuHtml === 'string' && mensagemTextoOuHtml.startsWith('<div')) {
+            elementoMensagem.innerHTML = mensagemTextoOuHtml;
+        } else {
+            elementoMensagem.textContent = mensagemTextoOuHtml;
+        }
+    }
+
+    _callbackConfirmacao = callbackAcao;
+
+    const btnOk = document.getElementById('confirmar-btn-ok');
+    if (btnOk) {
+        btnOk.onclick = () => {
+            fecharConfirmacao();
+            if (typeof _callbackConfirmacao === 'function') _callbackConfirmacao();
+        };
+    }
+
+    abrirModal('modal-confirmar');
+}
+
+function abrirConfirmacaoElemento(titulo, elementoDom, callbackAcao) {
+    const elementoTitulo = document.getElementById('confirmar-titulo');
+    const elementoMensagem = document.getElementById('confirmar-mensagem');
+
+    if (elementoTitulo) elementoTitulo.textContent = titulo;
+    if (elementoMensagem) {
+        elementoMensagem.innerHTML = '';
+        elementoMensagem.appendChild(elementoDom);
+    }
+
+    _callbackConfirmacao = callbackAcao;
+
+    const btnOk = document.getElementById('confirmar-btn-ok');
+    if (btnOk) {
+        btnOk.onclick = () => {
+            fecharConfirmacao();
+            if (typeof _callbackConfirmacao === 'function') _callbackConfirmacao();
+        };
+    }
+
+    abrirModal('modal-confirmar');
+}
+
+function fecharConfirmacao() {
+    fecharModal('modal-confirmar');
+    _callbackConfirmacao = null;
+}
+
+function exibirToast(mensagem, tipo = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${tipo}`;
+    toast.textContent = mensagem;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 3500);
+}
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', evento => {
+        if (evento.target === overlay) {
+            overlay.classList.remove('active');
+            if (overlay.id === 'modal-chat') pararAutoRefreshChat();
+        }
+    });
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   16. EXPORTAÇÕES GLOBAIS (LIGAÇÃO COM BINDINGS)
    ═══════════════════════════════════════════════════════════════ */
 window.abrirModal                    = abrirModal;
 window.fecharModal                   = fecharModal;
@@ -2341,9 +2649,21 @@ window.tratarAdicionarFaq            = tratarAdicionarFaq;
 window.executarLimpezaTotalESaida    = executarLimpezaTotalESaida;
 window.confirmarExclusaoProdutoAdm   = confirmarExclusaoProdutoAdm;
 window.excluirProdutoAdm             = excluirProdutoAdm;
-
 window.aplicarNavPorPapel            = aplicarNavPorPapel;
 window.atualizarAvatarUsuario        = atualizarAvatarUsuario;
 window.toggleUserDropdown            = toggleUserDropdown;
 window.fecharUserDropdown            = fecharUserDropdown;
 window.atualizarBadgeCarrinho        = atualizarBadgeCarrinho;
+
+// Funções da nova versão
+window.alternarModoEscuro                  = alternarModoEscuro;
+window.abrirLightboxFoto                   = abrirLightboxFoto;
+window.fecharLightbox                      = fecharLightbox;
+window.comprarProdutoDireto                = comprarProdutoDireto;
+window.compartilharPedidoWhatsApp          = compartilharPedidoWhatsApp;
+window.abrirAssistenteVirtual              = abrirAssistenteVirtual;
+window.responderDuvidaRapida               = responderDuvidaRapida;
+window.atualizarContadorSelecaoLote        = atualizarContadorSelecaoLote;
+window.aprovarSolicitacoesSelecionadasLote = aprovarSolicitacoesSelecionadasLote;
+window.gerarRelatorioPdfVendas             = gerarRelatorioPdfVendas;
+window.tocarSomNotificacao                 = tocarSomNotificacao;
