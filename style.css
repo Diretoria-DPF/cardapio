@@ -1,16 +1,15 @@
 /* ============================================================================
-   style.css — Plataforma Comercial Segura (v3 — navegação redesenhada)
+   style.css — Plataforma Comercial Segura (v4 — UX Redesenhada & Mobile First)
    ============================================================================
-   CARACTERÍSTICAS:
-     • Bottom navigation fixa (mobile-first)
-     • Avatar com iniciais + dropdown de perfil
-     • Hero screen para tela de bloqueio e links expirados
-     • Search bar com ícone embutido
-     • Cards de produtos com proporção fixa e controles administrativos
-     • Suporte nativo a iOS/Android safe-area (notch)
+   NOVIDADES DESTA VERSÃO:
+     • Linha do tempo visual de pedidos (Stepper com nós e linha conectora).
+     • Pílulas deslizantes de categorias (Chips com rolagem horizontal oculta).
+     • Microinterações tátil/visual na cesta de compras (Bounce + Botão Adicionado).
+     • Modais estilizados como Folhas Deslizantes (Bottom Sheets) com Drag Handle.
+     • Botão oficial estilizado para solicitação de acesso via WhatsApp.
    ============================================================================ */
 
-/* ─── 1. RESET E VARIÁVEIS ─────────────────────────────────── */
+/* ─── INÍCIO: 1. RESET E VARIÁVEIS ───────────────────────────── */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -25,6 +24,8 @@
     --cor-sucesso-escura: #15803d;
     --cor-perigo: #dc2626;
     --cor-perigo-escura: #b91c1c;
+    --cor-whatsapp: #25d366;
+    --cor-whatsapp-escura: #1ebe5d;
     --cor-fundo: #f8fafc;
     --cor-fundo-card: #ffffff;
     --cor-texto: #0f172a;
@@ -50,15 +51,16 @@ html, body {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* Espaço no rodapé para o bottom nav não cobrir conteúdo */
+/* Espaço no rodapé para que a navegação fixa não sobreponha itens */
 body {
     padding-bottom: calc(var(--altura-bottom-nav) + env(safe-area-inset-bottom, 0) + 16px);
     min-height: 100vh;
 }
 
 .hidden { display: none !important; }
+/* ─── FIM: 1. RESET E VARIÁVEIS ─────────────────────────────── */
 
-/* ─── 2. HEADER ────────────────────────────────────────────── */
+/* ─── INÍCIO: 2. HEADER ──────────────────────────────────────── */
 .app-header {
     position: sticky;
     top: 0;
@@ -88,7 +90,7 @@ body {
     color: var(--cor-texto);
 }
 
-/* Ícone de carrinho no header (só aparece logado) */
+/* Ícone de carrinho no header */
 .icon-btn {
     position: relative;
     display: inline-flex;
@@ -104,6 +106,7 @@ body {
     transition: background var(--transicao);
 }
 .icon-btn:hover { background: #f1f5f9; }
+
 .icon-btn__badge {
     position: absolute;
     top: 4px;
@@ -131,7 +134,7 @@ body {
     gap: 6px;
 }
 
-/* Avatar + dropdown (logado) */
+/* Menu de usuário e avatar */
 .user-menu {
     position: relative;
 }
@@ -204,7 +207,7 @@ body {
 .dropdown__item--danger { color: var(--cor-perigo); }
 .dropdown__item--danger:hover { background: #fef2f2; }
 
-/* Badge de papel */
+/* Badges de papel */
 .badge {
     display: inline-block;
     padding: 3px 8px;
@@ -218,8 +221,9 @@ body {
 .badge-membro    { background: #10b981; color: #fff; }
 .badge-entregador{ background: #f59e0b; color: #fff; }
 .badge-adm       { background: #ef4444; color: #fff; }
+/* ─── FIM: 2. HEADER ────────────────────────────────────────── */
 
-/* ─── 3. BOTTOM NAV ────────────────────────────────────────── */
+/* ─── INÍCIO: 3. BOTTOM NAV (MENU INFERIOR) ──────────────────── */
 .bottom-nav {
     position: fixed;
     bottom: 0;
@@ -259,18 +263,10 @@ body {
     height: 22px;
     transition: transform var(--transicao);
 }
-
 .bottom-nav__item:active svg { transform: scale(0.9); }
+.bottom-nav__item.active { color: var(--cor-primaria); }
+.bottom-nav__item.active svg { stroke-width: 2.4; }
 
-.bottom-nav__item.active {
-    color: var(--cor-primaria);
-}
-
-.bottom-nav__item.active svg {
-    stroke-width: 2.4;
-}
-
-/* Indicador no topo do item ativo */
 .bottom-nav__item.active::before {
     content: "";
     position: absolute;
@@ -288,7 +284,6 @@ body {
     to   { width: 24px; opacity: 1; }
 }
 
-/* Badge numérico do bottom nav */
 .bottom-nav__badge {
     position: absolute;
     top: 4px;
@@ -309,7 +304,19 @@ body {
 .bottom-nav__badge:empty,
 .bottom-nav__badge[data-zero="1"] { display: none; }
 
-/* ─── 4. MAIN / TELAS ──────────────────────────────────────── */
+/* Microinteração Bounce no Carrinho */
+.badge-bounce {
+    animation: cartBounce 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes cartBounce {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.45); }
+    75%  { transform: scale(0.85); }
+    100% { transform: scale(1); }
+}
+/* ─── FIM: 3. BOTTOM NAV (MENU INFERIOR) ────────────────────── */
+
+/* ─── INÍCIO: 4. MAIN / TELAS ────────────────────────────────── */
 .app-main {
     max-width: 960px;
     margin: 0 auto;
@@ -326,10 +333,7 @@ body {
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Cabeçalho de tela */
-.screen-header {
-    margin-bottom: 16px;
-}
+.screen-header { margin-bottom: 16px; }
 .screen-header h2 {
     font-size: 1.35rem;
     font-weight: 700;
@@ -340,8 +344,9 @@ body {
     color: var(--cor-texto-suave);
     margin-top: 2px;
 }
+/* ─── FIM: 4. MAIN / TELAS ──────────────────────────────────── */
 
-/* ─── 5. HERO SCREEN (tela de bloqueio) ────────────────────── */
+/* ─── INÍCIO: 5. HERO SCREEN (TELA DE BLOQUEIO) ──────────────── */
 .hero-screen {
     max-width: 440px;
     margin: 32px auto 0;
@@ -395,11 +400,12 @@ body {
     color: var(--cor-texto-suave);
     line-height: 1.5;
 }
+/* ─── FIM: 5. HERO SCREEN (TELA DE BLOQUEIO) ────────────────── */
 
-/* ─── 6. SEARCH BAR ────────────────────────────────────────── */
+/* ─── INÍCIO: 6. SEARCH BAR & CHIPS DE CATEGORIAS ───────────── */
 .search-bar {
     position: relative;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 .search-bar__icon {
     position: absolute;
@@ -425,7 +431,50 @@ body {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
-/* ─── 7. CARDS DE PRODUTOS ─────────────────────────────────── */
+/* Pílulas deslizantes (Chips) */
+.chips-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.chips-container::-webkit-scrollbar { display: none; }
+
+.chip {
+    scroll-snap-align: start;
+    white-space: nowrap;
+    padding: 7px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--cor-borda-forte);
+    background: var(--cor-fundo-card);
+    color: var(--cor-texto-suave);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transicao);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.chip:hover {
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+    background: #eff6ff;
+}
+.chip.active {
+    background: var(--cor-primaria);
+    border-color: var(--cor-primaria);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+/* ─── FIM: 6. SEARCH BAR & CHIPS DE CATEGORIAS ─────────────── */
+
+/* ─── INÍCIO: 7. CARDS DE PRODUTOS ───────────────────────────── */
 .cards-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -447,9 +496,7 @@ body {
     transform: translateY(-2px);
     box-shadow: var(--sombra-hover);
 }
-.product-card:active {
-    transform: translateY(0);
-}
+.product-card:active { transform: translateY(0); }
 
 .product-thumb {
     width: 100%;
@@ -488,7 +535,6 @@ body {
     font-style: italic;
 }
 
-/* Controles de visibilidade no card (ADM) */
 .adm-visib-controls {
     margin-top: 6px;
     padding-top: 8px;
@@ -504,7 +550,6 @@ body {
     width: auto;
 }
 
-/* Estado vazio */
 .empty-state {
     grid-column: 1 / -1;
     padding: 48px 20px;
@@ -521,7 +566,6 @@ body {
     font-size: 1rem;
 }
 
-/* CTA de ajuda (dúvidas) */
 .help-cta {
     text-align: center;
     margin: 24px 0 8px;
@@ -545,8 +589,9 @@ body {
     color: var(--cor-texto);
     border-color: var(--cor-primaria);
 }
+/* ─── FIM: 7. CARDS DE PRODUTOS ─────────────────────────────── */
 
-/* ─── 8. BOTÕES ────────────────────────────────────────────── */
+/* ─── INÍCIO: 8. BOTÕES & FEEDBACK TÁTIL ─────────────────────── */
 .btn {
     cursor: pointer;
     border-radius: var(--raio-sm);
@@ -559,7 +604,7 @@ body {
     justify-content: center;
     gap: 6px;
     min-height: 42px;
-    transition: background-color var(--transicao), opacity var(--transicao), transform var(--transicao);
+    transition: background-color var(--transicao), opacity var(--transicao), transform var(--transicao), color var(--transicao);
     -webkit-tap-highlight-color: transparent;
 }
 .btn:active:not(:disabled) { transform: scale(0.98); }
@@ -604,6 +649,21 @@ body {
 }
 .btn-ghost:hover:not(:disabled) { background-color: #f1f5f9; }
 
+/* Botão oficial WhatsApp */
+.btn-whatsapp {
+    background-color: var(--cor-whatsapp);
+    color: #fff;
+    text-decoration: none;
+}
+.btn-whatsapp:hover:not(:disabled) { background-color: var(--cor-whatsapp-escura); }
+
+/* Microinteração de Item Adicionado na Vitrine */
+.btn-adicionado {
+    background-color: var(--cor-sucesso) !important;
+    color: #fff !important;
+    transform: scale(0.97);
+}
+
 .btn-block { width: 100%; }
 .btn-sm {
     padding: 6px 12px;
@@ -626,8 +686,9 @@ body {
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
 }
+/* ─── FIM: 8. BOTÕES & FEEDBACK TÁTIL ───────────────────────── */
 
-/* ─── 9. FORMULÁRIOS ───────────────────────────────────────── */
+/* ─── INÍCIO: 9. FORMULÁRIOS ─────────────────────────────────── */
 .form-group { margin-bottom: 14px; }
 .form-group label {
     display: block;
@@ -669,8 +730,9 @@ input:focus, select:focus, textarea:focus {
     max-width: 140px;
     margin-bottom: 0;
 }
+/* ─── FIM: 9. FORMULÁRIOS ───────────────────────────────────── */
 
-/* ─── 10. CARD GENÉRICO ───────────────────────────────────── */
+/* ─── INÍCIO: 10. CARD GENÉRICO ─────────────────────────────── */
 .card {
     background: var(--cor-fundo-card);
     border: 1px solid var(--cor-borda);
@@ -697,8 +759,9 @@ input:focus, select:focus, textarea:focus {
     margin-bottom: 12px;
     flex-wrap: wrap;
 }
+/* ─── FIM: 10. CARD GENÉRICO ─────────────────────────────────── */
 
-/* ─── 11. CESTA DE COMPRAS ─────────────────────────────────── */
+/* ─── INÍCIO: 11. CESTA DE COMPRAS ───────────────────────────── */
 .cart-items-wrapper {
     background: var(--cor-fundo-card);
     border: 1px solid var(--cor-borda);
@@ -739,8 +802,107 @@ input:focus, select:focus, textarea:focus {
     color: var(--cor-sucesso-escura);
     font-weight: 700;
 }
+/* ─── FIM: 11. CESTA DE COMPRAS ─────────────────────────────── */
 
-/* ─── 12. PIPELINE DE PEDIDOS ──────────────────────────────── */
+/* ─── INÍCIO: 12. LINHA DO TEMPO VISUAL DOS PEDIDOS (STEPPER) ─── */
+.order-stepper {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    position: relative;
+    margin: 18px 0 14px;
+}
+
+.order-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    position: relative;
+    z-index: 2;
+}
+
+.step-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: all 0.25s ease;
+}
+
+.step-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-top: 6px;
+    text-align: center;
+}
+
+/* Linha conectora entre as etapas */
+.order-step::after {
+    content: "";
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background: #e2e8f0;
+    z-index: -1;
+}
+.order-step:last-child::after { display: none; }
+
+/* Etapa Concluída */
+.order-step.completed .step-circle {
+    background: var(--cor-sucesso);
+    color: #fff;
+}
+.order-step.completed .step-label {
+    color: var(--cor-sucesso-escura);
+}
+.order-step.completed::after {
+    background: var(--cor-sucesso);
+}
+
+/* Etapa Atual / Ativa */
+.order-step.active .step-circle {
+    background: var(--cor-primaria);
+    color: #fff;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+    animation: pulseActiveStep 1.8s infinite;
+}
+.order-step.active .step-label {
+    color: var(--cor-primaria);
+    font-weight: 700;
+}
+
+@keyframes pulseActiveStep {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); }
+    50%      { box-shadow: 0 0 0 8px rgba(37, 99, 235, 0.06); }
+}
+
+.order-stepper-msg {
+    background: #f8fafc;
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-sm);
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    color: #475569;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+/* ─── FIM: 12. LINHA DO TEMPO VISUAL DOS PEDIDOS (STEPPER) ──── */
+
+/* ─── INÍCIO: 13. PIPELINE DE PEDIDOS (ADM) ──────────────────── */
 .pipeline-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -764,8 +926,9 @@ input:focus, select:focus, textarea:focus {
     margin-bottom: 8px;
     border-bottom: 1px solid var(--cor-borda);
 }
+/* ─── FIM: 13. PIPELINE DE PEDIDOS (ADM) ────────────────────── */
 
-/* ─── 13. TOASTS ───────────────────────────────────────────── */
+/* ─── INÍCIO: 14. TOASTS ─────────────────────────────────────── */
 .toast-wrapper {
     position: fixed;
     top: calc(var(--altura-header) + 8px);
@@ -798,8 +961,9 @@ input:focus, select:focus, textarea:focus {
     from { opacity: 0; transform: translateY(-12px); }
     to   { opacity: 1; transform: translateY(0); }
 }
+/* ─── FIM: 14. TOASTS ───────────────────────────────────────── */
 
-/* ─── 14. MODAIS ───────────────────────────────────────────── */
+/* ─── INÍCIO: 15. MODAIS & BOTTOM SHEETS ─────────────────────── */
 .modal-overlay {
     display: none;
     position: fixed;
@@ -813,27 +977,40 @@ input:focus, select:focus, textarea:focus {
 }
 .modal-overlay.active { display: flex; }
 
+/* Folha Deslizante (Bottom Sheet mobile) */
 .modal-dialog {
     background: var(--cor-fundo-card);
     width: 100%;
-    max-width: 480px;
-    max-height: 92vh;
+    max-width: 520px;
+    max-height: 88vh;
     border-radius: 20px 20px 0 0;
     overflow-y: auto;
     position: relative;
-    padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 0));
-    animation: modalUp 0.25s ease-out;
+    padding: 18px 20px calc(24px + env(safe-area-inset-bottom, 0));
+    animation: sheetSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
-@keyframes modalUp {
-    from { transform: translateY(40px); opacity: 0; }
-    to   { transform: translateY(0); opacity: 1; }
+@keyframes sheetSlideUp {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
 }
 
-.modal-dialog.modal-sm { max-width: 380px; border-radius: 20px; margin: auto; }
+/* Barra de puxar/fechar no topo do modal */
+.sheet-handle {
+    width: 44px;
+    height: 4px;
+    background: #cbd5e1;
+    border-radius: 999px;
+    margin: 0 auto 16px;
+    display: block;
+}
+
+.modal-dialog.modal-sm {
+    max-width: 400px;
+}
 
 .btn-close {
     position: absolute;
-    top: 12px;
+    top: 14px;
     right: 14px;
     background: none;
     border: none;
@@ -890,8 +1067,9 @@ input:focus, select:focus, textarea:focus {
     color: #991b1b;
     margin-bottom: 8px;
 }
+/* ─── FIM: 15. MODAIS & BOTTOM SHEETS ───────────────────────── */
 
-/* ─── 15. CHAT ─────────────────────────────────────────────── */
+/* ─── INÍCIO: 16. CHAT TEMPORÁRIO ────────────────────────────── */
 .chat-id {
     color: var(--cor-primaria);
     font-weight: 700;
@@ -944,8 +1122,9 @@ input:focus, select:focus, textarea:focus {
     gap: 8px;
 }
 .chat-input-row input { flex: 1; }
+/* ─── FIM: 16. CHAT TEMPORÁRIO ──────────────────────────────── */
 
-/* ─── 16. FAQ / CENTRAL DE DÚVIDAS ─────────────────────────── */
+/* ─── INÍCIO: 17. FAQ / CENTRAL DE DÚVIDAS ───────────────────── */
 .faq-container { margin-bottom: 18px; }
 .faq-header-title {
     font-size: 0.9rem;
@@ -1008,8 +1187,9 @@ input:focus, select:focus, textarea:focus {
     border: none;
     border-top: 1px dashed var(--cor-borda-forte);
 }
+/* ─── FIM: 17. FAQ / CENTRAL DE DÚVIDAS ─────────────────────── */
 
-/* ─── 17. MÉTRICAS ─────────────────────────────────────────── */
+/* ─── INÍCIO: 18. MÉTRICAS ───────────────────────────────────── */
 .metrics-summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -1054,8 +1234,9 @@ input:focus, select:focus, textarea:focus {
     font-weight: 600;
     color: #475569;
 }
+/* ─── FIM: 18. MÉTRICAS ─────────────────────────────────────── */
 
-/* ─── 18. UPLOAD / PREVIEW ─────────────────────────────────── */
+/* ─── INÍCIO: 19. UPLOAD / PREVIEW ───────────────────────────── */
 .preview-box {
     margin-top: 10px;
     padding: 10px;
@@ -1073,8 +1254,9 @@ input:focus, select:focus, textarea:focus {
     object-fit: cover;
     border: 1px solid var(--cor-borda-forte);
 }
+/* ─── FIM: 19. UPLOAD / PREVIEW ─────────────────────────────── */
 
-/* ─── 19. LINK GERADO ──────────────────────────────────────── */
+/* ─── INÍCIO: 20. LINK GERADO ────────────────────────────────── */
 .link-display-box {
     margin-top: 14px;
     padding: 14px;
@@ -1095,8 +1277,9 @@ input:focus, select:focus, textarea:focus {
     color: var(--cor-texto-suave);
     margin-top: 6px;
 }
+/* ─── FIM: 20. LINK GERADO ──────────────────────────────────── */
 
-/* ─── 20. LOADER ───────────────────────────────────────────── */
+/* ─── INÍCIO: 21. LOADER GLOBAL & SKELETON ───────────────────── */
 .loader-overlay {
     position: fixed;
     inset: 0;
@@ -1120,15 +1303,36 @@ input:focus, select:focus, textarea:focus {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ─── 21. SKELETON / LOADING SLOTS ─────────────────────────── */
 .loading-slot {
     padding: 16px;
     color: var(--cor-texto-suave);
     font-size: 0.85rem;
     text-align: center;
 }
+/* ─── FIM: 21. LOADER GLOBAL & SKELETON ─────────────────────── */
 
-/* ─── 22. RESPONSIVO ───────────────────────────────────────── */
+/* ─── INÍCIO: 22. REGRAS DE RESPONSIVIDADE (DESKTOP / TABLET) ── */
+@media (min-width: 640px) {
+    /* Centraliza os modais em telas maiores (estilo caixa de diálogo) */
+    .modal-overlay {
+        align-items: center;
+        padding: 20px;
+    }
+    .modal-dialog {
+        border-radius: var(--raio-lg);
+        animation: modalScaleIn 0.2s ease-out;
+    }
+    @keyframes modalScaleIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to   { opacity: 1; transform: scale(1); }
+    }
+    .sheet-handle { display: none; }
+
+    .cards-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+}
+
 @media (max-width: 380px) {
     .logo { font-size: 1rem; }
     .btn  { padding: 9px 12px; font-size: 0.8rem; }
@@ -1136,10 +1340,6 @@ input:focus, select:focus, textarea:focus {
     .bottom-nav__item svg { width: 20px; height: 20px; }
     .product-name { font-size: 0.82rem; }
     .product-price { font-size: 0.95rem; }
+    .chip { font-size: 0.75rem; padding: 5px 12px; }
 }
-
-@media (min-width: 640px) {
-    .cards-grid {
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    }
-}
+/* ─── FIM: 22. REGRAS DE RESPONSIVIDADE (DESKTOP / TABLET) ──── */
