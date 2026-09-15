@@ -1,18 +1,17 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v15 — UX, Áudio Nativo, Lote & Acessibilidade)
+   app.js — Plataforma Comercial Segura (v17 — Estável, Leve & Blindada)
    ============================================================================
-   NOVIDADES DESTA VERSÃO:
-     • Web Audio API nativa: avisos sonoros para novas mensagens e novos pedidos.
-     • Alternância dinâmica de Modo Escuro (Dark Mode) com persistência em cache.
-     • Barra flutuante de sacola (estilo iFood) com atualização dinâmica de total.
-     • Ação rápida "Comprar Agora" (1 Toque) direto para a esteira de pagamento.
-     • Visualizador Lightbox de fotos em tela cheia com duplo toque ou duplo clique.
-     • Aprovação em lote com seleção múltipla e contagem de itens para o ADM.
-     • Exportação de relatório em PDF otimizado para impressão nativa.
+   RECURSOS ATIVOS:
+     • Web Audio API nativa: alertas harmônicos para chat e novos pedidos.
+     • Alternância dinâmica de Modo Escuro com persistência local.
+     • Barra flutuante de sacola (estilo iFood) com cálculo dinâmico.
+     • Botão "Comprar Agora" (1 Toque) direto para finalização.
+     • Lightbox em tela cheia com duplo toque/clique nas fotos.
+     • Aprovação em lote com seleção múltipla no painel ADM.
+     • Exportação de relatórios em PDF nativo via motor de impressão.
      • Compartilhamento de resumo de pedidos via Web Share API e WhatsApp.
-     • Atendente virtual com base de conhecimento segmentada por perfil.
-     • Preservação de todas as blindagens de segurança, HMAC UTF-8 e DevTools.
-     • Demarcação padronizada de INÍCIO e FIM em todas as funções.
+     • Atendente virtual segmentado por perfil de usuário.
+     • Totalmente desacoplado de dependências WebGL externas.
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
@@ -95,9 +94,6 @@ function ativarBlindagemDevTools() {
 /* ─── FIM: ativarBlindagemDevTools ──────────────────────────── */
 
 /* ─── INÍCIO: tocarSomNotificacao ───────────────────────────── */
-/**
- * Emite bipes harmônicos via Web Audio API sem dependências externas.
- */
 function tocarSomNotificacao(tipo = 'mensagem') {
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -111,8 +107,8 @@ function tocarSomNotificacao(tipo = 'mensagem') {
             gain.connect(ctx.destination);
 
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-            osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.12); // A5
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.12);
             gain.gain.setValueAtTime(0.18, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
 
@@ -125,16 +121,14 @@ function tocarSomNotificacao(tipo = 'mensagem') {
             gain.connect(ctx.destination);
 
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(784.00, ctx.currentTime); // G5
+            osc.frequency.setValueAtTime(784.00, ctx.currentTime);
             gain.gain.setValueAtTime(0.14, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
 
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + 0.22);
         }
-    } catch (e) {
-        // Bloqueio automático de autoplay pelo navegador contornado após primeiro clique
-    }
+    } catch (e) {}
 }
 /* ─── FIM: tocarSomNotificacao ───────────────────────────────── */
 
@@ -312,9 +306,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 /* ─── FIM: DOMContentLoaded ─────────────────────────────────── */
 
 /* ─── INÍCIO: assegurarElementosAuxiliares ────────────────────── */
-/**
- * Garante a presença do botão flutuante de ajuda e do container de Lightbox no DOM.
- */
 function assegurarElementosAuxiliares() {
     if (!document.getElementById('btn-flutuante-ajuda')) {
         const fab = document.createElement('button');
@@ -776,9 +767,6 @@ function renderizarVitrine() {
 /* ─── FIM: renderizarVitrine ─────────────────────────────────── */
 
 /* ─── INÍCIO: comprarProdutoDireto ───────────────────────────── */
-/**
- * Botão "Comprar Agora": isola o produto na cesta e vai direto para a tela de finalização.
- */
 function comprarProdutoDireto(idProduto) {
     const prod = catalogoProdutos.find(p => String(p.id) === String(idProduto));
     if (!prod) return;
@@ -855,7 +843,7 @@ function atualizarBarraFlutuanteSacola() {
             bar.className = 'floating-cart-bar';
             bar.innerHTML = `
                 <div class="floating-cart-bar__left">
-                    <span class="floating-cart-bar__count" id="float-cart-count">0</span>
+                    <span class="floating-cart-bar__count" id="float-cart-count">0 itens</span>
                     <span class="floating-cart-bar__total" id="float-cart-total">R$ 0,00</span>
                 </div>
                 <div class="floating-cart-bar__cta">
@@ -1504,7 +1492,6 @@ async function enviarMensagemChat() {
 async function carregarPainelCentralAdm() {
     if (estadoSessao.papel !== 'adm') return;
 
-    // 1. Cadastros pendentes com checkboxes
     const divSolicitacoes = document.getElementById('adm-solicitacoes-lista');
     const toolbarLote = document.getElementById('adm-lote-toolbar');
     if (divSolicitacoes) divSolicitacoes.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
@@ -1553,7 +1540,6 @@ async function carregarPainelCentralAdm() {
     }
     atualizarContadorSelecaoLote();
 
-    // 2. Usuários Ativos
     const divUsuarios = document.getElementById('adm-usuarios-lista');
     if (divUsuarios) {
         divUsuarios.innerHTML = '<div class="loading-slot">Carregando usuários ativos...</div>';
@@ -1576,7 +1562,6 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 3. Métricas
     const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas");
     if (respostaMetricas.sucesso) {
         const elementoFaturamento = document.getElementById('metric-faturamento');
@@ -1599,7 +1584,6 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 4. Bloqueados
     const respostaBloqueados = await executarRequisicaoAPI("listar_bloqueados_adm");
     const divBloqueados = document.getElementById('adm-bloqueados-lista');
     if (divBloqueados) {
@@ -1623,7 +1607,6 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 5. Mensagens
     const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm");
     const divComentarios = document.getElementById('adm-comentarios-lista');
     if (divComentarios) {
@@ -2655,7 +2638,7 @@ window.toggleUserDropdown            = toggleUserDropdown;
 window.fecharUserDropdown            = fecharUserDropdown;
 window.atualizarBadgeCarrinho        = atualizarBadgeCarrinho;
 
-// Funções da nova versão
+// Funções de acessibilidade e ações diretas
 window.alternarModoEscuro                  = alternarModoEscuro;
 window.abrirLightboxFoto                   = abrirLightboxFoto;
 window.fecharLightbox                      = fecharLightbox;
