@@ -1,15 +1,17 @@
 /* ============================================================================
-   style.css — Plataforma Comercial Segura (v4 — UX Redesenhada & Mobile First)
+   style.css — Plataforma Comercial Segura (v5 — UI/UX Leve, Acessível e Completa)
    ============================================================================
    NOVIDADES DESTA VERSÃO:
-     • Linha do tempo visual de pedidos (Stepper com nós e linha conectora).
-     • Pílulas deslizantes de categorias (Chips com rolagem horizontal oculta).
-     • Microinterações tátil/visual na cesta de compras (Bounce + Botão Adicionado).
-     • Modais estilizados como Folhas Deslizantes (Bottom Sheets) com Drag Handle.
-     • Botão oficial estilizado para solicitação de acesso via WhatsApp.
+     • Modo Escuro nativo com alternância por data-theme="dark".
+     • Barra Flutuante de Sacola (estilo iFood) fixada acima da navegação.
+     • Botão "Comprar Agora" (1 Toque) em destaque nos cards de produtos.
+     • Visualizador Lightbox de fotos em tela cheia com fundo escuro.
+     • Botão Flutuante de Ajuda Humana (FAB) e layout do Atendente Virtual.
+     • Toolbar de Aprovação em Lote com checkboxes no painel administrativo.
+     • Estilização para impressão e exportação direta em PDF (@media print).
    ============================================================================ */
 
-/* ─── INÍCIO: 1. RESET E VARIÁVEIS ───────────────────────────── */
+/* ─── INÍCIO: 1. RESET E VARIÁVEIS DE TEMA ───────────────────── */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -24,23 +26,45 @@
     --cor-sucesso-escura: #15803d;
     --cor-perigo: #dc2626;
     --cor-perigo-escura: #b91c1c;
+    --cor-aviso: #f59e0b;
     --cor-whatsapp: #25d366;
     --cor-whatsapp-escura: #1ebe5d;
+    
     --cor-fundo: #f8fafc;
     --cor-fundo-card: #ffffff;
+    --cor-fundo-elevado: #f1f5f9;
     --cor-texto: #0f172a;
     --cor-texto-suave: #64748b;
     --cor-borda: #e2e8f0;
     --cor-borda-forte: #cbd5e1;
+    
     --sombra-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
     --sombra-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
     --sombra-nav: 0 -2px 12px rgba(0, 0, 0, 0.06);
+    --sombra-elevada: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+    
     --raio-sm: 6px;
     --raio-md: 10px;
     --raio-lg: 14px;
+    --raio-full: 999px;
+    
     --altura-header: 60px;
     --altura-bottom-nav: 64px;
     --transicao: 0.18s ease;
+}
+
+/* Paleta de Cores do Modo Escuro (OLED / Slate) */
+[data-theme="dark"] {
+    --cor-fundo: #0b0f19;
+    --cor-fundo-card: #111827;
+    --cor-fundo-elevado: #1f2937;
+    --cor-texto: #f8fafc;
+    --cor-texto-suave: #94a3b8;
+    --cor-borda: #1f2937;
+    --cor-borda-forte: #374151;
+    --sombra-card: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --sombra-hover: 0 4px 12px rgba(0, 0, 0, 0.6);
+    --sombra-nav: 0 -2px 12px rgba(0, 0, 0, 0.5);
 }
 
 html, body {
@@ -49,18 +73,18 @@ html, body {
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
+    transition: background-color var(--transicao), color var(--transicao);
 }
 
-/* Espaço no rodapé para que a navegação fixa não sobreponha itens */
 body {
-    padding-bottom: calc(var(--altura-bottom-nav) + env(safe-area-inset-bottom, 0) + 16px);
+    padding-bottom: calc(var(--altura-bottom-nav) + env(safe-area-inset-bottom, 0) + 24px);
     min-height: 100vh;
 }
 
 .hidden { display: none !important; }
-/* ─── FIM: 1. RESET E VARIÁVEIS ─────────────────────────────── */
+/* ─── FIM: 1. RESET E VARIÁVEIS DE TEMA ─────────────────────── */
 
-/* ─── INÍCIO: 2. HEADER ──────────────────────────────────────── */
+/* ─── INÍCIO: 2. HEADER DA APLICAÇÃO ─────────────────────────── */
 .app-header {
     position: sticky;
     top: 0;
@@ -74,6 +98,7 @@ body {
     padding-top: env(safe-area-inset-top, 0);
     background: var(--cor-fundo-card);
     border-bottom: 1px solid var(--cor-borda);
+    transition: background-color var(--transicao), border-color var(--transicao);
 }
 
 .app-header__left,
@@ -90,7 +115,6 @@ body {
     color: var(--cor-texto);
 }
 
-/* Ícone de carrinho no header */
 .icon-btn {
     position: relative;
     display: inline-flex;
@@ -105,7 +129,7 @@ body {
     cursor: pointer;
     transition: background var(--transicao);
 }
-.icon-btn:hover { background: #f1f5f9; }
+.icon-btn:hover { background: var(--cor-fundo-elevado); }
 
 .icon-btn__badge {
     position: absolute;
@@ -116,7 +140,7 @@ body {
     padding: 0 5px;
     background: var(--cor-perigo);
     color: #fff;
-    border-radius: 999px;
+    border-radius: var(--raio-full);
     font-size: 0.65rem;
     font-weight: 700;
     display: flex;
@@ -127,14 +151,12 @@ body {
 .icon-btn__badge:empty,
 .icon-btn__badge[data-zero="1"] { display: none; }
 
-/* Grupo de botões (visitante) */
 .button-group {
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
-/* Menu de usuário e avatar */
 .user-menu {
     position: relative;
 }
@@ -162,11 +184,11 @@ body {
     position: absolute;
     top: calc(100% + 8px);
     right: 0;
-    min-width: 220px;
+    min-width: 230px;
     background: var(--cor-fundo-card);
     border: 1px solid var(--cor-borda);
     border-radius: var(--raio-md);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--sombra-elevada);
     overflow: hidden;
     animation: dropIn 0.15s ease-out;
     z-index: 200;
@@ -192,7 +214,9 @@ body {
     background: var(--cor-borda);
 }
 .dropdown__item {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     width: 100%;
     padding: 12px 16px;
     text-align: left;
@@ -203,11 +227,11 @@ body {
     cursor: pointer;
     transition: background var(--transicao);
 }
-.dropdown__item:hover { background: #f1f5f9; }
+.dropdown__item:hover { background: var(--cor-fundo-elevado); }
 .dropdown__item--danger { color: var(--cor-perigo); }
 .dropdown__item--danger:hover { background: #fef2f2; }
+[data-theme="dark"] .dropdown__item--danger:hover { background: #2a1215; }
 
-/* Badges de papel */
 .badge {
     display: inline-block;
     padding: 3px 8px;
@@ -221,9 +245,9 @@ body {
 .badge-membro    { background: #10b981; color: #fff; }
 .badge-entregador{ background: #f59e0b; color: #fff; }
 .badge-adm       { background: #ef4444; color: #fff; }
-/* ─── FIM: 2. HEADER ────────────────────────────────────────── */
+/* ─── FIM: 2. HEADER DA APLICAÇÃO ──────────────────────────── */
 
-/* ─── INÍCIO: 3. BOTTOM NAV (MENU INFERIOR) ──────────────────── */
+/* ─── INÍCIO: 3. BOTTOM NAV (MENU INFERIOR FIXO) ─────────────── */
 .bottom-nav {
     position: fixed;
     bottom: 0;
@@ -236,6 +260,7 @@ body {
     box-shadow: var(--sombra-nav);
     padding-bottom: env(safe-area-inset-bottom, 0);
     height: calc(var(--altura-bottom-nav) + env(safe-area-inset-bottom, 0));
+    transition: background-color var(--transicao), border-color var(--transicao);
 }
 
 .bottom-nav__item {
@@ -293,7 +318,7 @@ body {
     padding: 0 4px;
     background: var(--cor-perigo);
     color: #fff;
-    border-radius: 999px;
+    border-radius: var(--raio-full);
     font-size: 0.6rem;
     font-weight: 700;
     display: flex;
@@ -304,7 +329,6 @@ body {
 .bottom-nav__badge:empty,
 .bottom-nav__badge[data-zero="1"] { display: none; }
 
-/* Microinteração Bounce no Carrinho */
 .badge-bounce {
     animation: cartBounce 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -314,9 +338,65 @@ body {
     75%  { transform: scale(0.85); }
     100% { transform: scale(1); }
 }
-/* ─── FIM: 3. BOTTOM NAV (MENU INFERIOR) ────────────────────── */
+/* ─── FIM: 3. BOTTOM NAV (MENU INFERIOR FIXO) ───────────────── */
 
-/* ─── INÍCIO: 4. MAIN / TELAS ────────────────────────────────── */
+/* ─── INÍCIO: 4. BARRA FLUTUANTE DE SACOLA (PADRÃO IFOOD) ────── */
+.floating-cart-bar {
+    position: fixed;
+    bottom: calc(var(--altura-bottom-nav) + env(safe-area-inset-bottom, 0) + 12px);
+    left: 16px;
+    right: 16px;
+    max-width: 600px;
+    margin: 0 auto;
+    z-index: 85;
+    background: var(--cor-sucesso);
+    color: #ffffff;
+    border-radius: var(--raio-lg);
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 8px 24px rgba(22, 163, 74, 0.35);
+    cursor: pointer;
+    animation: slideUpFloat 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform var(--transicao), background-color var(--transicao);
+}
+.floating-cart-bar:active { transform: scale(0.98); }
+.floating-cart-bar:hover { background-color: var(--cor-sucesso-escura); }
+
+@keyframes slideUpFloat {
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+
+.floating-cart-bar__left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.floating-cart-bar__count {
+    background: rgba(255, 255, 255, 0.25);
+    padding: 2px 8px;
+    border-radius: var(--raio-full);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.floating-cart-bar__total {
+    font-weight: 700;
+    font-size: 1rem;
+}
+.floating-cart-bar__cta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+/* ─── FIM: 4. BARRA FLUTUANTE DE SACOLA ─────────────────────── */
+
+/* ─── INÍCIO: 5. MAIN / CONTAINER DE TELAS ───────────────────── */
 .app-main {
     max-width: 960px;
     margin: 0 auto;
@@ -344,9 +424,9 @@ body {
     color: var(--cor-texto-suave);
     margin-top: 2px;
 }
-/* ─── FIM: 4. MAIN / TELAS ──────────────────────────────────── */
+/* ─── FIM: 5. MAIN / CONTAINER DE TELAS ─────────────────────── */
 
-/* ─── INÍCIO: 5. HERO SCREEN (TELA DE BLOQUEIO) ──────────────── */
+/* ─── INÍCIO: 6. HERO SCREEN (TELA DE BLOQUEIO) ──────────────── */
 .hero-screen {
     max-width: 440px;
     margin: 32px auto 0;
@@ -368,6 +448,10 @@ body {
     background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
     border-radius: 50%;
     color: var(--cor-primaria);
+}
+[data-theme="dark"] .hero-screen__icon {
+    background: linear-gradient(135deg, #1e3a8a 0%, #172554 100%);
+    color: #60a5fa;
 }
 
 .hero-screen__title {
@@ -400,9 +484,9 @@ body {
     color: var(--cor-texto-suave);
     line-height: 1.5;
 }
-/* ─── FIM: 5. HERO SCREEN (TELA DE BLOQUEIO) ────────────────── */
+/* ─── FIM: 6. HERO SCREEN (TELA DE BLOQUEIO) ────────────────── */
 
-/* ─── INÍCIO: 6. SEARCH BAR & CHIPS DE CATEGORIAS ───────────── */
+/* ─── INÍCIO: 7. SEARCH BAR & CHIPS DE CATEGORIAS ───────────── */
 .search-bar {
     position: relative;
     margin-bottom: 12px;
@@ -428,10 +512,9 @@ body {
 .search-bar input:focus {
     outline: none;
     border-color: var(--cor-primaria);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
-/* Pílulas deslizantes (Chips) */
 .chips-container {
     display: flex;
     align-items: center;
@@ -449,7 +532,7 @@ body {
     scroll-snap-align: start;
     white-space: nowrap;
     padding: 7px 16px;
-    border-radius: 999px;
+    border-radius: var(--raio-full);
     border: 1px solid var(--cor-borda-forte);
     background: var(--cor-fundo-card);
     color: var(--cor-texto-suave);
@@ -464,7 +547,7 @@ body {
 .chip:hover {
     border-color: var(--cor-primaria);
     color: var(--cor-primaria);
-    background: #eff6ff;
+    background: var(--cor-fundo-elevado);
 }
 .chip.active {
     background: var(--cor-primaria);
@@ -472,9 +555,9 @@ body {
     color: #fff;
     box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
-/* ─── FIM: 6. SEARCH BAR & CHIPS DE CATEGORIAS ─────────────── */
+/* ─── FIM: 7. SEARCH BAR & CHIPS DE CATEGORIAS ─────────────── */
 
-/* ─── INÍCIO: 7. CARDS DE PRODUTOS ───────────────────────────── */
+/* ─── INÍCIO: 8. CARDS DE PRODUTOS & BOTÃO COMPRAR AGORA ─────── */
 .cards-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -502,8 +585,10 @@ body {
     width: 100%;
     aspect-ratio: 1 / 1;
     object-fit: cover;
-    background: #f1f5f9;
+    background: var(--cor-fundo-elevado);
     display: block;
+    cursor: pointer;
+    user-select: none;
 }
 
 .product-details {
@@ -529,6 +614,26 @@ body {
     color: var(--cor-sucesso-escura);
     margin-top: auto;
 }
+[data-theme="dark"] .product-price {
+    color: #4ade80;
+}
+
+/* Fileira de Ações de Compra */
+.card-actions-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+.btn-comprar-agora {
+    background-color: var(--cor-sucesso);
+    color: #fff;
+    font-weight: 700;
+}
+.btn-comprar-agora:hover:not(:disabled) {
+    background-color: var(--cor-sucesso-escura);
+}
+
 .visitor-note {
     font-size: 0.72rem;
     color: var(--cor-texto-suave);
@@ -578,20 +683,68 @@ body {
     background: transparent;
     border: 1px solid var(--cor-borda-forte);
     color: var(--cor-texto-suave);
-    border-radius: 999px;
+    border-radius: var(--raio-full);
     font-size: 0.82rem;
     font-weight: 500;
     cursor: pointer;
     transition: all var(--transicao);
 }
 .help-cta__btn:hover {
-    background: #f1f5f9;
+    background: var(--cor-fundo-elevado);
     color: var(--cor-texto);
     border-color: var(--cor-primaria);
 }
-/* ─── FIM: 7. CARDS DE PRODUTOS ─────────────────────────────── */
+/* ─── FIM: 8. CARDS DE PRODUTOS & BOTÃO COMPRAR AGORA ───────── */
 
-/* ─── INÍCIO: 8. BOTÕES & FEEDBACK TÁTIL ─────────────────────── */
+/* ─── INÍCIO: 9. LIGHTBOX (ZOOM DE IMAGEM EM TELA CHEIA) ─────── */
+.lightbox-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 3500;
+    background: rgba(0, 0, 0, 0.92);
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.2s ease-out;
+}
+.lightbox-modal.active { display: flex; }
+
+.lightbox-modal__img {
+    max-width: 92vw;
+    max-height: 85vh;
+    object-fit: contain;
+    border-radius: var(--raio-md);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+    animation: zoomInLight 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes zoomInLight {
+    from { transform: scale(0.85); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+}
+
+.lightbox-modal__close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: #fff;
+    font-size: 1.8rem;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transicao);
+}
+.lightbox-modal__close:hover { background: rgba(255, 255, 255, 0.3); }
+/* ─── FIM: 9. LIGHTBOX (ZOOM DE IMAGEM EM TELA CHEIA) ───────── */
+
+/* ─── INÍCIO: 10. BOTÕES & FEEDBACK VISUAL ───────────────────── */
 .btn {
     cursor: pointer;
     border-radius: var(--raio-sm);
@@ -634,22 +787,22 @@ body {
     border: 1px solid var(--cor-perigo);
 }
 .btn-danger-outline:hover:not(:disabled) { background-color: #fef2f2; }
+[data-theme="dark"] .btn-danger-outline:hover:not(:disabled) { background-color: #2a1215; }
 
 .btn-outline-dark {
     background-color: transparent;
     color: var(--cor-texto);
     border: 1px solid var(--cor-borda-forte);
 }
-.btn-outline-dark:hover:not(:disabled) { background-color: #f1f5f9; }
+.btn-outline-dark:hover:not(:disabled) { background-color: var(--cor-fundo-elevado); }
 
 .btn-ghost {
     background-color: transparent;
     color: var(--cor-texto);
     border: 1px solid var(--cor-borda);
 }
-.btn-ghost:hover:not(:disabled) { background-color: #f1f5f9; }
+.btn-ghost:hover:not(:disabled) { background-color: var(--cor-fundo-elevado); }
 
-/* Botão oficial WhatsApp */
 .btn-whatsapp {
     background-color: var(--cor-whatsapp);
     color: #fff;
@@ -657,7 +810,6 @@ body {
 }
 .btn-whatsapp:hover:not(:disabled) { background-color: var(--cor-whatsapp-escura); }
 
-/* Microinteração de Item Adicionado na Vitrine */
 .btn-adicionado {
     background-color: var(--cor-sucesso) !important;
     color: #fff !important;
@@ -686,16 +838,16 @@ body {
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
 }
-/* ─── FIM: 8. BOTÕES & FEEDBACK TÁTIL ───────────────────────── */
+/* ─── FIM: 10. BOTÕES & FEEDBACK VISUAL ─────────────────────── */
 
-/* ─── INÍCIO: 9. FORMULÁRIOS ─────────────────────────────────── */
+/* ─── INÍCIO: 11. FORMULÁRIOS & MÁSCARAS ─────────────────────── */
 .form-group { margin-bottom: 14px; }
 .form-group label {
     display: block;
     font-size: 0.8rem;
     font-weight: 600;
     margin-bottom: 5px;
-    color: #334155;
+    color: var(--cor-texto-suave);
 }
 
 input, select, textarea {
@@ -712,7 +864,7 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--cor-primaria);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 .row-inline {
@@ -730,9 +882,9 @@ input:focus, select:focus, textarea:focus {
     max-width: 140px;
     margin-bottom: 0;
 }
-/* ─── FIM: 9. FORMULÁRIOS ───────────────────────────────────── */
+/* ─── FIM: 11. FORMULÁRIOS & MÁSCARAS ───────────────────────── */
 
-/* ─── INÍCIO: 10. CARD GENÉRICO ─────────────────────────────── */
+/* ─── INÍCIO: 12. CARD GENÉRICO ──────────────────────────────── */
 .card {
     background: var(--cor-fundo-card);
     border: 1px solid var(--cor-borda);
@@ -759,9 +911,9 @@ input:focus, select:focus, textarea:focus {
     margin-bottom: 12px;
     flex-wrap: wrap;
 }
-/* ─── FIM: 10. CARD GENÉRICO ─────────────────────────────────── */
+/* ─── FIM: 12. CARD GENÉRICO ─────────────────────────────────── */
 
-/* ─── INÍCIO: 11. CESTA DE COMPRAS ───────────────────────────── */
+/* ─── INÍCIO: 13. CESTA DE COMPRAS ───────────────────────────── */
 .cart-items-wrapper {
     background: var(--cor-fundo-card);
     border: 1px solid var(--cor-borda);
@@ -802,9 +954,12 @@ input:focus, select:focus, textarea:focus {
     color: var(--cor-sucesso-escura);
     font-weight: 700;
 }
-/* ─── FIM: 11. CESTA DE COMPRAS ─────────────────────────────── */
+[data-theme="dark"] .cart-total-row strong {
+    color: #4ade80;
+}
+/* ─── FIM: 13. CESTA DE COMPRAS ─────────────────────────────── */
 
-/* ─── INÍCIO: 12. LINHA DO TEMPO VISUAL DOS PEDIDOS (STEPPER) ─── */
+/* ─── INÍCIO: 14. LINHA DO TEMPO DOS PEDIDOS (STEPPER) ───────── */
 .order-stepper {
     display: flex;
     align-items: flex-start;
@@ -826,14 +981,14 @@ input:focus, select:focus, textarea:focus {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: #e2e8f0;
-    color: #64748b;
+    background: var(--cor-fundo-elevado);
+    color: var(--cor-texto-suave);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 0.8rem;
     font-weight: bold;
-    border: 2px solid #fff;
+    border: 2px solid var(--cor-fundo-card);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     transition: all 0.25s ease;
 }
@@ -841,12 +996,11 @@ input:focus, select:focus, textarea:focus {
 .step-label {
     font-size: 0.68rem;
     font-weight: 600;
-    color: #64748b;
+    color: var(--cor-texto-suave);
     margin-top: 6px;
     text-align: center;
 }
 
-/* Linha conectora entre as etapas */
 .order-step::after {
     content: "";
     position: absolute;
@@ -854,12 +1008,11 @@ input:focus, select:focus, textarea:focus {
     left: 50%;
     width: 100%;
     height: 2px;
-    background: #e2e8f0;
+    background: var(--cor-borda);
     z-index: -1;
 }
 .order-step:last-child::after { display: none; }
 
-/* Etapa Concluída */
 .order-step.completed .step-circle {
     background: var(--cor-sucesso);
     color: #fff;
@@ -867,11 +1020,13 @@ input:focus, select:focus, textarea:focus {
 .order-step.completed .step-label {
     color: var(--cor-sucesso-escura);
 }
+[data-theme="dark"] .order-step.completed .step-label {
+    color: #4ade80;
+}
 .order-step.completed::after {
     background: var(--cor-sucesso);
 }
 
-/* Etapa Atual / Ativa */
 .order-step.active .step-circle {
     background: var(--cor-primaria);
     color: #fff;
@@ -889,20 +1044,41 @@ input:focus, select:focus, textarea:focus {
 }
 
 .order-stepper-msg {
-    background: #f8fafc;
+    background: var(--cor-fundo-elevado);
     border: 1px solid var(--cor-borda);
     border-radius: var(--raio-sm);
     padding: 8px 12px;
     font-size: 0.78rem;
-    color: #475569;
+    color: var(--cor-texto-suave);
     margin-top: 10px;
     display: flex;
     align-items: center;
     gap: 6px;
 }
-/* ─── FIM: 12. LINHA DO TEMPO VISUAL DOS PEDIDOS (STEPPER) ──── */
+/* ─── FIM: 14. LINHA DO TEMPO DOS PEDIDOS (STEPPER) ─────────── */
 
-/* ─── INÍCIO: 13. PIPELINE DE PEDIDOS (ADM) ──────────────────── */
+/* ─── INÍCIO: 15. APROVAÇÃO EM LOTE & PIPELINE (ADM) ─────────── */
+.batch-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-borda);
+    padding: 8px 12px;
+    border-radius: var(--raio-sm);
+    margin-bottom: 12px;
+    font-size: 0.8rem;
+}
+.batch-toolbar__left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.batch-toolbar__left input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
 .pipeline-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -926,9 +1102,64 @@ input:focus, select:focus, textarea:focus {
     margin-bottom: 8px;
     border-bottom: 1px solid var(--cor-borda);
 }
-/* ─── FIM: 13. PIPELINE DE PEDIDOS (ADM) ────────────────────── */
+/* ─── FIM: 15. APROVAÇÃO EM LOTE & PIPELINE (ADM) ───────────── */
 
-/* ─── INÍCIO: 14. TOASTS ─────────────────────────────────────── */
+/* ─── INÍCIO: 16. BOTÃO FLUTUANTE DE AJUDA & ATENDENTE ───────── */
+.floating-help-btn {
+    position: fixed;
+    bottom: calc(var(--altura-bottom-nav) + env(safe-area-inset-bottom, 0) + 16px);
+    right: 16px;
+    z-index: 84;
+    background: var(--cor-primaria);
+    color: #ffffff;
+    border: none;
+    border-radius: var(--raio-full);
+    padding: 10px 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform var(--transicao), background var(--transicao);
+    animation: floatGently 3s ease-in-out infinite;
+}
+.floating-help-btn:hover {
+    background: var(--cor-primaria-escura);
+    transform: translateY(-2px);
+}
+.floating-help-btn:active { transform: scale(0.96); }
+
+@keyframes floatGently {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+}
+
+/* Área de Conversa do Atendente Virtual */
+.assistant-quick-box {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+.assistant-quick-chip {
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+    padding: 6px 12px;
+    border-radius: var(--raio-full);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all var(--transicao);
+}
+.assistant-quick-chip:hover {
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+}
+/* ─── FIM: 16. BOTÃO FLUTUANTE DE AJUDA & ATENDENTE ─────────── */
+
+/* ─── INÍCIO: 17. TOASTS ─────────────────────────────────────── */
 .toast-wrapper {
     position: fixed;
     top: calc(var(--altura-header) + 8px);
@@ -961,9 +1192,9 @@ input:focus, select:focus, textarea:focus {
     from { opacity: 0; transform: translateY(-12px); }
     to   { opacity: 1; transform: translateY(0); }
 }
-/* ─── FIM: 14. TOASTS ───────────────────────────────────────── */
+/* ─── FIM: 17. TOASTS ───────────────────────────────────────── */
 
-/* ─── INÍCIO: 15. MODAIS & BOTTOM SHEETS ─────────────────────── */
+/* ─── INÍCIO: 18. MODAIS & BOTTOM SHEETS ─────────────────────── */
 .modal-overlay {
     display: none;
     position: fixed;
@@ -977,7 +1208,6 @@ input:focus, select:focus, textarea:focus {
 }
 .modal-overlay.active { display: flex; }
 
-/* Folha Deslizante (Bottom Sheet mobile) */
 .modal-dialog {
     background: var(--cor-fundo-card);
     width: 100%;
@@ -994,19 +1224,16 @@ input:focus, select:focus, textarea:focus {
     to   { transform: translateY(0); }
 }
 
-/* Barra de puxar/fechar no topo do modal */
 .sheet-handle {
     width: 44px;
     height: 4px;
-    background: #cbd5e1;
-    border-radius: 999px;
+    background: var(--cor-borda-forte);
+    border-radius: var(--raio-full);
     margin: 0 auto 16px;
     display: block;
 }
 
-.modal-dialog.modal-sm {
-    max-width: 400px;
-}
+.modal-dialog.modal-sm { max-width: 400px; }
 
 .btn-close {
     position: absolute;
@@ -1015,14 +1242,14 @@ input:focus, select:focus, textarea:focus {
     background: none;
     border: none;
     font-size: 1.6rem;
-    color: #94a3b8;
+    color: var(--cor-texto-suave);
     cursor: pointer;
     padding: 4px 8px;
     line-height: 1;
     border-radius: 50%;
     transition: background var(--transicao);
 }
-.btn-close:hover { background: #f1f5f9; }
+.btn-close:hover { background: var(--cor-fundo-elevado); }
 
 .modal-body h3 {
     font-size: 1.15rem;
@@ -1046,7 +1273,7 @@ input:focus, select:focus, textarea:focus {
     gap: 8px;
     margin: 14px 0;
     font-size: 0.72rem;
-    color: #475569;
+    color: var(--cor-texto-suave);
     line-height: 1.45;
 }
 .terms-container input {
@@ -1067,9 +1294,16 @@ input:focus, select:focus, textarea:focus {
     color: #991b1b;
     margin-bottom: 8px;
 }
-/* ─── FIM: 15. MODAIS & BOTTOM SHEETS ───────────────────────── */
+[data-theme="dark"] .alert-danger {
+    background: #2a1215;
+    border-color: #7f1d1d;
+}
+[data-theme="dark"] .alert-danger p {
+    color: #fca5a5;
+}
+/* ─── FIM: 18. MODAIS & BOTTOM SHEETS ───────────────────────── */
 
-/* ─── INÍCIO: 16. CHAT TEMPORÁRIO ────────────────────────────── */
+/* ─── INÍCIO: 19. CHAT TEMPORÁRIO ────────────────────────────── */
 .chat-id {
     color: var(--cor-primaria);
     font-weight: 700;
@@ -1077,7 +1311,7 @@ input:focus, select:focus, textarea:focus {
 .chat-wrapper {
     max-height: 320px;
     overflow-y: auto;
-    background: #f1f5f9;
+    background: var(--cor-fundo-elevado);
     border: 1px solid var(--cor-borda);
     border-radius: var(--raio-md);
     padding: 12px;
@@ -1122,9 +1356,9 @@ input:focus, select:focus, textarea:focus {
     gap: 8px;
 }
 .chat-input-row input { flex: 1; }
-/* ─── FIM: 16. CHAT TEMPORÁRIO ──────────────────────────────── */
+/* ─── FIM: 19. CHAT TEMPORÁRIO ──────────────────────────────── */
 
-/* ─── INÍCIO: 17. FAQ / CENTRAL DE DÚVIDAS ───────────────────── */
+/* ─── INÍCIO: 20. FAQ / CENTRAL DE DÚVIDAS ───────────────────── */
 .faq-container { margin-bottom: 18px; }
 .faq-header-title {
     font-size: 0.9rem;
@@ -1145,18 +1379,18 @@ input:focus, select:focus, textarea:focus {
     font-size: 0.85rem;
     color: var(--cor-texto);
     cursor: pointer;
-    background: #f8fafc;
+    background: var(--cor-fundo-elevado);
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 8px;
     transition: background var(--transicao);
 }
-.faq-question:hover { background: #f1f5f9; }
+.faq-question:hover { background: var(--cor-borda); }
 .faq-answer {
     padding: 12px 14px;
     font-size: 0.8rem;
-    color: #475569;
+    color: var(--cor-texto-suave);
     line-height: 1.5;
     border-top: 1px solid var(--cor-borda);
     display: none;
@@ -1164,7 +1398,7 @@ input:focus, select:focus, textarea:focus {
 .faq-item.active .faq-answer { display: block; }
 
 .sugestao-box-sutil {
-    background: #f8fafc;
+    background: var(--cor-fundo-elevado);
     padding: 14px;
     border-radius: var(--raio-md);
     border: 1px solid var(--cor-borda);
@@ -1172,7 +1406,7 @@ input:focus, select:focus, textarea:focus {
 }
 .sugestao-box-sutil h4 {
     font-size: 0.88rem;
-    color: #334155;
+    color: var(--cor-texto);
     margin-bottom: 4px;
 }
 .sugestao-box-sutil p {
@@ -1187,9 +1421,9 @@ input:focus, select:focus, textarea:focus {
     border: none;
     border-top: 1px dashed var(--cor-borda-forte);
 }
-/* ─── FIM: 17. FAQ / CENTRAL DE DÚVIDAS ─────────────────────── */
+/* ─── FIM: 20. FAQ / CENTRAL DE DÚVIDAS ─────────────────────── */
 
-/* ─── INÍCIO: 18. MÉTRICAS ───────────────────────────────────── */
+/* ─── INÍCIO: 21. MÉTRICAS E TABELAS ─────────────────────────── */
 .metrics-summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -1197,7 +1431,7 @@ input:focus, select:focus, textarea:focus {
     margin: 12px 0;
 }
 .metric-box {
-    background: #f8fafc;
+    background: var(--cor-fundo-elevado);
     border: 1px solid var(--cor-borda);
     border-radius: var(--raio-md);
     padding: 14px 12px;
@@ -1230,17 +1464,17 @@ input:focus, select:focus, textarea:focus {
     text-align: left;
 }
 .tabela-metricas th {
-    background: #f8fafc;
+    background: var(--cor-fundo-elevado);
     font-weight: 600;
-    color: #475569;
+    color: var(--cor-texto-suave);
 }
-/* ─── FIM: 18. MÉTRICAS ─────────────────────────────────────── */
+/* ─── FIM: 21. MÉTRICAS E TABELAS ───────────────────────────── */
 
-/* ─── INÍCIO: 19. UPLOAD / PREVIEW ───────────────────────────── */
+/* ─── INÍCIO: 22. PREVIEW E LINK GERADO ──────────────────────── */
 .preview-box {
     margin-top: 10px;
     padding: 10px;
-    background: #f8fafc;
+    background: var(--cor-fundo-elevado);
     border: 1px dashed var(--cor-borda-forte);
     border-radius: var(--raio-sm);
     display: flex;
@@ -1254,15 +1488,17 @@ input:focus, select:focus, textarea:focus {
     object-fit: cover;
     border: 1px solid var(--cor-borda-forte);
 }
-/* ─── FIM: 19. UPLOAD / PREVIEW ─────────────────────────────── */
 
-/* ─── INÍCIO: 20. LINK GERADO ────────────────────────────────── */
 .link-display-box {
     margin-top: 14px;
     padding: 14px;
     background: #ecfdf5;
     border: 1px solid #10b981;
     border-radius: var(--raio-md);
+}
+[data-theme="dark"] .link-display-box {
+    background: #064e3b;
+    border-color: #059669;
 }
 .link-display-box__label {
     display: block;
@@ -1271,27 +1507,30 @@ input:focus, select:focus, textarea:focus {
     color: #065f46;
     margin-bottom: 6px;
 }
+[data-theme="dark"] .link-display-box__label {
+    color: #a7f3d0;
+}
 .link-display-box__hint {
     display: block;
     font-size: 0.72rem;
     color: var(--cor-texto-suave);
     margin-top: 6px;
 }
-/* ─── FIM: 20. LINK GERADO ──────────────────────────────────── */
+/* ─── FIM: 22. PREVIEW E LINK GERADO ────────────────────────── */
 
-/* ─── INÍCIO: 21. LOADER GLOBAL & SKELETON ───────────────────── */
+/* ─── INÍCIO: 23. LOADER GLOBAL & SKELETON ───────────────────── */
 .loader-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.55);
+    background: rgba(15, 23, 42, 0.6);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    z-index: 3000;
+    z-index: 4000;
     color: #fff;
     gap: 14px;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(3px);
 }
 .spinner {
     width: 42px;
@@ -1309,11 +1548,10 @@ input:focus, select:focus, textarea:focus {
     font-size: 0.85rem;
     text-align: center;
 }
-/* ─── FIM: 21. LOADER GLOBAL & SKELETON ─────────────────────── */
+/* ─── FIM: 23. LOADER GLOBAL & SKELETON ─────────────────────── */
 
-/* ─── INÍCIO: 22. REGRAS DE RESPONSIVIDADE (DESKTOP / TABLET) ── */
+/* ─── INÍCIO: 24. REGRAS DE RESPONSIVIDADE ───────────────────── */
 @media (min-width: 640px) {
-    /* Centraliza os modais em telas maiores (estilo caixa de diálogo) */
     .modal-overlay {
         align-items: center;
         padding: 20px;
@@ -1331,6 +1569,13 @@ input:focus, select:focus, textarea:focus {
     .cards-grid {
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     }
+
+    .card-actions-group {
+        flex-direction: row;
+    }
+    .card-actions-group .btn {
+        flex: 1;
+    }
 }
 
 @media (max-width: 380px) {
@@ -1342,4 +1587,45 @@ input:focus, select:focus, textarea:focus {
     .product-price { font-size: 0.95rem; }
     .chip { font-size: 0.75rem; padding: 5px 12px; }
 }
-/* ─── FIM: 22. REGRAS DE RESPONSIVIDADE (DESKTOP / TABLET) ──── */
+/* ─── FIM: 24. REGRAS DE RESPONSIVIDADE ─────────────────────── */
+
+/* ─── INÍCIO: 25. ESTILOS DE IMPRESSÃO / PDF (@media print) ──── */
+@media print {
+    body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+    }
+    .app-header,
+    .bottom-nav,
+    .floating-cart-bar,
+    .floating-help-btn,
+    .modal-overlay,
+    .lightbox-modal,
+    .loader-overlay,
+    .toast-wrapper,
+    .help-cta,
+    .btn,
+    .search-bar,
+    .chips-container {
+        display: none !important;
+    }
+    .app-main {
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    .card {
+        border: 1px solid #ddd !important;
+        box-shadow: none !important;
+        page-break-inside: avoid;
+    }
+    .tabela-metricas {
+        border: 1px solid #000 !important;
+    }
+    .tabela-metricas th, .tabela-metricas td {
+        border: 1px solid #000 !important;
+        color: #000 !important;
+    }
+}
+/* ─── FIM: 25. ESTILOS DE IMPRESSÃO / PDF (@media print) ─────── */
