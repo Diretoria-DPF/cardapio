@@ -3,7 +3,7 @@
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
-const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbyXUcaPSpe5nXhicDVcZlq7Lm_KF7sp63y6VrPychDsfF7ffsrSVGaSBriV5DSWn6rQ/exec";
+const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzO_D0ZyclCeREZj-R98ju0tlPxnwZ9h0jVL5oamG-pVWNI2MnpA7tyFtBRdN_oC3Ar/exec";
 
 /* ═══════════════════════════════════════════════════════════════
    0. FINGERPRINT, HMAC, DEVTOOLS, ÁUDIO & VISIBILIDADE
@@ -468,18 +468,19 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
 /* ─── FIM: fetchComTimeout ───────────────────────────────────── */
 
 /* ─── INÍCIO: executarRequisicaoAPI (Resiliente) ─────────────── */
+/* ─── INÍCIO: executarRequisicaoAPI (Bearer Token Padrão) ─────── */
 async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
     try {
-        const ts = Date.now();
         const payload = dadosExtras;
-        const corpo = { acao, payload, ts, fingerprint: FINGERPRINT };
+        const corpo = { 
+            acao, 
+            payload, 
+            fingerprint: FINGERPRINT 
+        };
 
+        // Envia o Bearer Token de sessão ou de link temporário
         if (estadoSessao.token) {
             corpo.token = estadoSessao.token;
-            try {
-                const hmac = await assinarHmac(acao, payload, ts);
-                if (hmac) corpo.hmac = hmac;
-            } catch (e) {}
         } else {
             const linkToken = sessionStorage.getItem('plataforma_link_token');
             if (linkToken) corpo.token = linkToken;
@@ -496,11 +497,10 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         try {
             json = JSON.parse(textoResposta);
         } catch (erroParse) {
-            // Em falha temporária do Google Apps Script, NÃO desloga o usuário
-            return { sucesso: false, erroTransitório: true, mensagem: "Servidor ocupado. Tentando novamente..." };
+            return { sucesso: false, erroTransitório: true, mensagem: "Servidor ocupado. Aguarde um instante..." };
         }
 
-        // Se o Administrador ativou o Modo Lockdown (Kill Switch)
+        // Bloqueio Global (Kill Switch)
         if (!json.sucesso && json.codigo === 'SISTEMA_BLOQUEADO') {
             exibirToast(json.mensagem || "Plataforma em manutenção.", "error");
             if (estadoSessao.papel !== 'adm') {
@@ -509,7 +509,7 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
             return json;
         }
 
-        // Se o link do visitante expirou, apenas o visitante é direcionado
+        // Link de visitante expirado
         if (!json.sucesso && json.codigo === 'LINK_EXPIRED') {
             if (estadoSessao.papel === 'visitante') {
                 exibirToast(json.mensagem || "O link temporário expirou.", "error");
@@ -518,7 +518,7 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
             return json;
         }
 
-        // Auto-renovação determinística para contas autenticadas
+        // Renovação de sessão expirada
         if (!json.sucesso && json.codigo === 'SESSION_EXPIRED') {
             if (tentarRefresh) {
                 const rt = estadoSessao.refreshToken || sessionStorage.getItem('plataforma_refresh_token');
@@ -529,7 +529,7 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
                     }
                 }
             }
-            exibirToast("Sua sessão foi encerrada. Faça login novamente.", "info");
+            exibirToast("Sua sessão foi encerrada. Entre novamente.", "info");
             executarLogout();
             return { sucesso: false, mensagem: "Sessão expirada." };
         }
@@ -537,10 +537,11 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         return json;
 
     } catch (erroRede) {
-        // NUNCA derruba o login por oscilação momentânea de sinal
         console.warn("[API] Oscilação transitória:", erroRede);
         return { sucesso: false, erroRede: true, mensagem: "Sem conexão momentânea com o servidor." };
     }
+}
+/* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
 }
 /* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
 
