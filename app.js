@@ -1,12 +1,12 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v20 — Estável, Persistente & Completa)
+   app.js — Plataforma Comercial Segura (v21 — Sintaxe Verificada & Bearer Token)
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
 const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzO_D0ZyclCeREZj-R98ju0tlPxnwZ9h0jVL5oamG-pVWNI2MnpA7tyFtBRdN_oC3Ar/exec";
 
 /* ═══════════════════════════════════════════════════════════════
-   0. FINGERPRINT, HMAC, DEVTOOLS, ÁUDIO & VISIBILIDADE
+   0. FINGERPRINT, DEVTOOLS, ÁUDIO & VISIBILIDADE
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: gerarFingerprint ───────────────────────────────── */
@@ -28,38 +28,12 @@ function gerarFingerprint() {
         hash |= 0;
     }
     fp = 'fp_' + Math.abs(hash).toString(36);
-    try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {}
+    try { localStorage.setItem('plataforma_fingerprint', fp); } catch (e) {}
     return fp;
 }
 /* ─── FIM: gerarFingerprint ─────────────────────────────────── */
 
 const FINGERPRINT = gerarFingerprint();
-
-/* ─── INÍCIO: assinarHmac ────────────────────────────────────── */
-async function assinarHmac(acao, payload, ts) {
-    const hmacKey = estadoSessao.hmacKey || sessionStorage.getItem('plataforma_hmac_key');
-    if (!hmacKey) return null;
-
-    const bodyAssinado = JSON.stringify({ acao, payload, ts });
-    const enc = new TextEncoder();
-
-    try {
-        const key = await crypto.subtle.importKey(
-            'raw',
-            enc.encode(hmacKey),
-            { name: 'HMAC', hash: 'SHA-256' },
-            false,
-            ['sign']
-        );
-        const assinatura = await crypto.subtle.sign('HMAC', key, enc.encode(bodyAssinado));
-        return [...new Uint8Array(assinatura)]
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join('');
-    } catch (e) {
-        return null;
-    }
-}
-/* ─── FIM: assinarHmac ───────────────────────────────────────── */
 
 /* ─── INÍCIO: ativarBlindagemDevTools ────────────────────────── */
 function ativarBlindagemDevTools() {
@@ -114,7 +88,7 @@ function tocarSomNotificacao(tipo = 'mensagem') {
 }
 /* ─── FIM: tocarSomNotificacao ───────────────────────────────── */
 
-/* ─── INÍCIO: Monitor de Visibilidade (Economia de Cotas) ────── */
+/* ─── INÍCIO: Monitor de Visibilidade ────────────────────────── */
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         pararAutoRefreshChat();
@@ -140,7 +114,7 @@ function alternarModoEscuro() {
     const escuroAtivo = document.documentElement.getAttribute('data-theme') === 'dark';
     const novoTema = escuroAtivo ? 'light' : 'dark';
     aplicarTema(novoTema);
-    try { localStorage.setItem('plataforma_tema', novoTema); } catch(e) {}
+    try { localStorage.setItem('plataforma_tema', novoTema); } catch (e) {}
 }
 /* ─── FIM: alternarModoEscuro ─────────────────────────────────── */
 
@@ -219,13 +193,13 @@ const CacheLoja = {
     salvar(chave, dados) {
         try {
             localStorage.setItem('cache_' + chave, JSON.stringify({ dados, hora: Date.now() }));
-        } catch (erro) {}
+        } catch (e) {}
     },
     obter(chave) {
         try {
             const item = localStorage.getItem('cache_' + chave);
             return item ? JSON.parse(item).dados : null;
-        } catch {
+        } catch (e) {
             return null;
         }
     },
@@ -238,7 +212,6 @@ const estadoSessao = {
     papel: 'visitante',
     token: null,
     refreshToken: null,
-    hmacKey: null,
     nomeUsuario: 'Visitante',
     pedidosRecentes: []
 };
@@ -260,7 +233,7 @@ let _timerPainelAdm = null;
 let _timerChat = null;
 
 /* ═══════════════════════════════════════════════════════════════
-   4. INICIALIZAÇÃO E COMUNICAÇÃO HTTP RESILIENTE
+   4. INICIALIZAÇÃO E COMUNICAÇÃO HTTP
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: DOMContentLoaded ───────────────────────────────── */
@@ -339,7 +312,7 @@ function obterUrlBasePlataforma() {
 
 /* ─── INÍCIO: verificarTokenUrl ──────────────────────────────── */
 async function verificarTokenUrl() {
-    // Membro ou ADM logado tem acesso contínuo e NÃO depende de link de visitante
+    // Membro ou ADM logado tem acesso garantido e não depende de link temporário
     if (estadoSessao.token && estadoSessao.papel !== 'visitante') {
         _linkAutorizadoValido = true;
         pararTemporizadorSilencioso();
@@ -354,7 +327,7 @@ async function verificarTokenUrl() {
         return;
     }
 
-    mostrarLoader('Validando acesso...');
+    mostrarLoader('Validando link temporário...');
     try {
         const url = `${URL_BACKEND_APPS_SCRIPT}?acao=validar_link&tokenAcesso=${encodeURIComponent(tokenAcesso)}`;
         const resp = await fetchComTimeout(url, 15000);
@@ -382,7 +355,7 @@ async function verificarTokenUrl() {
 function iniciarTemporizadorSilencioso(segundosTotais) {
     pararTemporizadorSilencioso();
 
-    // Correção: NUNCA ativa o cronômetro para membros ou administradores
+    // NUNCA rodar timer de link se o usuário for membro ou administrador
     if (estadoSessao.papel !== 'visitante') return;
 
     _segundosRestantesLink = segundosTotais;
@@ -395,7 +368,7 @@ function iniciarTemporizadorSilencioso(segundosTotais) {
         _segundosRestantesLink--;
         if (_segundosRestantesLink <= 0) {
             pararTemporizadorSilencioso();
-            exibirToast("O período do seu link de visitante terminou.", "info");
+            exibirToast("O seu período de acesso terminou. Solicite um novo link ao administrador.", "info");
             executarLimpezaTotalESaida();
         }
     }, 1000);
@@ -425,19 +398,17 @@ function executarLimpezaTotalESaida(silencioso = false) {
         sessionStorage.clear();
     } catch (e) {}
 
-    if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch(e) {} }
-    if (tema) { try { localStorage.setItem('plataforma_tema', tema); } catch(e) {} }
+    if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch (e) {} }
+    if (tema) { try { localStorage.setItem('plataforma_tema', tema); } catch (e) {} }
 
     estadoSessao.papel        = 'visitante';
     estadoSessao.token        = null;
     estadoSessao.refreshToken = null;
-    estadoSessao.hmacKey      = null;
     estadoSessao.nomeUsuario  = 'Visitante';
     cestaCompras              = [];
     _linkAutorizadoValido     = false;
 
     atualizarBarraFlutuanteSacola();
-
     const urlLimpa = window.location.origin + window.location.pathname;
     window.history.replaceState({}, document.title, urlLimpa);
 
@@ -467,18 +438,16 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
 }
 /* ─── FIM: fetchComTimeout ───────────────────────────────────── */
 
-/* ─── INÍCIO: executarRequisicaoAPI (Resiliente) ─────────────── */
-/* ─── INÍCIO: executarRequisicaoAPI (Bearer Token Padrão) ─────── */
+/* ─── INÍCIO: executarRequisicaoAPI (Bearer Token Nativo) ─────── */
 async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
     try {
         const payload = dadosExtras;
-        const corpo = { 
-            acao, 
-            payload, 
-            fingerprint: FINGERPRINT 
+        const corpo = {
+            acao,
+            payload,
+            fingerprint: FINGERPRINT
         };
 
-        // Envia o Bearer Token de sessão ou de link temporário
         if (estadoSessao.token) {
             corpo.token = estadoSessao.token;
         } else {
@@ -497,10 +466,9 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         try {
             json = JSON.parse(textoResposta);
         } catch (erroParse) {
-            return { sucesso: false, erroTransitório: true, mensagem: "Servidor ocupado. Aguarde um instante..." };
+            return { sucesso: false, erroTransitorio: true, mensagem: "Servidor ocupado. Aguarde um instante..." };
         }
 
-        // Bloqueio Global (Kill Switch)
         if (!json.sucesso && json.codigo === 'SISTEMA_BLOQUEADO') {
             exibirToast(json.mensagem || "Plataforma em manutenção.", "error");
             if (estadoSessao.papel !== 'adm') {
@@ -509,7 +477,6 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
             return json;
         }
 
-        // Link de visitante expirado
         if (!json.sucesso && json.codigo === 'LINK_EXPIRED') {
             if (estadoSessao.papel === 'visitante') {
                 exibirToast(json.mensagem || "O link temporário expirou.", "error");
@@ -518,7 +485,6 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
             return json;
         }
 
-        // Renovação de sessão expirada
         if (!json.sucesso && json.codigo === 'SESSION_EXPIRED') {
             if (tentarRefresh) {
                 const rt = estadoSessao.refreshToken || sessionStorage.getItem('plataforma_refresh_token');
@@ -540,7 +506,6 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         console.warn("[API] Oscilação transitória:", erroRede);
         return { sucesso: false, erroRede: true, mensagem: "Sem conexão momentânea com o servidor." };
     }
-/* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
 }
 /* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
 
@@ -553,7 +518,6 @@ async function tentarRenovarSessao(refreshToken) {
             body: JSON.stringify({
                 acao: 'refresh',
                 payload: { refreshToken },
-                ts: Date.now(),
                 fingerprint: FINGERPRINT
             })
         });
@@ -562,8 +526,6 @@ async function tentarRenovarSessao(refreshToken) {
         if (json.sucesso && json.token) {
             estadoSessao.token = json.token;
             if (json.refreshToken) estadoSessao.refreshToken = json.refreshToken;
-            if (json.hmacKey) estadoSessao.hmacKey = json.hmacKey;
-
             localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
             return true;
         }
@@ -628,7 +590,7 @@ function atualizarVisualModoAcesso(modo) {
 /* ─── FIM: atualizarVisualModoAcesso ─────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   6. LIGHTBOX (ZOOM DE FOTOS)
+   6. LIGHTBOX (ZOOM DE FOTOS EM TELA CHEIA)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: abrirLightboxFoto ──────────────────────────────── */
@@ -786,6 +748,11 @@ function renderizarVitrine() {
             const painelAdm = document.createElement('div');
             painelAdm.className = 'adm-visib-controls';
 
+            const tag = document.createElement('span');
+            tag.style.fontWeight = 'bold';
+            tag.style.color = p.visibilidade === 'adm' ? '#dc2626' : (p.visibilidade === 'registrado' ? '#2563eb' : '#16a34a');
+            tag.textContent = `[${String(p.visibilidade).toUpperCase()}]`;
+
             const selectVisib = document.createElement('select');
             selectVisib.innerHTML = `
                 <option value="publico" ${p.visibilidade === 'publico' ? 'selected' : ''}>Público</option>
@@ -794,7 +761,7 @@ function renderizarVitrine() {
             `;
             selectVisib.onchange = () => alterarVisibilidadeProdutoAdm(p.id, selectVisib.value);
 
-            painelAdm.append(selectVisib);
+            painelAdm.append(tag, selectVisib);
             body.appendChild(painelAdm);
 
             const btnExcluir = document.createElement('button');
@@ -1069,7 +1036,7 @@ const BASE_CONHECIMENTO = {
             },
             {
                 pergunta: "A plataforma é segura?",
-                resposta: "Sim. Todas as transações usam criptografia HMAC e SHA-256 de ponta a ponta, com auto-expiração de links para proteção absoluta de dados."
+                resposta: "Sim. Todas as transações usam criptografia SHA-256 de ponta a ponta, com auto-expiração de links para proteção absoluta de dados."
             }
         ]
     },
@@ -1929,7 +1896,7 @@ async function consultarPendentesAdm() {
         const resposta = await executarRequisicaoAPI("listar_solicitacoes_adm");
         const total = (resposta.sucesso && Array.isArray(resposta.solicitacoes)) ? resposta.solicitacoes.length : 0;
         atualizarBadgePendentesAdm(total);
-    } catch {}
+    } catch (e) {}
 }
 /* ─── FIM: consultarPendentesAdm ─────────────────────────────── */
 
@@ -2270,13 +2237,11 @@ async function tratarLogin(evento) {
         estadoSessao.papel        = resposta.papel;
         estadoSessao.token        = resposta.token;
         estadoSessao.refreshToken = resposta.refreshToken;
-        estadoSessao.hmacKey      = resposta.hmacKey;
         estadoSessao.nomeUsuario  = resposta.nome;
 
         _linkAutorizadoValido = true;
-        pararTemporizadorSilencioso(); // Desativa para membros e administradores
+        pararTemporizadorSilencioso();
 
-        // Persistência com HMAC
         localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
 
         document.getElementById('form-login').reset();
@@ -2341,13 +2306,12 @@ function restaurarSessaoLocal() {
         estadoSessao.papel        = sessao.papel || 'visitante';
         estadoSessao.token        = sessao.token || null;
         estadoSessao.refreshToken = sessao.refreshToken || null;
-        estadoSessao.hmacKey      = sessao.hmacKey || null;
         estadoSessao.nomeUsuario  = sessao.nomeUsuario || 'Visitante';
 
         if (estadoSessao.papel !== 'visitante') {
             _linkAutorizadoValido = true;
         }
-    } catch {
+    } catch (e) {
         localStorage.removeItem('plataforma_sessao');
     }
 }
@@ -2564,7 +2528,7 @@ let listaDuvidasFaq = [
 function carregarFaqMemoria() {
     const salvo = localStorage.getItem('loja_faq_dados');
     if (salvo) {
-        try { listaDuvidasFaq = JSON.parse(salvo); } catch(e) {}
+        try { listaDuvidasFaq = JSON.parse(salvo); } catch (e) {}
     }
 }
 carregarFaqMemoria();
