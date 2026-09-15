@@ -1,17 +1,8 @@
 /* ============================================================================
-   style.css — Plataforma Comercial Segura (v5 — UI/UX Leve, Acessível e Completa)
-   ============================================================================
-   ESTRUTURA LIMPA:
-     • Modo Escuro nativo por data-theme="dark".
-     • Barra Flutuante de Sacola fixada no rodapé.
-     • Botão "Comprar Agora" nos cards de produtos.
-     • Visualizador Lightbox de fotos em tela cheia com fundo escuro.
-     • Botão Flutuante de Ajuda Humana (FAB) e layout do Atendente Virtual.
-     • Toolbar de Aprovação em Lote com checkboxes no ADM.
-     • Estilização para impressão e exportação direta em PDF (@media print).
+   style.css — Plataforma Comercial Segura (v6 — Proporções e Ícones Travados)
    ============================================================================ */
 
-/* ─── INÍCIO: 1. RESET E VARIÁVEIS DE TEMA ───────────────────── */
+/* ─── 1. RESET E VARIÁVEIS ─────────────────────────────────── */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -53,7 +44,6 @@
     --transicao: 0.18s ease;
 }
 
-/* Paleta de Cores do Modo Escuro (OLED / Slate) */
 [data-theme="dark"] {
     --cor-fundo: #0b0f19;
     --cor-fundo-card: #111827;
@@ -81,10 +71,22 @@ body {
     min-height: 100vh;
 }
 
-.hidden { display: none !important; }
-/* ─── FIM: 1. RESET E VARIÁVEIS DE TEMA ─────────────────────── */
+/* Trava global de segurança para imagens e vetores SVG */
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
 
-/* ─── INÍCIO: 2. HEADER DA APLICAÇÃO ─────────────────────────── */
+svg {
+    display: inline-block;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+
+.hidden { display: none !important; }
+
+/* ─── 2. HEADER ────────────────────────────────────────────── */
 .app-header {
     position: sticky;
     top: 0;
@@ -113,6 +115,7 @@ body {
     font-weight: 700;
     letter-spacing: -0.4px;
     color: var(--cor-texto);
+    white-space: nowrap;
 }
 
 .icon-btn {
@@ -122,6 +125,9 @@ body {
     justify-content: center;
     width: 40px;
     height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    flex-shrink: 0;
     border: none;
     background: transparent;
     color: var(--cor-texto);
@@ -130,6 +136,14 @@ body {
     transition: background var(--transicao);
 }
 .icon-btn:hover { background: var(--cor-fundo-elevado); }
+
+.icon-btn svg {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    flex-shrink: 0;
+}
 
 .icon-btn__badge {
     position: absolute;
@@ -155,15 +169,20 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-shrink: 0;
 }
 
 .user-menu {
     position: relative;
+    flex-shrink: 0;
 }
 
 .avatar-btn {
     width: 40px;
     height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    flex-shrink: 0;
     border-radius: 50%;
     border: none;
     background: var(--cor-primaria);
@@ -241,13 +260,12 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-.badge-visitor   { background: #64748b; color: #fff; }
-.badge-membro    { background: #10b981; color: #fff; }
-.badge-entregador{ background: #f59e0b; color: #fff; }
-.badge-adm       { background: #ef4444; color: #fff; }
-/* ─── FIM: 2. HEADER DA APLICAÇÃO ──────────────────────────── */
+.badge-visitor    { background: #64748b; color: #fff; }
+.badge-membro     { background: #10b981; color: #fff; }
+.badge-entregador { background: #f59e0b; color: #fff; }
+.badge-adm        { background: #ef4444; color: #fff; }
 
-/* ─── INÍCIO: 3. BOTTOM NAV (MENU INFERIOR FIXO) ─────────────── */
+/* ─── 3. BOTTOM NAV ─────────────────────────────────────────── */
 .bottom-nav {
     position: fixed;
     bottom: 0;
@@ -255,6 +273,8 @@ body {
     right: 0;
     z-index: 90;
     display: flex;
+    align-items: center;
+    justify-content: space-around;
     background: var(--cor-fundo-card);
     border-top: 1px solid var(--cor-borda);
     box-shadow: var(--sombra-nav);
@@ -265,6 +285,7 @@ body {
 
 .bottom-nav__item {
     flex: 1;
+    height: 100%;
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -280,12 +301,14 @@ body {
     cursor: pointer;
     position: relative;
     transition: color var(--transicao);
-    -webkit-tap-highlight-color: transparent;
 }
 
 .bottom-nav__item svg {
     width: 22px;
     height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    flex-shrink: 0;
     transition: transform var(--transicao);
 }
 .bottom-nav__item:active svg { transform: scale(0.9); }
@@ -302,11 +325,6 @@ body {
     height: 3px;
     background: var(--cor-primaria);
     border-radius: 0 0 3px 3px;
-    animation: navIndicator 0.25s ease-out;
-}
-@keyframes navIndicator {
-    from { width: 0; opacity: 0; }
-    to   { width: 24px; opacity: 1; }
 }
 
 .bottom-nav__badge {
@@ -338,9 +356,8 @@ body {
     75%  { transform: scale(0.85); }
     100% { transform: scale(1); }
 }
-/* ─── FIM: 3. BOTTOM NAV (MENU INFERIOR FIXO) ───────────────── */
 
-/* ─── INÍCIO: 4. BARRA FLUTUANTE DE SACOLA (PADRÃO IFOOD) ────── */
+/* ─── 4. BARRA FLUTUANTE DE SACOLA ──────────────────────────── */
 .floating-cart-bar {
     position: fixed;
     bottom: calc(var(--altura-bottom-nav) + env(safe-area-inset-bottom, 0) + 12px);
@@ -386,17 +403,13 @@ body {
     font-size: 1rem;
 }
 .floating-cart-bar__cta {
-    display: flex;
-    align-items: center;
-    gap: 6px;
     font-size: 0.85rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-/* ─── FIM: 4. BARRA FLUTUANTE DE SACOLA ─────────────────────── */
 
-/* ─── INÍCIO: 5. MAIN / CONTAINER DE TELAS ───────────────────── */
+/* ─── 5. MAIN E TELAS ───────────────────────────────────────── */
 .app-main {
     max-width: 960px;
     margin: 0 auto;
@@ -424,9 +437,8 @@ body {
     color: var(--cor-texto-suave);
     margin-top: 2px;
 }
-/* ─── FIM: 5. MAIN / CONTAINER DE TELAS ─────────────────────── */
 
-/* ─── INÍCIO: 6. HERO SCREEN (TELA DE BLOQUEIO) ──────────────── */
+/* ─── 6. TELA DE BLOQUEIO ───────────────────────────────────── */
 .hero-screen {
     max-width: 440px;
     margin: 32px auto 0;
@@ -441,10 +453,13 @@ body {
 .hero-screen__icon {
     width: 80px;
     height: 80px;
+    min-width: 80px;
+    min-height: 80px;
     margin: 0 auto 20px;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
     background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
     border-radius: 50%;
     color: var(--cor-primaria);
@@ -452,6 +467,14 @@ body {
 [data-theme="dark"] .hero-screen__icon {
     background: linear-gradient(135deg, #1e3a8a 0%, #172554 100%);
     color: #60a5fa;
+}
+
+.hero-screen__icon svg {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
 }
 
 .hero-screen__title {
@@ -484,18 +507,22 @@ body {
     color: var(--cor-texto-suave);
     line-height: 1.5;
 }
-/* ─── FIM: 6. HERO SCREEN (TELA DE BLOQUEIO) ────────────────── */
 
-/* ─── INÍCIO: 7. SEARCH BAR & CHIPS DE CATEGORIAS ───────────── */
+/* ─── 7. BUSCA E CHIPS ──────────────────────────────────────── */
 .search-bar {
     position: relative;
     margin-bottom: 12px;
+    display: flex;
+    align-items: center;
 }
 .search-bar__icon {
     position: absolute;
     left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    flex-shrink: 0;
     color: var(--cor-texto-suave);
     pointer-events: none;
 }
@@ -524,7 +551,6 @@ body {
     margin-bottom: 12px;
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
-    -ms-overflow-style: none;
 }
 .chips-container::-webkit-scrollbar { display: none; }
 
@@ -540,9 +566,7 @@ body {
     font-weight: 600;
     cursor: pointer;
     transition: all var(--transicao);
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
+    flex-shrink: 0;
 }
 .chip:hover {
     border-color: var(--cor-primaria);
@@ -555,14 +579,14 @@ body {
     color: #fff;
     box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
-/* ─── FIM: 7. SEARCH BAR & CHIPS DE CATEGORIAS ─────────────── */
 
-/* ─── INÍCIO: 8. CARDS DE PRODUTOS & BOTÃO COMPRAR AGORA ─────── */
+/* ─── 8. CARDS E PRODUTOS (PROPORÇÃO PERFEITA 1:1) ───────────── */
 .cards-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 14px;
     margin-bottom: 24px;
+    align-items: start;
 }
 
 .product-card {
@@ -579,16 +603,17 @@ body {
     transform: translateY(-2px);
     box-shadow: var(--sombra-hover);
 }
-.product-card:active { transform: translateY(0); }
 
 .product-thumb {
     width: 100%;
     aspect-ratio: 1 / 1;
+    height: auto;
     object-fit: cover;
     background: var(--cor-fundo-elevado);
     display: block;
     cursor: pointer;
     user-select: none;
+    flex-shrink: 0;
 }
 
 .product-details {
@@ -618,7 +643,6 @@ body {
     color: #4ade80;
 }
 
-/* Fileira de Ações de Compra */
 .card-actions-group {
     display: flex;
     flex-direction: column;
@@ -694,9 +718,13 @@ body {
     color: var(--cor-texto);
     border-color: var(--cor-primaria);
 }
-/* ─── FIM: 8. CARDS DE PRODUTOS & BOTÃO COMPRAR AGORA ───────── */
+.help-cta__btn svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
 
-/* ─── INÍCIO: 9. LIGHTBOX (ZOOM DE IMAGEM EM TELA CHEIA) ─────── */
+/* ─── 9. LIGHTBOX ───────────────────────────────────────────── */
 .lightbox-modal {
     display: none;
     position: fixed;
@@ -714,6 +742,8 @@ body {
 .lightbox-modal__img {
     max-width: 92vw;
     max-height: 85vh;
+    width: auto;
+    height: auto;
     object-fit: contain;
     border-radius: var(--raio-md);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
@@ -742,9 +772,8 @@ body {
     transition: background var(--transicao);
 }
 .lightbox-modal__close:hover { background: rgba(255, 255, 255, 0.3); }
-/* ─── FIM: 9. LIGHTBOX (ZOOM DE IMAGEM EM TELA CHEIA) ───────── */
 
-/* ─── INÍCIO: 10. BOTÕES & FEEDBACK VISUAL ───────────────────── */
+/* ─── 10. BOTÕES ────────────────────────────────────────────── */
 .btn {
     cursor: pointer;
     border-radius: var(--raio-sm);
@@ -755,13 +784,22 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 8px;
     min-height: 42px;
+    text-decoration: none;
+    line-height: 1;
     transition: background-color var(--transicao), opacity var(--transicao), transform var(--transicao), color var(--transicao);
-    -webkit-tap-highlight-color: transparent;
 }
 .btn:active:not(:disabled) { transform: scale(0.98); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.btn svg {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    flex-shrink: 0;
+}
 
 .btn-primary {
     background-color: var(--cor-primaria);
@@ -806,7 +844,6 @@ body {
 .btn-whatsapp {
     background-color: var(--cor-whatsapp);
     color: #fff;
-    text-decoration: none;
 }
 .btn-whatsapp:hover:not(:disabled) { background-color: var(--cor-whatsapp-escura); }
 
@@ -821,6 +858,12 @@ body {
     padding: 6px 12px;
     font-size: 0.78rem;
     min-height: 34px;
+}
+.btn-sm svg {
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    min-height: 14px;
 }
 
 .btn.loading {
@@ -838,9 +881,8 @@ body {
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
 }
-/* ─── FIM: 10. BOTÕES & FEEDBACK VISUAL ─────────────────────── */
 
-/* ─── INÍCIO: 11. FORMULÁRIOS & MÁSCARAS ─────────────────────── */
+/* ─── 11. FORMULÁRIOS ───────────────────────────────────────── */
 .form-group { margin-bottom: 14px; }
 .form-group label {
     display: block;
@@ -882,9 +924,8 @@ input:focus, select:focus, textarea:focus {
     max-width: 140px;
     margin-bottom: 0;
 }
-/* ─── FIM: 11. FORMULÁRIOS & MÁSCARAS ───────────────────────── */
 
-/* ─── INÍCIO: 12. CARD GENÉRICO ──────────────────────────────── */
+/* ─── 12. CARD GENÉRICO ─────────────────────────────────────── */
 .card {
     background: var(--cor-fundo-card);
     border: 1px solid var(--cor-borda);
@@ -911,9 +952,8 @@ input:focus, select:focus, textarea:focus {
     margin-bottom: 12px;
     flex-wrap: wrap;
 }
-/* ─── FIM: 12. CARD GENÉRICO ─────────────────────────────────── */
 
-/* ─── INÍCIO: 13. CESTA DE COMPRAS ───────────────────────────── */
+/* ─── 13. CESTA ─────────────────────────────────────────────── */
 .cart-items-wrapper {
     background: var(--cor-fundo-card);
     border: 1px solid var(--cor-borda);
@@ -957,9 +997,8 @@ input:focus, select:focus, textarea:focus {
 [data-theme="dark"] .cart-total-row strong {
     color: #4ade80;
 }
-/* ─── FIM: 13. CESTA DE COMPRAS ─────────────────────────────── */
 
-/* ─── INÍCIO: 14. LINHA DO TEMPO DOS PEDIDOS (STEPPER) ───────── */
+/* ─── 14. LINHA DO TEMPO (STEPPER) ──────────────────────────── */
 .order-stepper {
     display: flex;
     align-items: flex-start;
@@ -980,6 +1019,9 @@ input:focus, select:focus, textarea:focus {
 .step-circle {
     width: 32px;
     height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    flex-shrink: 0;
     border-radius: 50%;
     background: var(--cor-fundo-elevado);
     color: var(--cor-texto-suave);
@@ -990,7 +1032,6 @@ input:focus, select:focus, textarea:focus {
     font-weight: bold;
     border: 2px solid var(--cor-fundo-card);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    transition: all 0.25s ease;
 }
 
 .step-label {
@@ -1031,16 +1072,10 @@ input:focus, select:focus, textarea:focus {
     background: var(--cor-primaria);
     color: #fff;
     box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
-    animation: pulseActiveStep 1.8s infinite;
 }
 .order-step.active .step-label {
     color: var(--cor-primaria);
     font-weight: 700;
-}
-
-@keyframes pulseActiveStep {
-    0%, 100% { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); }
-    50%      { box-shadow: 0 0 0 8px rgba(37, 99, 235, 0.06); }
 }
 
 .order-stepper-msg {
@@ -1055,9 +1090,8 @@ input:focus, select:focus, textarea:focus {
     align-items: center;
     gap: 6px;
 }
-/* ─── FIM: 14. LINHA DO TEMPO DOS PEDIDOS (STEPPER) ─────────── */
 
-/* ─── INÍCIO: 15. APROVAÇÃO EM LOTE & PIPELINE (ADM) ─────────── */
+/* ─── 15. GESTÃO EM LOTE E PIPELINE ─────────────────────────── */
 .batch-toolbar {
     display: flex;
     align-items: center;
@@ -1102,9 +1136,8 @@ input:focus, select:focus, textarea:focus {
     margin-bottom: 8px;
     border-bottom: 1px solid var(--cor-borda);
 }
-/* ─── FIM: 15. APROVAÇÃO EM LOTE & PIPELINE (ADM) ───────────── */
 
-/* ─── INÍCIO: 16. BOTÃO FLUTUANTE DE AJUDA & ATENDENTE ───────── */
+/* ─── 16. BOTÃO FLUTUANTE DE AJUDA ──────────────────────────── */
 .floating-help-btn {
     position: fixed;
     bottom: calc(var(--altura-bottom-nav) + env(safe-area-inset-bottom, 0) + 16px);
@@ -1123,7 +1156,6 @@ input:focus, select:focus, textarea:focus {
     font-weight: 600;
     cursor: pointer;
     transition: transform var(--transicao), background var(--transicao);
-    animation: floatGently 3s ease-in-out infinite;
 }
 .floating-help-btn:hover {
     background: var(--cor-primaria-escura);
@@ -1131,12 +1163,12 @@ input:focus, select:focus, textarea:focus {
 }
 .floating-help-btn:active { transform: scale(0.96); }
 
-@keyframes floatGently {
-    0%, 100% { transform: translateY(0); }
-    50%      { transform: translateY(-4px); }
+.floating-help-btn svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
 }
 
-/* Área de Conversa do Atendente Virtual */
 .assistant-quick-box {
     display: flex;
     flex-wrap: wrap;
@@ -1157,9 +1189,8 @@ input:focus, select:focus, textarea:focus {
     border-color: var(--cor-primaria);
     color: var(--cor-primaria);
 }
-/* ─── FIM: 16. BOTÃO FLUTUANTE DE AJUDA & ATENDENTE ─────────── */
 
-/* ─── INÍCIO: 17. TOASTS ─────────────────────────────────────── */
+/* ─── 17. TOASTS ────────────────────────────────────────────── */
 .toast-wrapper {
     position: fixed;
     top: calc(var(--altura-header) + 8px);
@@ -1192,9 +1223,8 @@ input:focus, select:focus, textarea:focus {
     from { opacity: 0; transform: translateY(-12px); }
     to   { opacity: 1; transform: translateY(0); }
 }
-/* ─── FIM: 17. TOASTS ───────────────────────────────────────── */
 
-/* ─── INÍCIO: 18. MODAIS & BOTTOM SHEETS ─────────────────────── */
+/* ─── 18. MODAIS ────────────────────────────────────────────── */
 .modal-overlay {
     display: none;
     position: fixed;
@@ -1247,7 +1277,6 @@ input:focus, select:focus, textarea:focus {
     padding: 4px 8px;
     line-height: 1;
     border-radius: 50%;
-    transition: background var(--transicao);
 }
 .btn-close:hover { background: var(--cor-fundo-elevado); }
 
@@ -1301,9 +1330,8 @@ input:focus, select:focus, textarea:focus {
 [data-theme="dark"] .alert-danger p {
     color: #fca5a5;
 }
-/* ─── FIM: 18. MODAIS & BOTTOM SHEETS ───────────────────────── */
 
-/* ─── INÍCIO: 19. CHAT TEMPORÁRIO ────────────────────────────── */
+/* ─── 19. CHAT ──────────────────────────────────────────────── */
 .chat-id {
     color: var(--cor-primaria);
     font-weight: 700;
@@ -1356,9 +1384,8 @@ input:focus, select:focus, textarea:focus {
     gap: 8px;
 }
 .chat-input-row input { flex: 1; }
-/* ─── FIM: 19. CHAT TEMPORÁRIO ──────────────────────────────── */
 
-/* ─── INÍCIO: 20. FAQ / CENTRAL DE DÚVIDAS ───────────────────── */
+/* ─── 20. FAQ / AJUDA ───────────────────────────────────────── */
 .faq-container { margin-bottom: 18px; }
 .faq-header-title {
     font-size: 0.9rem;
@@ -1421,9 +1448,8 @@ input:focus, select:focus, textarea:focus {
     border: none;
     border-top: 1px dashed var(--cor-borda-forte);
 }
-/* ─── FIM: 20. FAQ / CENTRAL DE DÚVIDAS ─────────────────────── */
 
-/* ─── INÍCIO: 21. MÉTRICAS E TABELAS ─────────────────────────── */
+/* ─── 21. MÉTRICAS ──────────────────────────────────────────── */
 .metrics-summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -1468,9 +1494,8 @@ input:focus, select:focus, textarea:focus {
     font-weight: 600;
     color: var(--cor-texto-suave);
 }
-/* ─── FIM: 21. MÉTRICAS E TABELAS ───────────────────────────── */
 
-/* ─── INÍCIO: 22. PREVIEW E LINK GERADO ──────────────────────── */
+/* ─── 22. PREVIEWS E LINKS ──────────────────────────────────── */
 .preview-box {
     margin-top: 10px;
     padding: 10px;
@@ -1484,6 +1509,9 @@ input:focus, select:focus, textarea:focus {
 .preview-box img {
     max-width: 80px;
     max-height: 80px;
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
     border-radius: var(--raio-sm);
     object-fit: cover;
     border: 1px solid var(--cor-borda-forte);
@@ -1516,9 +1544,8 @@ input:focus, select:focus, textarea:focus {
     color: var(--cor-texto-suave);
     margin-top: 6px;
 }
-/* ─── FIM: 22. PREVIEW E LINK GERADO ────────────────────────── */
 
-/* ─── INÍCIO: 23. LOADER GLOBAL & SKELETON ───────────────────── */
+/* ─── 23. LOADER ────────────────────────────────────────────── */
 .loader-overlay {
     position: fixed;
     inset: 0;
@@ -1535,6 +1562,9 @@ input:focus, select:focus, textarea:focus {
 .spinner {
     width: 42px;
     height: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    flex-shrink: 0;
     border: 3px solid rgba(255, 255, 255, 0.25);
     border-top-color: #fff;
     border-radius: 50%;
@@ -1548,9 +1578,8 @@ input:focus, select:focus, textarea:focus {
     font-size: 0.85rem;
     text-align: center;
 }
-/* ─── FIM: 23. LOADER GLOBAL & SKELETON ─────────────────────── */
 
-/* ─── INÍCIO: 24. REGRAS DE RESPONSIVIDADE ───────────────────── */
+/* ─── 24. RESPONSIVIDADE ────────────────────────────────────── */
 @media (min-width: 640px) {
     .modal-overlay {
         align-items: center;
@@ -1587,9 +1616,8 @@ input:focus, select:focus, textarea:focus {
     .product-price { font-size: 0.95rem; }
     .chip { font-size: 0.75rem; padding: 5px 12px; }
 }
-/* ─── FIM: 24. REGRAS DE RESPONSIVIDADE ─────────────────────── */
 
-/* ─── INÍCIO: 25. ESTILOS DE IMPRESSÃO / PDF (@media print) ──── */
+/* ─── 25. IMPRESSÃO ─────────────────────────────────────────── */
 @media print {
     body {
         background: #ffffff !important;
@@ -1628,4 +1656,3 @@ input:focus, select:focus, textarea:focus {
         color: #000 !important;
     }
 }
-/* ─── FIM: 25. ESTILOS DE IMPRESSÃO / PDF (@media print) ─────── */
