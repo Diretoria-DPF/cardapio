@@ -512,9 +512,9 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
                     `;
                     avisoManutencao.innerHTML = `
                         <div style="font-size: 3.5rem; margin-bottom: 14px;">🛡️</div>
-                        <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 8px;">Plataforma em Calibração</h2>
+                        <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 8px;">Plataforma Fechada</h2>
                         <p style="color: #94a3b8; max-width: 360px; line-height: 1.5; font-size: 0.9rem; margin-bottom: 22px;">
-                            Estamos realizando melhorias operacionais nos servidores. Em breve estaremos de volta!
+                            Estamos realizando ajustes. Em breve estaremos de volta!
                         </p>
                         <button type="button" class="btn btn-primary btn-sm" onclick="location.reload()">
                             Atualizar Página
@@ -787,7 +787,7 @@ function renderizarVitrine() {
             const btnComprar = document.createElement('button');
             btnComprar.type = 'button';
             btnComprar.className = 'btn btn-comprar-agora btn-block btn-sm';
-            btnComprar.textContent = '⚡ Comprar Agora';
+            btnComprar.textContent = '✨ Comprar Agora';
             btnComprar.onclick = () => comprarProdutoDireto(p.id);
 
             const btnCesta = document.createElement('button');
@@ -1103,30 +1103,34 @@ const BASE_CONHECIMENTO = {
         saudacao: "Olá! Sou o assistente da Loja. Como posso te orientar hoje?",
         duvidas: [
             {
-                pergunta: "Como solicitar meu cadastro?",
-                resposta: "Basta clicar em 'Solicitar Cadastro' na tela de bloqueio e preencher seus dados para validação da administração."
+                pergunta: "Como solicitar meu cadastro de membro?",
+                resposta: "Toque em 'Solicitar Cadastro' na tela inicial, informe seu nome, WhatsApp e defina sua senha. O acesso poderá ser liberado em alguns instantes."
             },
             {
-                pergunta: "A plataforma é segura?",
-                resposta: "Sim. Todas as transações utilizam criptografia determinística ponta a ponta para proteção absoluta dos dados."
+                pergunta: "Como funciona a plataforma de compras?",
+                resposta: "Somos um catálogo exclusivo e direto. Você navega pelos produtos disponíveis e, após solicitar e aprovar seu cadastro, realiza pedidos."
             }
         ]
     },
     membro: {
-        saudacao: "Olá, membro! Em que posso ajudar com seus pedidos ou pagamentos?",
+        saudacao: "Olá! Em que posso te ajudar ajudar? Duvidas, pagamentos ou pedidos?",
         duvidas: [
+           
             {
-                pergunta: "Como pagar via PIX?",
-                resposta: "Na tela do pedido, toque em 'Pagar / Instruções', copie o código PIX e pague no aplicativo do seu banco."
+                pergunta: "Como funciona o envio do comprovante?",
+                resposta: "Ao clicar em 'Informar Pagamento', nosso WhatsApp receberá o resumo do seu pedido. Basta responder à mensagem anexando o arquivo ou foto do comprovante."
             },
             {
-                pergunta: "Como funciona a entrega?",
-                resposta: "Assim que o pagamento é identificado, o status muda na esteira para 'Em Viagem' e o chat exclusivo do pedido é liberado."
+                pergunta: "Como acompanhar a fila do meu pedido?",
+                resposta: "Na aba 'Pedidos', você visualiza o avanço em 4 etapas: Análise, Preparação, Em Viagem e Concluído."
             },
             {
-                pergunta: "Como falar com o atendente humano?",
-                resposta: "Você pode abrir o chat dentro de qualquer pedido ativo ou utilizar o botão 'Suporte via WhatsApp' no menu do perfil."
-            }
+                pergunta: "Posso falar com um atendente humano?",
+                resposta: "Sim! Você pode abrir o chat exclusivo dentro de qualquer pedido ativo ou usar a opção 'Suporte via WhatsApp' no menu do seu perfil."
+            },
+            {
+                pergunta: "Como cancelar ou alterar itens de um pedido?",
+                resposta: "Se o seu pedido estiver na etapa 'Análise', basta abrir o chat do pedido ou chamar o suporte no WhatsApp para solicitar o ajuste."
         ]
     }
 };
@@ -1193,7 +1197,7 @@ function responderDuvidaRapida(chave) {
    10. MEUS PEDIDOS, COMPARTILHAMENTO & CHAT
    ═══════════════════════════════════════════════════════════════ */
 
-/* ─── INÍCIO: carregarMeusPedidos ────────────────────────────── */
+* ─── INÍCIO: carregarMeusPedidos ────────────────────────────── */
 async function carregarMeusPedidos() {
     const container = document.getElementById('meus-pedidos-container');
     if (!container) return;
@@ -1233,7 +1237,7 @@ async function carregarMeusPedidos() {
 
         cartao.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:center;">
-                <h4>Pedido: ${escaparHtml(pedido.id)}</h4>
+                <h4>Pedido: #${escaparHtml(pedido.id)}</h4>
                 <strong style="color:var(--cor-sucesso-escura);">${fmtPreco(pedido.total)}</strong>
             </div>
             <p style="font-size:0.8rem;color:var(--cor-texto-suave);margin-top:2px;">
@@ -1276,11 +1280,13 @@ async function carregarMeusPedidos() {
             painelAcoes.appendChild(botaoPagar);
         }
 
-        const botaoShare = document.createElement('button');
-        botaoShare.className = 'btn btn-outline-dark btn-sm';
-        botaoShare.textContent = '📲 Enviar no WhatsApp';
-        botaoShare.onclick = () => compartilharPedidoWhatsApp(pedido.id);
-        painelAcoes.appendChild(botaoShare);
+        // Botão Informar Pagamento via WhatsApp com resumo detalhado
+        const botaoInformar = document.createElement('button');
+        botaoInformar.className = 'btn btn-whatsapp btn-sm';
+        botaoInformar.innerHTML = '📲 Informar Pagamento';
+        botaoInformar.title = 'Enviar dados do pedido e comprovante no WhatsApp';
+        botaoInformar.onclick = () => informarPagamentoWhatsApp(pedido.id);
+        painelAcoes.appendChild(botaoInformar);
 
         if (pedido.chatAtivo) {
             const botaoChat = document.createElement('button');
@@ -1296,29 +1302,37 @@ async function carregarMeusPedidos() {
 }
 /* ─── FIM: carregarMeusPedidos ───────────────────────────────── */
 
-/* ─── INÍCIO: compartilharPedidoWhatsApp ─────────────────────── */
-async function compartilharPedidoWhatsApp(idPedido) {
+/* ─── INÍCIO: informarPagamentoWhatsApp ──────────────────────── */
+function informarPagamentoWhatsApp(idPedido) {
     const pedido = (estadoSessao.pedidosRecentes || []).find(p => String(p.id) === String(idPedido));
     
-    const texto = pedido
-        ? `Olá! Gostaria de validar os detalhes do meu Pedido #${pedido.id} no valor de ${fmtPreco(pedido.total)} via ${pedido.metodo} (Status: ${pedido.status.toUpperCase()}). Aguardo orientações!`
-        : `Olá! Vim pela Loja e gostaria de falar sobre o Pedido #${idPedido}.`;
-
-    if (navigator.share) {
+    let resumoItens = "";
+    if (pedido && pedido.itensJson) {
         try {
-            await navigator.share({
-                title: `Pedido #${idPedido}`,
-                text: texto
-            });
-            return;
+            const arr = typeof pedido.itensJson === 'string' ? JSON.parse(pedido.itensJson) : pedido.itensJson;
+            if (Array.isArray(arr)) {
+                resumoItens = arr.map(i => `• ${i.quantidade}x ${i.nome} (${fmtPreco(i.preco * i.quantidade)})`).join('\n');
+            }
         } catch (e) {}
     }
+
+    const texto = pedido
+        ? `*COMPROVANTE DE PAGAMENTO*\n` +
+          `-------------------------------\n` +
+          `*Pedido:* #${pedido.id}\n` +
+          `*Cliente:* ${estadoSessao.nomeUsuario}\n` +
+          `*Valor Total:* ${fmtPreco(pedido.total)}\n` +
+          `*Forma de Pagto:* ${pedido.metodo || 'PIX'}\n` +
+          (resumoItens ? `\n*Itens:* \n${resumoItens}\n` : '') +
+          `-------------------------------\n` +
+          `Envio em anexo o meu comprovante de pagamento para liberação do pedido!`
+        : `Olá! Gostaria de informar o pagamento referente ao Pedido #${idPedido}. Segue o comprovante em anexo.`;
 
     const numeroLoja = "5574998048300";
     const urlWa = `https://wa.me/${numeroLoja}?text=${encodeURIComponent(texto)}`;
     window.open(urlWa, '_blank');
 }
-/* ─── FIM: compartilharPedidoWhatsApp ───────────────────────── */
+/* ─── FIM: informarPagamentoWhatsApp ────────────────────────── */
 
 /* ─── INÍCIO: abrirCobrancaPedido ────────────────────────────── */
 async function abrirCobrancaPedido(idPedido, metodo) {
@@ -1644,26 +1658,53 @@ async function carregarPainelCentralAdm() {
         }
     }
 
-    // 3. Mensagens e Dúvidas Recebidas (Acordeão Retrátil - Últimas 24h)
+    // 3. Mensagens e Dúvidas Recebidas (Acordeão Retrátil com Avatar e Exclusão)
     const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm");
     const divComentarios = document.getElementById('adm-comentarios-lista');
     if (divComentarios) {
         divComentarios.innerHTML = '';
         if (respostaComentarios.sucesso && Array.isArray(respostaComentarios.comentarios) && respostaComentarios.comentarios.length > 0) {
-            respostaComentarios.comentarios.forEach(comentario => {
-                const item = document.createElement('div');
-                item.className = 'msg-grupo-item';
-                const hora = comentario.data ? new Date(comentario.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
-                item.innerHTML = `
-                    <div class="msg-grupo-topo" onclick="this.parentElement.classList.toggle('aberto')">
-                        <span>${escaparHtml(comentario.nome || 'Anônimo')}</span>
-                        <small style="color:var(--cor-texto-suave);">${hora} ▼</small>
+            
+            // Função auxiliar de detecção de avatar por gênero no nome
+            const obterAvatarPorNome = (nome) => {
+                const primeiro = String(nome || '').trim().split(' ')[0].toLowerCase();
+                if (primeiro.endsWith('a') || ['maria', 'alice', 'laura', 'heloisa', 'beatriz'].includes(primeiro)) return '👩';
+                if (primeiro.endsWith('o') || primeiro.endsWith('or') || ['lucas', 'pedro', 'gabriel', 'joao', 'daniel'].includes(primeiro)) return '👨';
+                return '👤';
+            };
+
+            respostaComentarios.comentarios.forEach(msg => {
+                const card = document.createElement('div');
+                card.className = 'msg-cliente-card';
+
+                const avatar = obterAvatarPorNome(msg.nome);
+                const hora = msg.data ? new Date(msg.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+                const temDuvida = msg.temDuvida === true;
+
+                card.innerHTML = `
+                    <div class="msg-cliente-header" onclick="this.parentElement.classList.toggle('aberto')">
+                        <div>
+                            <span style="font-size:1.1rem;margin-right:4px;">${avatar}</span>
+                            <strong>${escaparHtml(msg.nome || 'Cliente')}</strong>
+                            ${msg.id_pedido ? `<small style="color:var(--cor-primaria);margin-left:6px;">(#${escaparHtml(msg.id_pedido)})</small>` : ''}
+                            ${temDuvida ? '<span class="badge-duvida-pendente" style="margin-left:6px;">❓ Mensagem</span>' : ''}
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <small style="color:var(--cor-texto-suave);">${hora}</small>
+                            <span style="font-size:0.75rem;">▼</span>
+                        </div>
                     </div>
-                    <div class="msg-grupo-corpo">
-                        <p>${escaparHtml(comentario.texto || '')}</p>
+                    <div class="msg-cliente-drawer">
+                        <div class="msg-chat-balao">
+                            ${escaparHtml(msg.texto || '')}
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+                            ${msg.id_pedido ? `<button type="button" class="btn btn-primary btn-sm" onclick="abrirChatPedido('${msg.id_pedido}')">💬 Abrir e Responder</button>` : '<span></span>'}
+                            <button type="button" class="btn btn-danger-outline btn-sm" onclick="apagarMensagemAdm(${msg.id}, '${msg.origem}')">🗑️ Apagar Mensagem</button>
+                        </div>
                     </div>
                 `;
-                divComentarios.appendChild(item);
+                divComentarios.appendChild(card);
             });
         } else {
             divComentarios.innerHTML = '<div class="loading-slot">Sem mensagens nas últimas 24 horas.</div>';
@@ -1923,8 +1964,8 @@ function imprimirRelatorioAnaliticoIframe(relatorio) {
         <body>
             <div class="cabecalho">
                 <div>
-                    <div class="titulo-empresa">LojaSegura — Fechamento Diário</div>
-                    <div class="subtitulo">Relatório Detalhado de Vendas e Saída de Itens</div>
+                    <div class="titulo-empresa">Fechamento Diário</div>
+                    <div class="subtitulo">Relatório de Vendas e Saída de Itens</div>
                 </div>
                 <div class="meta-emissao">
                     <strong>Data:</strong> ${relatorio.data}<br>
@@ -1980,8 +2021,8 @@ function imprimirRelatorioAnaliticoIframe(relatorio) {
             </table>
 
             <div class="rodape">
-                <span>Relatório analítico gerado para conferência administrativa.</span>
-                <span>Documento confidencial — Uso interno</span>
+                <span>Relatório para conferência administrativa.</span>
+                <span>Uso interno</span>
             </div>
         </body>
         </html>
@@ -2136,14 +2177,9 @@ async function carregarPedidosAdm(silencioso = false) {
 
     [colAnalise, colSolic, colViagem, colConc].forEach(c => { if (c) c.innerHTML = ''; });
 
-    const emAnalise = res.pedidos.filter(p => String(p.status).toLowerCase() === 'analise').length;
-    if (totalPedidosAnaliseAnterior > 0 && emAnalise > totalPedidosAnaliseAnterior) {
-        tocarSomNotificacao('pedido');
-    }
-    totalPedidosAnaliseAnterior = emAnalise;
-
-    // Fila de Prioridade: mais antigos primeiro
-    const pedidosOrdenados = res.pedidos.sort((a, b) => new Date(a.criadoEm) - new Date(b.criadoEm));
+    const pedidosOrdenados = res.pedidos
+        .filter(p => p.status !== 'arquivado')
+        .sort((a, b) => new Date(a.criadoEm) - new Date(b.criadoEm));
 
     pedidosOrdenados.forEach(p => {
         const temDuvida = p.temPerguntaPendente === true || String(p.temPerguntaPendente) === 'true';
@@ -2161,32 +2197,57 @@ async function carregarPedidosAdm(silencioso = false) {
 
         const badgeIcones = {
             analise: '⏳ Análise',
-            solicitados: '📦 Solicitado',
+            solicitados: '👩‍🍳 Em Preparação ',
             viagem: '🛵 Em Viagem',
             concluido: '✅ Concluído'
         };
 
-        comanda.innerHTML = `
-            <div class="comanda-header" onclick="this.parentElement.classList.toggle('expandida')">
-                <div>
-                    <strong>#${escaparHtml(p.id)}</strong> <small style="color:var(--cor-texto-suave);">(${horaFormatada})</small>
-                    ${temDuvida ? '<span class="badge-duvida-pendente" title="Cliente aguardando resposta">❓ Nova Mensagem</span>' : ''}
+        // Layout da Comanda: Concluídos iniciam compactos/retraídos
+        if (p.status === 'concluido') {
+            comanda.innerHTML = `
+                <div class="comanda-header" onclick="this.parentElement.classList.toggle('expandida')">
+                    <div>
+                        <strong>#${escaparHtml(p.id)}</strong> 
+                        <span style="color:var(--cor-sucesso-escura);font-weight:700;margin-left:6px;">${fmtPreco(p.total)}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <small style="color:var(--cor-texto-suave);">${horaFormatada}</small>
+                        <span class="badge-etapa badge-etapa-concluido">✅</span>
+                    </div>
                 </div>
-                <div>
-                    <span class="badge-etapa badge-etapa-${p.status}">${badgeIcones[p.status] || p.status}</span>
+                <div class="comanda-body">
+                    <p><strong>Forma:</strong> ${escaparHtml(p.metodo || 'PIX')}</p>
+                    <p style="color:var(--cor-texto-suave);margin:4px 0;"><strong>Itens:</strong> ${escaparHtml(itensTexto || 'Sem itens')}</p>
+                    <div style="display:flex;gap:6px;margin-top:8px;">
+                        <button type="button" class="btn btn-outline-dark btn-sm" onclick="abrirChatPedido('${p.id}')">💬 Chat</button>
+                        <button type="button" class="btn btn-danger-outline btn-sm" onclick="cancelarExcluirPedidoAdm('${p.id}')">🗑️ Excluir</button>
+                    </div>
                 </div>
-            </div>
-            <div class="comanda-body">
-                <p><strong>Total:</strong> ${fmtPreco(p.total)} | Forma: ${escaparHtml(p.metodo || 'PIX')}</p>
-                <p style="color:var(--cor-texto-suave);margin:4px 0;"><strong>Itens:</strong> ${escaparHtml(itensTexto || 'Sem itens')}</p>
-                <div style="display:flex;gap:6px;margin-top:8px;">
-                    ${p.status !== 'concluido' ? `<button type="button" class="btn btn-primary btn-sm" onclick="avancarStatusAdm('${p.id}', '${p.status}')">Avançar Etapa ➔</button>` : ''}
-                    <button type="button" class="btn ${temDuvida ? 'btn-aviso pulse-chat' : 'btn-outline-dark'} btn-sm" onclick="abrirChatPedido('${p.id}')">
-                        💬 ${temDuvida ? 'Responder Dúvida' : 'Chat'}
-                    </button>
+            `;
+        } else {
+            comanda.innerHTML = `
+                <div class="comanda-header" onclick="this.parentElement.classList.toggle('expandida')">
+                    <div>
+                        <strong>#${escaparHtml(p.id)}</strong> <small style="color:var(--cor-texto-suave);">(${horaFormatada})</small>
+                        ${temDuvida ? '<span class="badge-duvida-pendente">❓ Mensagem</span>' : ''}
+                    </div>
+                    <div>
+                        <span class="badge-etapa badge-etapa-${p.status}">${badgeIcones[p.status] || p.status}</span>
+                    </div>
                 </div>
-            </div>
-        `;
+                <div class="comanda-body">
+                    <p><strong>Total:</strong> ${fmtPreco(p.total)} | Forma: ${escaparHtml(p.metodo || 'PIX')}</p>
+                    <p style="color:var(--cor-texto-suave);margin:4px 0;"><strong>Itens:</strong> ${escaparHtml(itensTexto || 'Sem itens')}</p>
+                    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-primary btn-sm" onclick="avancarStatusAdm('${p.id}', '${p.status}')">Avançar ➔</button>
+                        <button type="button" class="btn ${temDuvida ? 'btn-aviso pulse-chat' : 'btn-outline-dark'} btn-sm" onclick="abrirChatPedido('${p.id}')">
+                            💬 ${temDuvida ? 'Responder' : 'Chat'}
+                        </button>
+                        <button type="button" class="btn btn-danger-outline btn-sm" onclick="cancelarExcluirPedidoAdm('${p.id}')">Cancelar Pedido</button>
+                    </div>
+                </div>
+            `;
+        }
 
         if (p.status === 'analise'     && colAnalise) colAnalise.appendChild(comanda);
         if (p.status === 'solicitados' && colSolic)   colSolic.appendChild(comanda);
@@ -2199,6 +2260,44 @@ async function carregarPedidosAdm(silencioso = false) {
     });
 }
 /* ─── FIM: carregarPedidosAdm ─────────────────────────────────── */
+
+/* ─── INÍCIO: cancelarExcluirPedidoAdm ───────────────────────── */
+function cancelarExcluirPedidoAdm(idPedido) {
+    abrirConfirmacao(
+        "Cancelar Pedido",
+        `Deseja realmente excluir e cancelar permanentemente o Pedido #${idPedido}? O chat e o registro serão apagados.`,
+        async () => {
+            mostrarLoader("Cancelando pedido...");
+            const res = await executarRequisicaoAPI("cancelar_pedido_adm", { idPedido });
+            esconderLoader();
+            if (res.sucesso) {
+                exibirToast(res.mensagem, "success");
+                await carregarPedidosAdm(true);
+            } else {
+                exibirToast(res.mensagem || "Erro ao cancelar pedido.", "error");
+            }
+        }
+    );
+}
+/* ─── FIM: cancelarExcluirPedidoAdm ─────────────────────────── */
+
+/* ─── INÍCIO: limparConcluidosAdm ────────────────────────────── */
+function limparConcluidosAdm() {
+    abrirConfirmacao(
+        "Limpar Concluídos",
+        "Deseja limpar as comandas concluídas da visualização da esteira? O faturamento continuará registrado nas métricas.",
+        async () => {
+            mostrarLoader("Limpando comandas...");
+            const res = await executarRequisicaoAPI("limpar_pedidos_concluidos_adm");
+            esconderLoader();
+            if (res.sucesso) {
+                exibirToast(res.mensagem, "success");
+                await carregarPedidosAdm(true);
+            }
+        }
+    );
+}
+/* ─── FIM: limparConcluidosAdm ──────────────────────────────── */
 
 /* ─── INÍCIO: avancarStatusAdm ───────────────────────────────── */
 async function avancarStatusAdm(idPedido, statusAtual) {
@@ -2615,6 +2714,26 @@ function atualizarInterfaceSessao() {
     atualizarBarraFlutuanteSacola();
 }
 /* ─── FIM: atualizarInterfaceSessao ───────────────────────────── */
+
+/* ─── INÍCIO: apagarMensagemAdm ──────────────────────────────── */
+function apagarMensagemAdm(idMensagem, origem) {
+    abrirConfirmacao(
+        "Apagar Mensagem",
+        "Deseja realmente apagar esta mensagem do histórico?",
+        async () => {
+            mostrarLoader("Apagando mensagem...");
+            const res = await executarRequisicaoAPI("excluir_mensagem_adm", { id: idMensagem, origem });
+            esconderLoader();
+            if (res.sucesso) {
+                exibirToast("Mensagem apagada com sucesso!", "success");
+                await carregarPainelCentralAdm();
+            } else {
+                exibirToast("Erro ao apagar mensagem.", "error");
+            }
+        }
+    );
+}
+/* ─── FIM: apagarMensagemAdm ────────────────────────────────── */
 
 /* ─── INÍCIO: navegarPara ────────────────────────────────────── */
 function navegarPara(nomeAba) {
@@ -3062,6 +3181,10 @@ window.aprovarSolicitacoesSelecionadasLote = aprovarSolicitacoesSelecionadasLote
 window.gerarRelatorioPdfVendas             = gerarRelatorioPdfVendas;
 window.tocarSomNotificacao                 = tocarSomNotificacao;
 window.alternarModoAcessoSistema           = alternarModoAcessoSistema;
+window.informarPagamentoWhatsApp           = informarPagamentoWhatsApp;
+window.cancelarExcluirPedidoAdm            = cancelarExcluirPedidoAdm;
+window.limparConcluidosAdm                 = limparConcluidosAdm;
+window.apagarMensagemAdm                   = apagarMensagemAdm;
 
 // Funções de comandas, prioridades e gavetas
 window.carregarPedidosAdm                  = carregarPedidosAdm;
