@@ -1,5 +1,5 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v25 — Versão Completa & Consolidada)
+   app.js — Plataforma Comercial Segura (v26 — Versão Completa & Consolidada)
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO VERCEL:
@@ -514,7 +514,7 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
                         <div style="font-size: 3.5rem; margin-bottom: 14px;">🛡️</div>
                         <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 8px;">Plataforma Fechada</h2>
                         <p style="color: #94a3b8; max-width: 360px; line-height: 1.5; font-size: 0.9rem; margin-bottom: 22px;">
-                            Estamos realizando ajustes. Em breve estaremos de volta!
+                            Estamos realizando ajustes operacionais no sistema. Em breve estaremos de volta!
                         </p>
                         <button type="button" class="btn btn-primary btn-sm" onclick="location.reload()">
                             Atualizar Página
@@ -1098,6 +1098,7 @@ async function excluirProdutoAdm(idProduto) {
    9. ATENDENTE VIRTUAL & DÚVIDAS
    ═══════════════════════════════════════════════════════════════ */
 
+/* ─── INÍCIO: BASE_CONHECIMENTO ──────────────────────────────── */
 const BASE_CONHECIMENTO = {
     visitante: {
         saudacao: "Olá! Sou o assistente da Loja. Como posso te orientar hoje?",
@@ -1113,9 +1114,8 @@ const BASE_CONHECIMENTO = {
         ]
     },
     membro: {
-        saudacao: "Olá! Em que posso te ajudar ajudar? Duvidas, pagamentos ou pedidos?",
+        saudacao: "Olá! Em que posso te ajudar? Dúvidas, pagamentos ou pedidos?",
         duvidas: [
-           
             {
                 pergunta: "Como funciona o envio do comprovante?",
                 resposta: "Ao clicar em 'Informar Pagamento', nosso WhatsApp receberá o resumo do seu pedido. Basta responder à mensagem anexando o arquivo ou foto do comprovante."
@@ -1131,10 +1131,12 @@ const BASE_CONHECIMENTO = {
             {
                 pergunta: "Como cancelar ou alterar itens de um pedido?",
                 resposta: "Se o seu pedido estiver na etapa 'Análise', basta abrir o chat do pedido ou chamar o suporte no WhatsApp para solicitar o ajuste."
-       }
-     ]
-    } 
+            }
+        ]
+    }
 };
+/* ─── FIM: BASE_CONHECIMENTO ────────────────────────────────── */
+
 /* ─── INÍCIO: abrirAssistenteVirtual ─────────────────────────── */
 function abrirAssistenteVirtual() {
     const papel = estadoSessao.papel === 'visitante' ? 'visitante' : 'membro';
@@ -1280,7 +1282,6 @@ async function carregarMeusPedidos() {
             painelAcoes.appendChild(botaoPagar);
         }
 
-        // Botão Informar Pagamento via WhatsApp com resumo detalhado
         const botaoInformar = document.createElement('button');
         botaoInformar.className = 'btn btn-whatsapp btn-sm';
         botaoInformar.innerHTML = '📲 Informar Pagamento';
@@ -1333,6 +1334,30 @@ function informarPagamentoWhatsApp(idPedido) {
     window.open(urlWa, '_blank');
 }
 /* ─── FIM: informarPagamentoWhatsApp ────────────────────────── */
+
+/* ─── INÍCIO: compartilharPedidoWhatsApp ─────────────────────── */
+async function compartilharPedidoWhatsApp(idPedido) {
+    const pedido = (estadoSessao.pedidosRecentes || []).find(p => String(p.id) === String(idPedido));
+    
+    const texto = pedido
+        ? `Olá! Gostaria de validar os detalhes do meu Pedido #${pedido.id} no valor de ${fmtPreco(pedido.total)} via ${pedido.metodo} (Status: ${pedido.status.toUpperCase()}). Aguardo orientações!`
+        : `Olá! Vim pela Loja e gostaria de falar sobre o Pedido #${idPedido}.`;
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: `Pedido #${idPedido}`,
+                text: texto
+            });
+            return;
+        } catch (e) {}
+    }
+
+    const numeroLoja = "5574998048300";
+    const urlWa = `https://wa.me/${numeroLoja}?text=${encodeURIComponent(texto)}`;
+    window.open(urlWa, '_blank');
+}
+/* ─── FIM: compartilharPedidoWhatsApp ───────────────────────── */
 
 /* ─── INÍCIO: abrirCobrancaPedido ────────────────────────────── */
 async function abrirCobrancaPedido(idPedido, metodo) {
@@ -1664,8 +1689,6 @@ async function carregarPainelCentralAdm() {
     if (divComentarios) {
         divComentarios.innerHTML = '';
         if (respostaComentarios.sucesso && Array.isArray(respostaComentarios.comentarios) && respostaComentarios.comentarios.length > 0) {
-            
-            // Função auxiliar de detecção de avatar por gênero no nome
             const obterAvatarPorNome = (nome) => {
                 const primeiro = String(nome || '').trim().split(' ')[0].toLowerCase();
                 if (primeiro.endsWith('a') || ['maria', 'alice', 'laura', 'heloisa', 'beatriz'].includes(primeiro)) return '👩';
@@ -2177,6 +2200,13 @@ async function carregarPedidosAdm(silencioso = false) {
 
     [colAnalise, colSolic, colViagem, colConc].forEach(c => { if (c) c.innerHTML = ''; });
 
+    const emAnalise = res.pedidos.filter(p => String(p.status).toLowerCase() === 'analise').length;
+    if (totalPedidosAnaliseAnterior > 0 && emAnalise > totalPedidosAnaliseAnterior) {
+        tocarSomNotificacao('pedido');
+    }
+    totalPedidosAnaliseAnterior = emAnalise;
+
+    // Fila de Prioridade: mais antigos primeiro
     const pedidosOrdenados = res.pedidos
         .filter(p => p.status !== 'arquivado')
         .sort((a, b) => new Date(a.criadoEm) - new Date(b.criadoEm));
@@ -2197,7 +2227,7 @@ async function carregarPedidosAdm(silencioso = false) {
 
         const badgeIcones = {
             analise: '⏳ Análise',
-            solicitados: '👩‍🍳 Em Preparação ',
+            solicitados: '📦 Solicitado',
             viagem: '🛵 Em Viagem',
             concluido: '✅ Concluído'
         };
