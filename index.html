@@ -285,9 +285,12 @@
                 <div id="pipe-viagem"></div>
             </div>
             <div class="pipeline-col">
-                <h4>✅ Concluídos</h4>
-                <div id="pipe-concluido"></div>
-            </div>
+    <div class="pipeline-header-col">
+        <h4>✅ Concluídos</h4>
+        <button type="button" class="btn-limpar-coluna" onclick="limparConcluidosAdm()" title="Limpar comandas concluídas da esteira">🧹 Limpar</button>
+    </div>
+    <div id="pipe-concluido"></div>
+</div>
         </div>
     </section>
 
@@ -300,13 +303,13 @@
 
         <!-- BARRA SUSPENSA DE NAVEGAÇÃO RÁPIDA: MEMBROS E BLOQUEADOS -->
         <div class="adm-toolbar-flutuante">
-            <button type="button" class="btn-drawer" id="btn-toggle-membros-drawer" onclick="alternarGavetaAdm('membros')">
-                👤 Membros Ativos
-            </button>
-            <button type="button" class="btn-drawer" id="btn-toggle-bloqueados-drawer" onclick="alternarGavetaAdm('bloqueados')">
-                🔒 Bloqueados (<span id="cont-bloqueados-badge">0</span>)
-            </button>
-        </div>
+    <button type="button" class="btn-drawer btn-drawer-membros" id="btn-toggle-membros-drawer" onclick="alternarGavetaAdm('membros')">
+        👤 Membros Ativos
+    </button>
+    <button type="button" class="btn-drawer btn-drawer-bloqueados" id="btn-toggle-bloqueados-drawer" onclick="alternarGavetaAdm('bloqueados')">
+        🔒 Bloqueados (<span id="cont-bloqueados-badge">0</span>)
+    </button>
+</div>
 
         <!-- Painel Retrátil: Membros Ativos -->
         <div id="drawer-membros" class="gaveta-suspensa hidden">
