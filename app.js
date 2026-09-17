@@ -395,8 +395,8 @@ function pararTemporizadorSilencioso() {
 }
 /* ─── FIM: pararTemporizadorSilencioso ────────────────────────── */
 
-/* ─── INÍCIO: executarRequisicaoAPI (com Auto-Retry Resiliente) ─ */
-async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true, tentativa = 1) {
+/* ─── INÍCIO: executarRequisicaoAPI ──────────────────────────── */
+async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
     try {
         const payload = dadosExtras;
         const corpo = {
@@ -426,9 +426,44 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
             return { sucesso: false, erroTransitorio: true, mensagem: "Servidor ocupado. Aguarde um instante..." };
         }
 
+        // BLOQUEIO DE MANUTENÇÃO AMIGÁVEL
         if (!json.sucesso && json.codigo === 'SISTEMA_BLOQUEADO') {
-            exibirToast(json.mensagem || "Plataforma em manutenção.", "error");
-            if (estadoSessao.papel !== 'adm') {
+            if (estadoSessao.papel === 'adm') {
+                return json;
+            }
+
+            if (estadoSessao.papel === 'membro') {
+                let avisoManutencao = document.getElementById('aviso-manutencao-membro');
+                if (!avisoManutencao) {
+                    avisoManutencao = document.createElement('div');
+                    avisoManutencao.id = 'aviso-manutencao-membro';
+                    avisoManutencao.style.cssText = `
+                        position: fixed;
+                        inset: 0;
+                        background: rgba(15, 23, 42, 0.96);
+                        z-index: 99999;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 24px;
+                        text-align: center;
+                        color: #ffffff;
+                        backdrop-filter: blur(8px);
+                    `;
+                    avisoManutencao.innerHTML = `
+                        <div style="font-size: 3.5rem; margin-bottom: 14px;">🛡️</div>
+                        <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 8px;">Plataforma em Calibração</h2>
+                        <p style="color: #94a3b8; max-width: 360px; line-height: 1.5; font-size: 0.9rem; margin-bottom: 22px;">
+                            Estamos realizando melhorias operacionais nos servidores. Em breve estaremos de volta!
+                        </p>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="location.reload()">
+                            Atualizar Página
+                        </button>
+                    `;
+                    document.body.appendChild(avisoManutencao);
+                }
+            } else {
                 navegarPara('bloqueado');
             }
             return json;
@@ -460,19 +495,11 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         return json;
 
     } catch (erroRede) {
-        // Se falhar na primeira vez (ex: banco acordando), tenta novamente em 1.5s
-        if (tentativa === 1) {
-            console.warn(`[API] Primeira tentativa falhou (${acao}). Tentando reconectar ao banco...`);
-            await new Promise(r => setTimeout(r, 1500));
-            return executarRequisicaoAPI(acao, dadosExtras, tentarRefresh, 2);
-        }
-
-        console.warn("[API] Oscilação de rede persistente:", erroRede);
+        console.warn("[API] Oscilação de rede:", erroRede);
         return { sucesso: false, erroRede: true, mensagem: "Sem conexão momentânea com o servidor." };
     }
 }
 /* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
-
 /* ─── INÍCIO: executarLimpezaTotalESaida ─────────────────────── */
 function executarLimpezaTotalESaida(silencioso = false) {
     pararTemporizadorSilencioso();
@@ -1131,14 +1158,13 @@ function pararAutoRefreshEsteira() {
 /* ─── FIM: Ciclo de Auto-Refresh da Esteira (ADM) ───────────── */
 
 /* ─── INÍCIO: carregarPedidosAdm ─────────────────────────────── */
-/* ─── INÍCIO: carregarPedidosAdm ─────────────────────────────── */
 async function carregarPedidosAdm(silencioso = false) {
     const colunaAnalise     = document.getElementById('pipe-analise');
     const colunaSolicitados = document.getElementById('pipe-solicitados');
     const colunaViagem      = document.getElementById('pipe-viagem');
     const colunaConcluido   = document.getElementById('pipe-concluido');
 
-    // Só exibe os esqueletos de carregamento se for a abertura inicial da tela
+    // Exibe esqueleto de loading apenas se não for atualização de fundo
     if (!silencioso) {
         [colunaAnalise, colunaSolicitados, colunaViagem, colunaConcluido].forEach(coluna => {
             if (coluna) coluna.innerHTML = '<div class="loading-slot">…</div>';
@@ -1162,12 +1188,16 @@ async function carregarPedidosAdm(silencioso = false) {
     resposta.pedidos.forEach(pedido => {
         const divCartao = document.createElement('div');
         divCartao.className = 'pipeline-order-card';
-        if (pedido.temPerguntaPendente) {
+
+        // Garante a identificação da dúvida até ser respondida pela ADM
+        const temDuvida = pedido.temPerguntaPendente === true || String(pedido.temPerguntaPendente) === 'true';
+
+        if (temDuvida) {
             divCartao.classList.add('card-pergunta-ativa');
         }
 
-        const badgePergunta = pedido.temPerguntaPendente
-            ? `<span class="badge-duvida-pendente" title="Cliente aguardando resposta">❓ Nova Mensagem</span>`
+        const badgePergunta = temDuvida
+            ? `<span class="badge-duvida-pendente" title="Cliente aguardando resposta da administração">❓ Nova Mensagem</span>`
             : '';
 
         divCartao.innerHTML = `
@@ -1191,9 +1221,9 @@ async function carregarPedidosAdm(silencioso = false) {
         }
 
         const botaoChatAdm = document.createElement('button');
-        botaoChatAdm.className = pedido.temPerguntaPendente ? 'btn btn-aviso btn-sm pulse-chat' : 'btn btn-outline-dark btn-sm';
-        botaoChatAdm.innerHTML = pedido.temPerguntaPendente ? '💬 ❓' : '💬';
-        botaoChatAdm.title = pedido.temPerguntaPendente ? 'Mensagem do cliente aguardando resposta' : 'Abrir Chat';
+        botaoChatAdm.className = temDuvida ? 'btn btn-aviso btn-sm pulse-chat' : 'btn btn-outline-dark btn-sm';
+        botaoChatAdm.innerHTML = temDuvida ? '💬 ❓' : '💬';
+        botaoChatAdm.title = temDuvida ? 'Mensagem de cliente aguardando resposta' : 'Abrir Chat';
         botaoChatAdm.onclick = () => abrirChatPedido(pedido.id);
         painelBotoes.appendChild(botaoChatAdm);
 
