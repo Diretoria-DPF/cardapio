@@ -1655,4 +1655,45 @@ input:focus, select:focus, textarea:focus {
         border: 1px solid #000 !important;
         color: #000 !important;
     }
+
+   /* ─── ALERTA DE PERGUNTA PENDENTE NO CHAT (ESTEIRA) ─── */
+.pipeline-order-card {
+    background: var(--cor-fundo-card);
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--cor-borda);
+    transition: border-color var(--transicao);
+}
+
+.card-pergunta-ativa {
+    border: 1.5px solid var(--cor-aviso) !important;
+    background: rgba(245, 158, 11, 0.05);
+}
+
+.badge-duvida-pendente {
+    background: var(--cor-aviso);
+    color: #000;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    animation: pulseBadge 1.8s infinite;
+}
+
+.pulse-chat {
+    background-color: var(--cor-aviso) !important;
+    color: #000 !important;
+    font-weight: 700;
+    border: none !important;
+}
+
+@keyframes pulseBadge {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+   
 }
