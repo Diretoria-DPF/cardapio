@@ -92,6 +92,7 @@ document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         pararAutoRefreshChat();
         desligarAutoRefreshAdm();
+        pararAutoRefreshEsteira(); // Adicionar aqui
     } else {
         if (pedidoChatAberto) {
             renderizarChat(true);
@@ -99,6 +100,11 @@ document.addEventListener('visibilitychange', () => {
         }
         if (estadoSessao.papel === 'adm') {
             ligarAutoRefreshAdm();
+            const painelEsteira = document.getElementById('view-pedidos-adm');
+            if (painelEsteira && painelEsteira.classList.contains('active')) {
+                carregarPedidosAdm(true);
+                iniciarAutoRefreshEsteira(); // Retoma ao focar na janela
+            }
         }
     }
 });
@@ -236,6 +242,7 @@ let _timerSilencioso = null;
 let _segundosRestantesLink = 0;
 let _timerPainelAdm = null;
 let _timerChat = null;
+let _timerEsteiraAdm = null;
 
 /* ═══════════════════════════════════════════════════════════════
    4. INICIALIZAÇÃO E COMUNICAÇÃO HTTP
@@ -370,8 +377,9 @@ function iniciarTemporizadorSilencioso(segundosTotais) {
 
         _segundosRestantesLink--;
         if (_segundosRestantesLink <= 0) {
-            pararTemporizadorSilencioso();
-            exibirToast("O seu período de acesso terminou. Solicite um novo link ao administrador.", "info");
+           pararAutoRefreshEsteira();
+           pararTemporizadorSilencioso();
+            exibirToast("O seu período de acesso terminou. Solicite um novo link.", "info");
             executarLimpezaTotalESaida();
         }
     }, 1000);
@@ -1015,73 +1023,104 @@ async function alterarVisibilidadeProdutoAdm(idProduto, novaVisib) {
 }
 /* ─── FIM: alterarVisibilidadeProdutoAdm ──────────────────────── */
 
+/* ─── INÍCIO: Ciclo de Auto-Refresh da Esteira (ADM) ────────── */
+function iniciarAutoRefreshEsteira() {
+    pararAutoRefreshEsteira();
+    if (estadoSessao.papel !== 'adm') return;
+
+    _timerEsteiraAdm = setInterval(async () => {
+        if (estadoSessao.papel !== 'adm' || document.hidden) return;
+        const painelEsteira = document.getElementById('view-pedidos-adm');
+        if (painelEsteira && painelEsteira.classList.contains('active')) {
+            await carregarPedidosAdm(true); // Executa no modo silencioso
+        } else {
+            pararAutoRefreshEsteira();
+        }
+    }, 8000); // Consulta a cada 8 segundos
+}
+
+function pararAutoRefreshEsteira() {
+    if (_timerEsteiraAdm) {
+        clearInterval(_timerEsteiraAdm);
+        _timerEsteiraAdm = null;
+    }
+}
+/* ─── FIM: Ciclo de Auto-Refresh da Esteira (ADM) ───────────── */
+
 /* ─── INÍCIO: carregarPedidosAdm ─────────────────────────────── */
-async function carregarPedidosAdm() {
+/* ─── INÍCIO: carregarPedidosAdm ─────────────────────────────── */
+async function carregarPedidosAdm(silencioso = false) {
     const colunaAnalise     = document.getElementById('pipe-analise');
     const colunaSolicitados = document.getElementById('pipe-solicitados');
     const colunaViagem      = document.getElementById('pipe-viagem');
     const colunaConcluido   = document.getElementById('pipe-concluido');
 
+    // Só exibe os esqueletos de carregamento se for a abertura inicial da tela
+    if (!silencioso) {
+        [colunaAnalise, colunaSolicitados, colunaViagem, colunaConcluido].forEach(coluna => {
+            if (coluna) coluna.innerHTML = '<div class="loading-slot">…</div>';
+        });
+    }
+
     const resposta = await executarRequisicaoAPI("listar_pedidos_adm");
+    if (!resposta.sucesso || !Array.isArray(resposta.pedidos)) return;
+
     if (colunaAnalise)     colunaAnalise.innerHTML = '';
     if (colunaSolicitados) colunaSolicitados.innerHTML = '';
     if (colunaViagem)      colunaViagem.innerHTML = '';
     if (colunaConcluido)   colunaConcluido.innerHTML = '';
 
-    if (resposta.sucesso && Array.isArray(resposta.pedidos)) {
-        const emAnalise = resposta.pedidos.filter(p => String(p.status).toLowerCase() === 'analise').length;
-        if (totalPedidosAnaliseAnterior > 0 && emAnalise > totalPedidosAnaliseAnterior) {
-            tocarSomNotificacao('pedido');
-        }
-        totalPedidosAnaliseAnterior = emAnalise;
-
-        resposta.pedidos.forEach(pedido => {
-            const divCartao = document.createElement('div');
-            divCartao.className = 'pipeline-order-card';
-            if (pedido.temPerguntaPendente) {
-                divCartao.classList.add('card-pergunta-ativa');
-            }
-
-            // Alerta visual de pergunta pendente
-            const badgePergunta = pedido.temPerguntaPendente
-                ? `<span class="badge-duvida-pendente" title="Cliente aguardando resposta">❓ Nova Mensagem</span>`
-                : '';
-
-            divCartao.innerHTML = `
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                    <small><strong>${escaparHtml(pedido.id)}</strong></small>
-                    ${badgePergunta}
-                </div>
-                <small style="font-weight:700;color:var(--cor-sucesso);">${fmtPreco(pedido.total)}</small><br>
-                <small style="color:var(--cor-texto-suave);">Forma: ${escaparHtml(pedido.metodo || 'PIX')}</small>
-            `;
-
-            const painelBotoes = document.createElement('div');
-            painelBotoes.style.cssText = 'display:flex;gap:4px;margin-top:8px;';
-
-            if (pedido.status !== 'concluido') {
-                const botaoAvancar = document.createElement('button');
-                botaoAvancar.className = 'btn btn-primary btn-sm';
-                botaoAvancar.textContent = 'Avançar';
-                botaoAvancar.onclick = () => avancarStatusAdm(pedido.id, pedido.status);
-                painelBotoes.appendChild(botaoAvancar);
-            }
-
-            const botaoChatAdm = document.createElement('button');
-            botaoChatAdm.className = pedido.temPerguntaPendente ? 'btn btn-aviso btn-sm pulse-chat' : 'btn btn-outline-dark btn-sm';
-            botaoChatAdm.innerHTML = pedido.temPerguntaPendente ? '💬 ❓' : '💬';
-            botaoChatAdm.title = pedido.temPerguntaPendente ? 'Mensagem do cliente aguardando resposta' : 'Abrir Chat';
-            botaoChatAdm.onclick = () => abrirChatPedido(pedido.id);
-            painelBotoes.appendChild(botaoChatAdm);
-
-            divCartao.appendChild(painelBotoes);
-
-            if (pedido.status === 'analise'     && colunaAnalise)     colunaAnalise.appendChild(divCartao);
-            if (pedido.status === 'solicitados' && colunaSolicitados) colunaSolicitados.appendChild(divCartao);
-            if (pedido.status === 'viagem'      && colunaViagem)      colunaViagem.appendChild(divCartao);
-            if (pedido.status === 'concluido'   && colunaConcluido)   colunaConcluido.appendChild(divCartao);
-        });
+    const emAnalise = resposta.pedidos.filter(p => String(p.status).toLowerCase() === 'analise').length;
+    if (totalPedidosAnaliseAnterior > 0 && emAnalise > totalPedidosAnaliseAnterior) {
+        tocarSomNotificacao('pedido');
     }
+    totalPedidosAnaliseAnterior = emAnalise;
+
+    resposta.pedidos.forEach(pedido => {
+        const divCartao = document.createElement('div');
+        divCartao.className = 'pipeline-order-card';
+        if (pedido.temPerguntaPendente) {
+            divCartao.classList.add('card-pergunta-ativa');
+        }
+
+        const badgePergunta = pedido.temPerguntaPendente
+            ? `<span class="badge-duvida-pendente" title="Cliente aguardando resposta">❓ Nova Mensagem</span>`
+            : '';
+
+        divCartao.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <small><strong>${escaparHtml(pedido.id)}</strong></small>
+                ${badgePergunta}
+            </div>
+            <small style="font-weight:700;color:var(--cor-sucesso);">${fmtPreco(pedido.total)}</small><br>
+            <small style="color:var(--cor-texto-suave);">Forma: ${escaparHtml(pedido.metodo || 'PIX')}</small>
+        `;
+
+        const painelBotoes = document.createElement('div');
+        painelBotoes.style.cssText = 'display:flex;gap:4px;margin-top:8px;';
+
+        if (pedido.status !== 'concluido') {
+            const botaoAvancar = document.createElement('button');
+            botaoAvancar.className = 'btn btn-primary btn-sm';
+            botaoAvancar.textContent = 'Avançar';
+            botaoAvancar.onclick = () => avancarStatusAdm(pedido.id, pedido.status);
+            painelBotoes.appendChild(botaoAvancar);
+        }
+
+        const botaoChatAdm = document.createElement('button');
+        botaoChatAdm.className = pedido.temPerguntaPendente ? 'btn btn-aviso btn-sm pulse-chat' : 'btn btn-outline-dark btn-sm';
+        botaoChatAdm.innerHTML = pedido.temPerguntaPendente ? '💬 ❓' : '💬';
+        botaoChatAdm.title = pedido.temPerguntaPendente ? 'Mensagem do cliente aguardando resposta' : 'Abrir Chat';
+        botaoChatAdm.onclick = () => abrirChatPedido(pedido.id);
+        painelBotoes.appendChild(botaoChatAdm);
+
+        divCartao.appendChild(painelBotoes);
+
+        if (pedido.status === 'analise'     && colunaAnalise)     colunaAnalise.appendChild(divCartao);
+        if (pedido.status === 'solicitados' && colunaSolicitados) colunaSolicitados.appendChild(divCartao);
+        if (pedido.status === 'viagem'      && colunaViagem)      colunaViagem.appendChild(divCartao);
+        if (pedido.status === 'concluido'   && colunaConcluido)   colunaConcluido.appendChild(divCartao);
+    });
 
     [[colunaAnalise], [colunaSolicitados], [colunaViagem], [colunaConcluido]].forEach(([coluna]) => {
         if (coluna && !coluna.children.length) {
@@ -2539,10 +2578,18 @@ function navegarPara(nomeAba) {
 
     fecharUserDropdown();
 
+    // Controle de timers entre telas
+    if (nomeAba !== 'pedidos-adm') {
+        pararAutoRefreshEsteira();
+    }
+
     if (nomeAba === 'vitrine')      sincronizarProdutosServidor();
     if (nomeAba === 'carrinho')     renderizarCarrinho();
     if (nomeAba === 'meus-pedidos') carregarMeusPedidos();
-    if (nomeAba === 'pedidos-adm')  carregarPedidosAdm();
+    if (nomeAba === 'pedidos-adm') {
+        carregarPedidosAdm();
+        iniciarAutoRefreshEsteira(); // Inicia auto-refresh contínuo
+    }
     if (nomeAba === 'adm') {
         carregarPainelCentralAdm();
         consultarPendentesAdm();
