@@ -1156,92 +1156,82 @@ function pararAutoRefreshEsteira() {
     }
 }
 /* ─── FIM: Ciclo de Auto-Refresh da Esteira (ADM) ───────────── */
-
-/* ─── INÍCIO: carregarPedidosAdm ─────────────────────────────── */
+/* ─── INÍCIO: carregarPedidosAdm (Comandas e Prioridade por Horário) ─ */
 async function carregarPedidosAdm(silencioso = false) {
-    const colunaAnalise     = document.getElementById('pipe-analise');
-    const colunaSolicitados = document.getElementById('pipe-solicitados');
-    const colunaViagem      = document.getElementById('pipe-viagem');
-    const colunaConcluido   = document.getElementById('pipe-concluido');
+    const colAnalise = document.getElementById('pipe-analise');
+    const colSolic   = document.getElementById('pipe-solicitados');
+    const colViagem  = document.getElementById('pipe-viagem');
+    const colConc    = document.getElementById('pipe-concluido');
 
-    // Exibe esqueleto de loading apenas se não for atualização de fundo
     if (!silencioso) {
-        [colunaAnalise, colunaSolicitados, colunaViagem, colunaConcluido].forEach(coluna => {
-            if (coluna) coluna.innerHTML = '<div class="loading-slot">…</div>';
-        });
+        [colAnalise, colSolic, colViagem, colConc].forEach(c => { if(c) c.innerHTML = '<div class="loading-slot">…</div>'; });
     }
 
-    const resposta = await executarRequisicaoAPI("listar_pedidos_adm");
-    if (!resposta.sucesso || !Array.isArray(resposta.pedidos)) return;
+    const res = await executarRequisicaoAPI("listar_pedidos_adm");
+    if (!res.sucesso || !Array.isArray(res.pedidos)) return;
 
-    if (colunaAnalise)     colunaAnalise.innerHTML = '';
-    if (colunaSolicitados) colunaSolicitados.innerHTML = '';
-    if (colunaViagem)      colunaViagem.innerHTML = '';
-    if (colunaConcluido)   colunaConcluido.innerHTML = '';
+    [colAnalise, colSolic, colViagem, colConc].forEach(c => { if(c) c.innerHTML = ''; });
 
-    const emAnalise = resposta.pedidos.filter(p => String(p.status).toLowerCase() === 'analise').length;
-    if (totalPedidosAnaliseAnterior > 0 && emAnalise > totalPedidosAnaliseAnterior) {
-        tocarSomNotificacao('pedido');
-    }
-    totalPedidosAnaliseAnterior = emAnalise;
+    // Ordenação por Horário: os mais antigos primeiro (fila de prioridade)
+    const pedidosOrdenados = res.pedidos.sort((a, b) => new Date(a.criadoEm) - new Date(b.criadoEm));
 
-    resposta.pedidos.forEach(pedido => {
-        const divCartao = document.createElement('div');
-        divCartao.className = 'pipeline-order-card';
+    pedidosOrdenados.forEach(p => {
+        const temDuvida = p.temPerguntaPendente === true || String(p.temPerguntaPendente) === 'true';
+        const horaFormatada = p.criadoEm ? new Date(p.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
 
-        // Garante a identificação da dúvida até ser respondida pela ADM
-        const temDuvida = pedido.temPerguntaPendente === true || String(pedido.temPerguntaPendente) === 'true';
+        const comanda = document.createElement('div');
+        comanda.className = `comanda-card comanda-${p.status}`;
+        if (temDuvida) comanda.classList.add('card-pergunta-ativa');
 
-        if (temDuvida) {
-            divCartao.classList.add('card-pergunta-ativa');
-        }
+        let itensTexto = '';
+        try {
+            const its = typeof p.itensJson === 'string' ? JSON.parse(p.itensJson) : p.itensJson;
+            if (Array.isArray(its)) {
+                itensTexto = its.map(i => `${i.quantidade}x ${i.nome}`).join(', ');
+            }
+        } catch(e) {}
 
-        const badgePergunta = temDuvida
-            ? `<span class="badge-duvida-pendente" title="Cliente aguardando resposta da administração">❓ Nova Mensagem</span>`
-            : '';
+        const badgeIcones = {
+            analise: '⏳ Análise',
+            solicitados: '📦 Solicitado',
+            viagem: '🛵 A Caminho',
+            concluido: '✅ Concluído'
+        };
 
-        divCartao.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                <small><strong>${escaparHtml(pedido.id)}</strong></small>
-                ${badgePergunta}
+        comanda.innerHTML = `
+            <div class="comanda-header" onclick="this.parentElement.classList.toggle('expandida')">
+                <div>
+                    <strong>#${escaparHtml(p.id)}</strong> <small style="color:var(--cor-texto-suave);">(${horaFormatada})</small>
+                    ${temDuvida ? '<span class="badge-duvida-pendente">❓ Mensagem</span>' : ''}
+                </div>
+                <div>
+                    <span class="badge-etapa badge-etapa-${p.status}">${badgeIcones[p.status] || p.status}</span>
+                </div>
             </div>
-            <small style="font-weight:700;color:var(--cor-sucesso);">${fmtPreco(pedido.total)}</small><br>
-            <small style="color:var(--cor-texto-suave);">Forma: ${escaparHtml(pedido.metodo || 'PIX')}</small>
+            <div class="comanda-body">
+                <p><strong>Total:</strong> ${fmtPreco(p.total)} | Forma: ${escaparHtml(p.metodo || 'PIX')}</p>
+                <p style="color:var(--cor-texto-suave);margin:4px 0;"><strong>Itens:</strong> ${escaparHtml(itensTexto || 'Sem itens')}</p>
+                
+                <div style="display:flex;gap:6px;margin-top:8px;">
+                    ${p.status !== 'concluido' ? `<button type="button" class="btn btn-primary btn-sm" onclick="avancarStatusAdm('${p.id}', '${p.status}')">Avançar Etapa ➔</button>` : ''}
+                    <button type="button" class="btn ${temDuvida ? 'btn-aviso pulse-chat' : 'btn-outline-dark'} btn-sm" onclick="abrirChatPedido('${p.id}')">
+                        💬 ${temDuvida ? 'Responder Dúvida' : 'Chat'}
+                    </button>
+                </div>
+            </div>
         `;
 
-        const painelBotoes = document.createElement('div');
-        painelBotoes.style.cssText = 'display:flex;gap:4px;margin-top:8px;';
-
-        if (pedido.status !== 'concluido') {
-            const botaoAvancar = document.createElement('button');
-            botaoAvancar.className = 'btn btn-primary btn-sm';
-            botaoAvancar.textContent = 'Avançar';
-            botaoAvancar.onclick = () => avancarStatusAdm(pedido.id, pedido.status);
-            painelBotoes.appendChild(botaoAvancar);
-        }
-
-        const botaoChatAdm = document.createElement('button');
-        botaoChatAdm.className = temDuvida ? 'btn btn-aviso btn-sm pulse-chat' : 'btn btn-outline-dark btn-sm';
-        botaoChatAdm.innerHTML = temDuvida ? '💬 ❓' : '💬';
-        botaoChatAdm.title = temDuvida ? 'Mensagem de cliente aguardando resposta' : 'Abrir Chat';
-        botaoChatAdm.onclick = () => abrirChatPedido(pedido.id);
-        painelBotoes.appendChild(botaoChatAdm);
-
-        divCartao.appendChild(painelBotoes);
-
-        if (pedido.status === 'analise'     && colunaAnalise)     colunaAnalise.appendChild(divCartao);
-        if (pedido.status === 'solicitados' && colunaSolicitados) colunaSolicitados.appendChild(divCartao);
-        if (pedido.status === 'viagem'      && colunaViagem)      colunaViagem.appendChild(divCartao);
-        if (pedido.status === 'concluido'   && colunaConcluido)   colunaConcluido.appendChild(divCartao);
+        if (p.status === 'analise'     && colAnalise) colAnalise.appendChild(comanda);
+        if (p.status === 'solicitados' && colSolic)   colSolic.appendChild(comanda);
+        if (p.status === 'viagem'      && colViagem)  colViagem.appendChild(comanda);
+        if (p.status === 'concluido'   && colConc)    colConc.appendChild(comanda);
     });
 
-    [[colunaAnalise], [colunaSolicitados], [colunaViagem], [colunaConcluido]].forEach(([coluna]) => {
-        if (coluna && !coluna.children.length) {
-            coluna.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem pedidos</div>`;
-        }
+    [[colAnalise], [colSolic], [colViagem], [colConc]].forEach(([c]) => {
+        if (c && !c.children.length) c.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem comandas</div>`;
     });
 }
-/* ─── FIM: carregarPedidosAdm ─────────────────────────────────── */
+/* ─── FIM: carregarPedidosAdm ─── */
 
 /* ─── INÍCIO: confirmarExclusaoProdutoAdm ────────────────────── */
 function confirmarExclusaoProdutoAdm(idProduto, nomeProduto) {
@@ -1277,7 +1267,7 @@ async function excluirProdutoAdm(idProduto) {
 
 const BASE_CONHECIMENTO = {
     visitante: {
-        saudacao: "Olá! Sou o assistente da LojaSegura. Como posso te orientar hoje?",
+        saudacao: "Olá! Sou o assistente da Loja. Como posso te orientar hoje?",
         duvidas: [
             {
                 pergunta: "Como consigo um link de acesso?",
@@ -1806,21 +1796,30 @@ async function carregarPainelCentralAdm() {
         const respostaUsuarios = await executarRequisicaoAPI("listar_usuarios_adm");
         divUsuarios.innerHTML = '';
 
-        if (respostaUsuarios.sucesso && Array.isArray(respostaUsuarios.usuarios) && respostaUsuarios.usuarios.length > 0) {
-            let html = '<table class="tabela-metricas"><thead><tr><th>Primeiro Nome</th><th>Login/WhatsApp</th><th>Papel</th></tr></thead><tbody>';
-            respostaUsuarios.usuarios.forEach(u => {
-                html += `<tr>
-                    <td><strong>${escaparHtml(u.primeiroNome)}</strong> <small style="color:var(--cor-texto-suave);">(${escaparHtml(u.nomeCompleto)})</small></td>
-                    <td>${escaparHtml(u.telefone)}</td>
-                    <td><span class="badge badge-${u.papel}">${escaparHtml(u.papel.toUpperCase())}</span></td>
-                </tr>`;
-            });
-            html += '</tbody></table>';
-            divUsuarios.innerHTML = html;
-        } else {
-            divUsuarios.innerHTML = '<div class="loading-slot">Nenhum usuário ativo registrado no momento.</div>';
-        }
+        const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm");
+const divComentarios = document.getElementById('adm-comentarios-lista');
+if (divComentarios) {
+    divComentarios.innerHTML = '';
+    if (respostaComentarios.sucesso && Array.isArray(respostaComentarios.comentarios) && respostaComentarios.comentarios.length > 0) {
+        respostaComentarios.comentarios.forEach(comentario => {
+            const item = document.createElement('div');
+            item.className = 'msg-grupo-item';
+            const hora = comentario.data ? new Date(comentario.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+            item.innerHTML = `
+                <div class="msg-grupo-topo" onclick="this.parentElement.classList.toggle('aberto')">
+                    <span>${escaparHtml(comentario.nome || 'Anônimo')}</span>
+                    <small style="color:var(--cor-texto-suave);">${hora} ▼</small>
+                </div>
+                <div class="msg-grupo-corpo">
+                    <p>${escaparHtml(comentario.texto || '')}</p>
+                </div>
+            `;
+            divComentarios.appendChild(item);
+        });
+    } else {
+        divComentarios.innerHTML = '<div class="loading-slot">Sem mensagens nas últimas 24 horas.</div>';
     }
+}
 
     // 3. Métricas Gerais
     const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas");
@@ -2188,7 +2187,6 @@ function desligarAutoRefreshAdm() {
 /* ═══════════════════════════════════════════════════════════════
    12. PIPELINE DE PEDIDOS COM ALERTA SONORO (ADM)
    ═══════════════════════════════════════════════════════════════ */
-
 /* ─── INÍCIO: carregarPedidosAdm ─────────────────────────────── */
 async function carregarPedidosAdm() {
     const colunaAnalise     = document.getElementById('pipe-analise');
@@ -2257,6 +2255,119 @@ async function carregarPedidosAdm() {
     });
 }
 /* ─── FIM: carregarPedidosAdm ─────────────────────────────────── */
+
+/* ─── INÍCIO: Gavetas Administrativas (Membros & Bloqueados) ─── */
+function alternarGavetaAdm(tipo) {
+    const dMembros = document.getElementById('drawer-membros');
+    const dBloq = document.getElementById('drawer-bloqueados');
+    const bMembros = document.getElementById('btn-toggle-membros-drawer');
+    const bBloq = document.getElementById('btn-toggle-bloqueados-drawer');
+
+    if (tipo === 'membros') {
+        dBloq.classList.add('hidden');
+        bBloq.classList.remove('ativo');
+        dMembros.classList.toggle('hidden');
+        bMembros.classList.toggle('ativo');
+        if (!dMembros.classList.contains('hidden')) carregarListaMembrosGaveta();
+    } else {
+        dMembros.classList.add('hidden');
+        bMembros.classList.remove('ativo');
+        dBloq.classList.toggle('hidden');
+        bBloq.classList.toggle('ativo');
+        if (!dBloq.classList.contains('hidden')) carregarListaBloqueadosGaveta();
+    }
+}
+
+async function carregarListaMembrosGaveta() {
+    const cont = document.getElementById('adm-membros-gaveta-lista');
+    if (!cont) return;
+    cont.innerHTML = '<div class="loading-slot">Carregando membros...</div>';
+
+    const res = await executarRequisicaoAPI("listar_usuarios_adm");
+    cont.innerHTML = '';
+
+    if (res.sucesso && Array.isArray(res.usuarios) && res.usuarios.length > 0) {
+        let html = '<table class="tabela-metricas"><thead><tr><th>Primeiro Nome</th><th>Login (WhatsApp)</th><th>Papel</th><th>Ações</th></tr></thead><tbody>';
+        res.usuarios.forEach(u => {
+            html += `<tr>
+                <td><strong>${escaparHtml(u.primeiroNome)}</strong></td>
+                <td>${escaparHtml(u.telefone)}</td>
+                <td><span class="badge badge-${u.papel}">${escaparHtml(u.papel.toUpperCase())}</span></td>
+                <td>
+                    <button class="btn btn-danger-outline btn-sm" style="padding:2px 6px;" onclick="bloquearUsuarioComMotivo('${u.id}', '${escaparHtml(u.primeiroNome)}')">🔒 Bloquear</button>
+                    <button class="btn btn-ghost btn-sm" style="padding:2px 6px;color:var(--cor-perigo);" onclick="excluirUsuarioMembro('${u.id}')">🗑️</button>
+                </td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        cont.innerHTML = html;
+    } else {
+        cont.innerHTML = '<div class="loading-slot">Nenhum membro registrado.</div>';
+    }
+}
+
+async function bloquearUsuarioComMotivo(idUsuario, nome) {
+    const motivo = prompt(`Digite o motivo do bloqueio para ${nome}:`);
+    if (!motivo || !motivo.trim()) return;
+
+    mostrarLoader("Bloqueando usuário...");
+    const res = await executarRequisicaoAPI("bloquear_usuario_motivo_adm", {
+        identificador: idUsuario,
+        motivo: motivo.trim()
+    });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast("Usuário bloqueado com sucesso!", "success");
+        carregarListaMembrosGaveta();
+        carregarListaBloqueadosGaveta();
+    } else {
+        exibirToast(res.mensagem || "Erro ao bloquear.", "error");
+    }
+}
+
+async function excluirUsuarioMembro(idUsuario) {
+    if (!confirm("Deseja realmente excluir permanentemente este usuário da plataforma?")) return;
+    mostrarLoader("Excluindo conta...");
+    const res = await executarRequisicaoAPI("excluir_usuario_adm", { idUsuario });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast("Usuário removido da plataforma!", "success");
+        carregarListaMembrosGaveta();
+    }
+}
+
+async function carregarListaBloqueadosGaveta() {
+    const cont = document.getElementById('adm-bloqueados-gaveta-lista');
+    const badgeCount = document.getElementById('cont-bloqueados-badge');
+    if (!cont) return;
+
+    const res = await executarRequisicaoAPI("listar_bloqueados_adm");
+    cont.innerHTML = '';
+
+    if (res.sucesso && Array.isArray(res.contas)) {
+        if (badgeCount) badgeCount.textContent = res.contas.length;
+        if (res.contas.length === 0) {
+            cont.innerHTML = '<div class="loading-slot">Nenhum usuário bloqueado no momento.</div>';
+            return;
+        }
+
+        res.contas.forEach(c => {
+            const linha = document.createElement('div');
+            linha.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--cor-borda);display:flex;justify-content:space-between;align-items:center;';
+            linha.innerHTML = `
+                <div>
+                    <strong style="color:var(--cor-perigo);">${escaparHtml(c.identificador)}</strong>
+                    <br><small style="color:var(--cor-texto-suave);">Motivo: ${escaparHtml(c.motivo || 'Tentativas incorretas')}</small>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="liberarContaUsuarioAdm('${c.identificador}')">Desbloquear</button>
+            `;
+            cont.appendChild(linha);
+        });
+    }
+}
+/* ─── FIM: Gavetas Administrativas ─── */
 
 /* ─── INÍCIO: avancarStatusAdm ───────────────────────────────── */
 async function avancarStatusAdm(idPedido, statusAtual) {
