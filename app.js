@@ -1131,9 +1131,9 @@ const BASE_CONHECIMENTO = {
             {
                 pergunta: "Como cancelar ou alterar itens de um pedido?",
                 resposta: "Se o seu pedido estiver na etapa 'Análise', basta abrir o chat do pedido ou chamar o suporte no WhatsApp para solicitar o ajuste."
-        ]
-    }
-};
+            }
+         ]
+      };
 
 /* ─── INÍCIO: abrirAssistenteVirtual ─────────────────────────── */
 function abrirAssistenteVirtual() {
