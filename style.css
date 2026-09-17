@@ -1696,4 +1696,151 @@ input:focus, select:focus, textarea:focus {
     50% { transform: scale(1.08); }
 }
    
+/* ─── INÍCIO: NOVOS ESTILOS (COMANDAS, CORES DE ETAPA & PAINÉIS SUSPENSOS) ─── */
+
+/* 1. Alertas da Esteira & Interrogação */
+.badge-duvida-pendente {
+    background: #f59e0b;
+    color: #000;
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    animation: pulseAlerta 1.6s infinite;
+}
+
+.card-pergunta-ativa {
+    border: 2px solid #f59e0b !important;
+    background: rgba(245, 158, 11, 0.08) !important;
+}
+
+.pulse-chat {
+    background: #f59e0b !important;
+    color: #000 !important;
+    font-weight: 800 !important;
+    border: none !important;
+}
+
+@keyframes pulseAlerta {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+/* 2. Cartões de Comanda Retráteis por Etapa */
+.comanda-card {
+    background: var(--cor-fundo-card);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--cor-borda);
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.comanda-header {
+    padding: 8px 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+    font-size: 0.8rem;
+}
+
+.comanda-header:hover {
+    background: var(--cor-fundo-elevado);
+}
+
+.comanda-body {
+    padding: 10px;
+    border-top: 1px dashed var(--cor-borda);
+    font-size: 0.78rem;
+    display: none;
+}
+
+.comanda-card.expandida .comanda-body {
+    display: block;
+}
+
+/* Sinalização Específica por Etapa */
+.comanda-analise { border-left: 4px solid #f59e0b; }
+.comanda-solicitados { border-left: 4px solid #3b82f6; }
+.comanda-viagem { border-left: 4px solid #8b5cf6; }
+.comanda-concluido { border-left: 4px solid #10b981; opacity: 0.85; }
+
+.badge-etapa {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.badge-etapa-analise { background: rgba(245, 158, 11, 0.2); color: #d97706; }
+.badge-etapa-solicitados { background: rgba(59, 130, 246, 0.2); color: #2563eb; }
+.badge-etapa-viagem { background: rgba(139, 92, 246, 0.2); color: #7c3aed; }
+.badge-etapa-concluido { background: rgba(16, 185, 129, 0.2); color: #059669; }
+
+/* 3. Gavetas / Painéis Suspensos de Membros e Bloqueados */
+.adm-toolbar-flutuante {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.btn-drawer {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--cor-borda);
+    background: var(--cor-fundo-card);
+    color: var(--cor-texto);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: all 0.18s;
+}
+.btn-drawer:hover { background: var(--cor-fundo-elevado); }
+.btn-drawer.ativo { border-color: var(--cor-primaria); background: var(--cor-fundo-elevado); }
+
+.gaveta-suspensa {
+    background: var(--cor-fundo-card);
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 14px;
+    animation: fadeIn 0.2s ease;
+}
+
+/* 4. Mensagens Agrupadas (Acordeão) */
+.msg-grupo-item {
+    border: 1px solid var(--cor-borda);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    overflow: hidden;
+}
+.msg-grupo-topo {
+    padding: 8px 12px;
+    background: var(--cor-fundo-elevado);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.msg-grupo-corpo {
+    padding: 10px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    background: var(--cor-fundo-card);
+    display: none;
+}
+.msg-grupo-item.aberto .msg-grupo-corpo {
+    display: block;
+}
+/* ─── FIM: NOVOS ESTILOS ─── */
 }
