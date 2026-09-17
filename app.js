@@ -3,7 +3,7 @@
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
-const URL_BACKEND_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzO_D0ZyclCeREZj-R98ju0tlPxnwZ9h0jVL5oamG-pVWNI2MnpA7tyFtBRdN_oC3Ar/exec";
+const URL_BACKEND_APPS_SCRIPT = "https://lojasegura-backend.vercel.app";
 /* ═══════════════════════════════════════════════════════════════
    0. FINGERPRINT, DEVTOOLS, ÁUDIO & VISIBILIDADE
    ═══════════════════════════════════════════════════════════════ */
