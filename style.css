@@ -1842,5 +1842,113 @@ input:focus, select:focus, textarea:focus {
 .msg-grupo-item.aberto .msg-grupo-corpo {
     display: block;
 }
-/* ─── FIM: NOVOS ESTILOS ─── */
+
+/* ─── INÍCIO: BOTÕES DE GAVETA (MEMBROS E BLOQUEADOS COM CORES ELEGANTES) ─── */
+.btn-drawer-membros {
+    background: rgba(16, 185, 129, 0.1) !important;
+    border: 1px solid #10b981 !important;
+    color: #10b981 !important;
+    font-weight: 700;
+}
+.btn-drawer-membros:hover, .btn-drawer-membros.ativo {
+    background: #10b981 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+.btn-drawer-bloqueados {
+    background: rgba(239, 68, 68, 0.1) !important;
+    border: 1px solid #ef4444 !important;
+    color: #ef4444 !important;
+    font-weight: 700;
+}
+.btn-drawer-bloqueados:hover, .btn-drawer-bloqueados.ativo {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+}
+
+/* ─── COMANDAS CONCLUÍDAS RETRÁTEIS E BOTÃO DE LIMPEZA ─── */
+.comanda-concluido {
+    border-left: 4px solid #10b981;
+    background: var(--cor-fundo-elevado);
+}
+.comanda-concluido .comanda-header {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+}
+.comanda-concluido .comanda-body {
+    display: none;
+}
+.comanda-concluido.expandida .comanda-body {
+    display: block;
+}
+
+.pipeline-header-col {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--cor-borda);
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+}
+.pipeline-header-col h4 {
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+.btn-limpar-coluna {
+    background: transparent;
+    border: none;
+    color: var(--cor-texto-suave);
+    font-size: 0.7rem;
+    cursor: pointer;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.btn-limpar-coluna:hover {
+    color: var(--cor-perigo);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+/* ─── MENSAGENS RECEBIDAS: ACORDEÃO COM AVATAR E RESPOSTA DIRETA ─── */
+.msg-cliente-card {
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: var(--cor-fundo-card);
+    overflow: hidden;
+}
+.msg-cliente-header {
+    padding: 10px 12px;
+    background: var(--cor-fundo-elevado);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+.msg-cliente-header:hover {
+    background: var(--cor-borda);
+}
+.msg-cliente-drawer {
+    display: none;
+    padding: 12px;
+    border-top: 1px solid var(--cor-borda);
+    background: var(--cor-fundo-card);
+}
+.msg-cliente-card.aberto .msg-cliente-drawer {
+    display: block;
+}
+.msg-chat-balao {
+    background: var(--cor-fundo-elevado);
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    margin-bottom: 8px;
+    border-left: 3px solid var(--cor-primaria);
+}
+/* ─── FIM: ESTILOS ─── */
+   
 }
