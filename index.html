@@ -6,13 +6,13 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#0f172a">
     <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self';
-               img-src 'self' data: https: blob:;
-               style-src 'self' 'unsafe-inline';
-               script-src 'self' 'unsafe-inline' 'unsafe-eval';
-               connect-src 'self' https://lojasegura-backend.vercel.app https://*.vercel.app https://api.qrserver.com;
-               form-action 'self';
-               base-uri 'self';">
+          content="default-src 'self';
+                   img-src 'self' data: https: blob:;
+                   style-src 'self' 'unsafe-inline';
+                   script-src 'self' 'unsafe-inline' 'unsafe-eval';
+                   connect-src 'self' https://lojasegura-backend.vercel.app https://*.vercel.app https://api.qrserver.com;
+                   form-action 'self';
+                   base-uri 'self';">
     <link rel="stylesheet" href="style.css?v=2">
     <title>Loja</title>
     <link rel="stylesheet" href="style.css">
@@ -77,6 +77,12 @@
                     <span id="role-badge" class="badge badge-visitor">Visitante</span>
                 </div>
                 <div class="dropdown__divider"></div>
+                <!-- Suporte via WhatsApp direto para Membros -->
+                <a href="https://wa.me/5574998048300?text=Ol%C3%A1!%20Sou%20membro%20da%20plataforma%20e%20preciso%20de%20suporte." 
+                   target="_blank" rel="noopener noreferrer" 
+                   class="dropdown__item" style="text-decoration:none;color:var(--cor-whatsapp);font-weight:600;">
+                    💬 Suporte via WhatsApp
+                </a>
                 <button type="button" class="dropdown__item" data-action="abrir-central-duvidas">
                     Central de Ajuda
                 </button>
@@ -104,20 +110,10 @@
             </div>
             <h1 class="hero-screen__title">Plataforma Exclusiva</h1>
             <p class="hero-screen__text">
-                O acesso a esta vitrine é restrito
-                Para navegar, conhecer os produtos e fazer pedidos,
+                O acesso a esta vitrine é restrito. Para navegar, conhecer os produtos e fazer pedidos,
                 você precisa de um <strong>link autorizado</strong> emitido pela administração ou de uma conta aprovada.
             </p>
             <div class="hero-screen__actions">
-               <a href="https://wa.me/5574998048300?text=Ol%C3%A1!%20Conheci%20a%20Loja%20e%20gostaria%20de%20solicitar%20um%20link%20de%20acesso%20%C3%A0%20vitrine%20exclusiva.%20Pode%20me%20ajudar%3F"
-                   target="_blank" rel="noopener noreferrer"
-                   class="btn btn-whatsapp btn-block" id="btn-solicitar-whatsapp">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24m4.52 11.66c-.19.53-1.09 1.04-1.52 1.1-.4.06-.9.08-1.46-.1-.36-.12-.83-.27-1.43-.53-2.53-1.1-4.18-3.66-4.31-3.83-.13-.17-1.03-1.37-1.03-2.62 0-1.25.65-1.86.88-2.11.23-.25.5-.31.67-.31.17 0 .34 0 .49.01.15.01.36-.06.56.43.21.5.71 1.73.77 1.86.06.13.1.28.02.45-.09.16-.13.26-.26.41-.13.15-.27.33-.38.45-.13.13-.26.27-.11.53.15.25.67 1.1 1.44 1.79.99.88 1.83 1.15 2.09 1.28.26.13.41.11.57-.07.15-.17.65-.76.83-1.02.17-.26.35-.21.59-.13.23.09 1.49.7 1.75.83.26.13.43.19.49.3.06.11.06.64-.13 1.17z"/>
-                    </svg>
-                    <span>Solicitar Acesso via WhatsApp</span>
-                </a>
-
                 <button type="button" class="btn btn-primary btn-block" data-action="abrir-modal" data-modal="modal-cadastro">
                     Solicitar Cadastro
                 </button>
@@ -266,28 +262,28 @@
         </div>
     </section>
 
-    <!-- ─── TELA 5: ESTEIRA DE PEDIDOS (ADM) ─── -->
+    <!-- ─── TELA 5: ESTEIRA DE PEDIDOS / COMANDAS (ADM) ─── -->
     <section id="view-pedidos-adm" class="view-panel">
         <header class="screen-header">
             <h2>Esteira de Pedidos</h2>
-            <p class="screen-header__desc">Gestão das entregas em tempo real com alerta sonoro.</p>
+            <p class="screen-header__desc">Organização de comandas com alerta sonoro e prioridade por horário.</p>
         </header>
 
         <div class="pipeline-grid">
             <div class="pipeline-col">
-                <h4>Análise</h4>
+                <h4>⏳ Análise</h4>
                 <div id="pipe-analise"></div>
             </div>
             <div class="pipeline-col">
-                <h4>Solicitados</h4>
+                <h4>📦 Solicitados</h4>
                 <div id="pipe-solicitados"></div>
             </div>
             <div class="pipeline-col">
-                <h4>Em viagem</h4>
+                <h4>🛵 Em viagem</h4>
                 <div id="pipe-viagem"></div>
             </div>
             <div class="pipeline-col">
-                <h4>Concluídos</h4>
+                <h4>✅ Concluídos</h4>
                 <div id="pipe-concluido"></div>
             </div>
         </div>
@@ -300,9 +296,38 @@
             <p class="screen-header__desc">Aprovações, usuários ativos, emissão de links e relatórios.</p>
         </header>
 
+        <!-- BARRA SUSPENSA: MEMBROS E BLOQUEADOS -->
+        <div class="adm-toolbar-flutuante">
+            <button type="button" class="btn-drawer" id="btn-toggle-membros-drawer" onclick="alternarGavetaAdm('membros')">
+                👤 Membros Ativos
+            </button>
+            <button type="button" class="btn-drawer" id="btn-toggle-bloqueados-drawer" onclick="alternarGavetaAdm('bloqueados')">
+                🔒 Bloqueados (<span id="cont-bloqueados-badge">0</span>)
+            </button>
+        </div>
+
+        <!-- Painel Retrátil de Membros Ativos -->
+        <div id="drawer-membros" class="gaveta-suspensa hidden">
+            <div class="card__head">
+                <h3 class="card__title">👤 Membros Registrados</h3>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="carregarListaMembrosGaveta()">Atualizar</button>
+            </div>
+            <div id="adm-membros-gaveta-lista" class="loading-slot">A carregar...</div>
+        </div>
+
+        <!-- Painel Retrátil de Usuários Bloqueados -->
+        <div id="drawer-bloqueados" class="gaveta-suspensa hidden">
+            <div class="card__head">
+                <h3 class="card__title">🔒 Usuários Bloqueados</h3>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="carregarListaBloqueadosGaveta()">Atualizar</button>
+            </div>
+            <div id="adm-bloqueados-gaveta-lista" class="loading-slot">Nenhum bloqueio.</div>
+        </div>
+
+        <!-- Card: Emitir Link de Acesso -->
         <div class="card">
             <h3 class="card__title">Emitir Link de Acesso</h3>
-            <p class="card__desc">Gere um link temporário para liberar acesso temporário.</p>
+            <p class="card__desc">Gere um link temporário para liberar acesso provisório.</p>
 
             <div class="row-inline">
                 <select id="select-duracao-link" data-action="mudar-duracao-link" aria-label="Duração">
@@ -326,29 +351,30 @@
             </div>
         </div>
 
-        <!-- CARD DE CONTROLE DE USABILIDADE / MODO DE ACESSO (KILL SWITCH) -->
-<div class="card card-modo-acesso" style="border: 2px solid var(--cor-borda); margin-bottom: 18px; padding: 14px; border-radius: 8px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;">
-            <span>🛡️</span> Usabilidade da Plataforma
-        </h4>
-        <span id="badge-modo-acesso-adm" class="badge badge-membro">LIBERADO (PADRÃO)</span>
-    </div>
-    <p style="font-size: 0.85rem; color: var(--cor-texto-suave); margin: 0 0 12px 0;">
-        Controle o acesso geral ao sistema. Ative o bloqueio para manutenções ou emergências.
-    </p>
-    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <button type="button" class="btn btn-danger btn-sm" id="btn-lockdown-adm" 
-                data-action="alterar-modo-acesso" data-modo="APENAS_ADM">
-            🔒 Bloquear Acesso (Apenas ADM)
-        </button>
-        <button type="button" class="btn btn-success btn-sm hidden" id="btn-padrao-adm" 
-                data-action="alterar-modo-acesso" data-modo="PADRAO">
-            🌐 Liberar Acesso (Padrão)
-        </button>
-    </div>
-</div>
+        <!-- Card: Controle de Usabilidade (Kill Switch) -->
+        <div class="card card-modo-acesso" style="border: 2px solid var(--cor-borda); margin-bottom: 18px; padding: 14px; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                    <span>🛡️</span> Usabilidade da Plataforma
+                </h4>
+                <span id="badge-modo-acesso-adm" class="badge badge-membro">LIBERADO (PADRÃO)</span>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--cor-texto-suave); margin: 0 0 12px 0;">
+                Controle o acesso geral ao sistema. Ative o bloqueio para manutenções ou emergências.
+            </p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-danger btn-sm" id="btn-lockdown-adm" 
+                        data-action="alterar-modo-acesso" data-modo="APENAS_ADM">
+                    🔒 Bloquear Acesso (Apenas ADM)
+                </button>
+                <button type="button" class="btn btn-success btn-sm hidden" id="btn-padrao-adm" 
+                        data-action="alterar-modo-acesso" data-modo="PADRAO">
+                    🌐 Liberar Acesso (Padrão)
+                </button>
+            </div>
+        </div>
 
+        <!-- Card: Validação de Cadastros -->
         <div class="card">
             <div class="card__head">
                 <h3 class="card__title">Validação de Cadastros</h3>
@@ -370,16 +396,7 @@
             <div id="adm-solicitacoes-lista" class="loading-slot">A carregar...</div>
         </div>
 
-        <div class="card">
-            <div class="card__head">
-                <h3 class="card__title">Usuários Ativos na Plataforma</h3>
-                <button type="button" class="btn btn-ghost btn-sm" data-action="carregar-painel-adm">
-                    Atualizar
-                </button>
-            </div>
-            <div id="adm-usuarios-lista" class="loading-slot">A carregar usuários...</div>
-        </div>
-
+        <!-- Card: Métricas de Vendas -->
         <div class="card" id="area-metricas-adm">
             <div class="card__head">
                 <h3 class="card__title">Métricas de Vendas</h3>
@@ -400,13 +417,10 @@
             <div id="tabela-metricas-produtos"></div>
         </div>
 
+        <!-- Card: Mensagens Recebidas (Acordeão Retrátil das últimas 24h) -->
         <div class="card">
-            <h3 class="card__title">Contas Bloqueadas</h3>
-            <div id="adm-bloqueados-lista"></div>
-        </div>
-
-        <div class="card">
-            <h3 class="card__title">Mensagens Recebidas</h3>
+            <h3 class="card__title">Mensagens Recebidas (Últimas 24h)</h3>
+            <p class="card__desc">Dúvidas de chats de pedidos e mensagens enviadas pelos membros.</p>
             <div id="adm-comentarios-lista"></div>
         </div>
     </section>
@@ -662,6 +676,8 @@ Exclusão de dados: Você pode solicitar a remoção completa da sua conta e his
 
 <div id="toast-container" class="toast-wrapper" aria-live="polite"></div>
 
-<script src="app.min.js"></script>
+<!-- Carregamento direto em texto limpo para testes e refinamentos -->
+<script src="app.js"></script>
+<script src="bindings.js"></script>
 </body>
 </html>
