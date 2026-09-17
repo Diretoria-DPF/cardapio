@@ -3,7 +3,7 @@
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
-const URL_BACKEND_APPS_SCRIPT = "https://lojasegura-backend.vercel.app/api";
+const URL_BACKEND_APPS_SCRIPT = "https://lojasegura-backend.vercel.app";
 /* ═══════════════════════════════════════════════════════════════
    0. FINGERPRINT, DEVTOOLS, ÁUDIO & VISIBILIDADE
    ═══════════════════════════════════════════════════════════════ */
@@ -508,10 +508,15 @@ function executarLimpezaTotalESaida(silencioso = false) {
 }
 /* ─── FIM: executarLimpezaTotalESaida ─────────────────────────── */
 
-/* ─── INÍCIO: fetchComTimeout ────────────────────────────────── */
+/* ─── INÍCIO: fetchComTimeout (com Escudo Anti-Bot) ──────────── */
 async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
     const controladorAborto = new AbortController();
     const temporizador = setTimeout(() => controladorAborto.abort(), limiteTempoMs);
+
+    const cabecalhosCompletos = {
+        'x-app-shield': 'L0j@S3gur@_2026_DPF', // Assinatura que abre o backend
+        ...(opcoesExtras.headers || {})
+    };
 
     try {
         return await fetch(url, {
@@ -519,6 +524,7 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
             redirect: 'follow',
             cache: 'no-cache',
             ...opcoesExtras,
+            headers: cabecalhosCompletos,
             signal: controladorAborto.signal
         });
     } finally {
@@ -526,7 +532,6 @@ async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
     }
 }
 /* ─── FIM: fetchComTimeout ───────────────────────────────────── */
-
 /* ─── INÍCIO: executarRequisicaoAPI ──────────────────────────── */
 async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
     try {
