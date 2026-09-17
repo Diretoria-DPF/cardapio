@@ -1,9 +1,10 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v23 — Correção de Modais, Exclusão & Kill Switch)
+   app.js — Plataforma Comercial Segura (v25 — Versão Completa & Consolidada)
    ============================================================================ */
 
-// URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
+// URL OFICIAL DA SUA API NO VERCEL:
 const URL_BACKEND_APPS_SCRIPT = "https://lojasegura-backend.vercel.app";
+
 /* ═══════════════════════════════════════════════════════════════
    0. FINGERPRINT, DEVTOOLS, ÁUDIO & VISIBILIDADE
    ═══════════════════════════════════════════════════════════════ */
@@ -92,7 +93,7 @@ document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         pararAutoRefreshChat();
         desligarAutoRefreshAdm();
-        pararAutoRefreshEsteira(); // Adicionar aqui
+        pararAutoRefreshEsteira();
     } else {
         if (pedidoChatAberto) {
             renderizarChat(true);
@@ -103,7 +104,7 @@ document.addEventListener('visibilitychange', () => {
             const painelEsteira = document.getElementById('view-pedidos-adm');
             if (painelEsteira && painelEsteira.classList.contains('active')) {
                 carregarPedidosAdm(true);
-                iniciarAutoRefreshEsteira(); // Retoma ao focar na janela
+                iniciarAutoRefreshEsteira();
             }
         }
     }
@@ -377,8 +378,8 @@ function iniciarTemporizadorSilencioso(segundosTotais) {
 
         _segundosRestantesLink--;
         if (_segundosRestantesLink <= 0) {
-           pararAutoRefreshEsteira();
-           pararTemporizadorSilencioso();
+            pararAutoRefreshEsteira();
+            pararTemporizadorSilencioso();
             exibirToast("O seu período de acesso terminou. Solicite um novo link.", "info");
             executarLimpezaTotalESaida();
         }
@@ -395,8 +396,67 @@ function pararTemporizadorSilencioso() {
 }
 /* ─── FIM: pararTemporizadorSilencioso ────────────────────────── */
 
+/* ─── INÍCIO: executarLimpezaTotalESaida ─────────────────────── */
+function executarLimpezaTotalESaida(silencioso = false) {
+    pararTemporizadorSilencioso();
+    pararAutoRefreshChat();
+    desligarAutoRefreshAdm();
+    pararAutoRefreshEsteira();
+
+    const fp = localStorage.getItem('plataforma_fingerprint');
+    const tema = localStorage.getItem('plataforma_tema');
+
+    try {
+        localStorage.removeItem('plataforma_sessao');
+        sessionStorage.clear();
+    } catch (e) {}
+
+    if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch (e) {} }
+    if (tema) { try { localStorage.setItem('plataforma_tema', tema); } catch (e) {} }
+
+    estadoSessao.papel        = 'visitante';
+    estadoSessao.token        = null;
+    estadoSessao.refreshToken = null;
+    estadoSessao.nomeUsuario  = 'Visitante';
+    cestaCompras              = [];
+    _linkAutorizadoValido     = false;
+
+    atualizarBarraFlutuanteSacola();
+    const urlLimpa = window.location.origin + window.location.pathname;
+    window.history.replaceState({}, document.title, urlLimpa);
+
+    if (!silencioso) {
+        exibirToast("Sessão finalizada com sucesso.", "info");
+    }
+    atualizarInterfaceSessao();
+}
+/* ─── FIM: executarLimpezaTotalESaida ─────────────────────────── */
+
+/* ─── INÍCIO: fetchComTimeout ────────────────────────────────── */
+async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
+    const controladorAborto = new AbortController();
+    const temporizador = setTimeout(() => controladorAborto.abort(), limiteTempoMs);
+
+    try {
+        return await fetch(url, {
+            mode: 'cors',
+            redirect: 'follow',
+            cache: 'no-cache',
+            ...opcoesExtras,
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8',
+                ...(opcoesExtras.headers || {})
+            },
+            signal: controladorAborto.signal
+        });
+    } finally {
+        clearTimeout(temporizador);
+    }
+}
+/* ─── FIM: fetchComTimeout ───────────────────────────────────── */
+
 /* ─── INÍCIO: executarRequisicaoAPI ──────────────────────────── */
-async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
+async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true, tentativa = 1) {
     try {
         const payload = dadosExtras;
         const corpo = {
@@ -414,7 +474,6 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
 
         const resposta = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 25000, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(corpo)
         });
 
@@ -495,136 +554,11 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
         return json;
 
     } catch (erroRede) {
+        if (tentativa === 1) {
+            await new Promise(r => setTimeout(r, 1200));
+            return executarRequisicaoAPI(acao, dadosExtras, tentarRefresh, 2);
+        }
         console.warn("[API] Oscilação de rede:", erroRede);
-        return { sucesso: false, erroRede: true, mensagem: "Sem conexão momentânea com o servidor." };
-    }
-}
-/* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
-/* ─── INÍCIO: executarLimpezaTotalESaida ─────────────────────── */
-function executarLimpezaTotalESaida(silencioso = false) {
-    pararTemporizadorSilencioso();
-    pararAutoRefreshChat();
-    desligarAutoRefreshAdm();
-
-    const fp = localStorage.getItem('plataforma_fingerprint');
-    const tema = localStorage.getItem('plataforma_tema');
-
-    try {
-        localStorage.removeItem('plataforma_sessao');
-        sessionStorage.clear();
-    } catch (e) {}
-
-    if (fp) { try { localStorage.setItem('plataforma_fingerprint', fp); } catch (e) {} }
-    if (tema) { try { localStorage.setItem('plataforma_tema', tema); } catch (e) {} }
-
-    estadoSessao.papel        = 'visitante';
-    estadoSessao.token        = null;
-    estadoSessao.refreshToken = null;
-    estadoSessao.nomeUsuario  = 'Visitante';
-    cestaCompras              = [];
-    _linkAutorizadoValido     = false;
-
-    atualizarBarraFlutuanteSacola();
-    const urlLimpa = window.location.origin + window.location.pathname;
-    window.history.replaceState({}, document.title, urlLimpa);
-
-    if (!silencioso) {
-        exibirToast("Sessão finalizada com sucesso.", "info");
-    }
-    atualizarInterfaceSessao();
-}
-/* ─── FIM: executarLimpezaTotalESaida ─────────────────────────── */
-
-/* ─── INÍCIO: fetchComTimeout (com Escudo Anti-Bot) ──────────── */
-async function fetchComTimeout(url, limiteTempoMs = 25000, opcoesExtras = {}) {
-    const controladorAborto = new AbortController();
-    const temporizador = setTimeout(() => controladorAborto.abort(), limiteTempoMs);
-
-    const cabecalhosCompletos = {
-        'x-app-shield': 'L0j@S3gur@_2026_DPF', // Assinatura que abre o backend
-        ...(opcoesExtras.headers || {})
-    };
-
-    try {
-        return await fetch(url, {
-            mode: 'cors',
-            redirect: 'follow',
-            cache: 'no-cache',
-            ...opcoesExtras,
-            headers: cabecalhosCompletos,
-            signal: controladorAborto.signal
-        });
-    } finally {
-        clearTimeout(temporizador);
-    }
-}
-/* ─── FIM: fetchComTimeout ───────────────────────────────────── */
-/* ─── INÍCIO: executarRequisicaoAPI ──────────────────────────── */
-async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true) {
-    try {
-        const payload = dadosExtras;
-        const corpo = {
-            acao,
-            payload,
-            fingerprint: FINGERPRINT
-        };
-
-        if (estadoSessao.token) {
-            corpo.token = estadoSessao.token;
-        } else {
-            const linkToken = sessionStorage.getItem('plataforma_link_token');
-            if (linkToken) corpo.token = linkToken;
-        }
-
-        const resposta = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 25000, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(corpo)
-        });
-
-        const textoResposta = await resposta.text();
-        let json;
-        try {
-            json = JSON.parse(textoResposta);
-        } catch (erroParse) {
-            return { sucesso: false, erroTransitorio: true, mensagem: "Servidor ocupado. Aguarde um instante..." };
-        }
-
-        if (!json.sucesso && json.codigo === 'SISTEMA_BLOQUEADO') {
-            exibirToast(json.mensagem || "Plataforma em manutenção.", "error");
-            if (estadoSessao.papel !== 'adm') {
-                navegarPara('bloqueado');
-            }
-            return json;
-        }
-
-        if (!json.sucesso && json.codigo === 'LINK_EXPIRED') {
-            if (estadoSessao.papel === 'visitante') {
-                exibirToast(json.mensagem || "O link temporário expirou.", "error");
-                executarLimpezaTotalESaida(true);
-            }
-            return json;
-        }
-
-        if (!json.sucesso && json.codigo === 'SESSION_EXPIRED') {
-            if (tentarRefresh) {
-                const rt = estadoSessao.refreshToken || sessionStorage.getItem('plataforma_refresh_token');
-                if (rt) {
-                    const ok = await tentarRenovarSessao(rt);
-                    if (ok) {
-                        return executarRequisicaoAPI(acao, dadosExtras, false);
-                    }
-                }
-            }
-            exibirToast("Sua sessão foi encerrada. Entre novamente.", "info");
-            executarLogout();
-            return { sucesso: false, mensagem: "Sessão expirada." };
-        }
-
-        return json;
-
-    } catch (erroRede) {
-        console.warn("[API] Oscilação de rede transitória:", erroRede);
         return { sucesso: false, erroRede: true, mensagem: "Sem conexão momentânea com o servidor." };
     }
 }
@@ -635,7 +569,6 @@ async function tentarRenovarSessao(refreshToken) {
     try {
         const resposta = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 15000, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({
                 acao: 'refresh',
                 payload: { refreshToken },
@@ -1133,106 +1066,6 @@ async function alterarVisibilidadeProdutoAdm(idProduto, novaVisib) {
 }
 /* ─── FIM: alterarVisibilidadeProdutoAdm ──────────────────────── */
 
-/* ─── INÍCIO: Ciclo de Auto-Refresh da Esteira (ADM) ────────── */
-function iniciarAutoRefreshEsteira() {
-    pararAutoRefreshEsteira();
-    if (estadoSessao.papel !== 'adm') return;
-
-    _timerEsteiraAdm = setInterval(async () => {
-        if (estadoSessao.papel !== 'adm' || document.hidden) return;
-        const painelEsteira = document.getElementById('view-pedidos-adm');
-        if (painelEsteira && painelEsteira.classList.contains('active')) {
-            await carregarPedidosAdm(true); // Executa no modo silencioso
-        } else {
-            pararAutoRefreshEsteira();
-        }
-    }, 8000); // Consulta a cada 8 segundos
-}
-
-function pararAutoRefreshEsteira() {
-    if (_timerEsteiraAdm) {
-        clearInterval(_timerEsteiraAdm);
-        _timerEsteiraAdm = null;
-    }
-}
-/* ─── FIM: Ciclo de Auto-Refresh da Esteira (ADM) ───────────── */
-/* ─── INÍCIO: carregarPedidosAdm (Comandas e Prioridade por Horário) ─ */
-async function carregarPedidosAdm(silencioso = false) {
-    const colAnalise = document.getElementById('pipe-analise');
-    const colSolic   = document.getElementById('pipe-solicitados');
-    const colViagem  = document.getElementById('pipe-viagem');
-    const colConc    = document.getElementById('pipe-concluido');
-
-    if (!silencioso) {
-        [colAnalise, colSolic, colViagem, colConc].forEach(c => { if(c) c.innerHTML = '<div class="loading-slot">…</div>'; });
-    }
-
-    const res = await executarRequisicaoAPI("listar_pedidos_adm");
-    if (!res.sucesso || !Array.isArray(res.pedidos)) return;
-
-    [colAnalise, colSolic, colViagem, colConc].forEach(c => { if(c) c.innerHTML = ''; });
-
-    // Ordenação por Horário: os mais antigos primeiro (fila de prioridade)
-    const pedidosOrdenados = res.pedidos.sort((a, b) => new Date(a.criadoEm) - new Date(b.criadoEm));
-
-    pedidosOrdenados.forEach(p => {
-        const temDuvida = p.temPerguntaPendente === true || String(p.temPerguntaPendente) === 'true';
-        const horaFormatada = p.criadoEm ? new Date(p.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-
-        const comanda = document.createElement('div');
-        comanda.className = `comanda-card comanda-${p.status}`;
-        if (temDuvida) comanda.classList.add('card-pergunta-ativa');
-
-        let itensTexto = '';
-        try {
-            const its = typeof p.itensJson === 'string' ? JSON.parse(p.itensJson) : p.itensJson;
-            if (Array.isArray(its)) {
-                itensTexto = its.map(i => `${i.quantidade}x ${i.nome}`).join(', ');
-            }
-        } catch(e) {}
-
-        const badgeIcones = {
-            analise: '⏳ Análise',
-            solicitados: '📦 Solicitado',
-            viagem: '🛵 A Caminho',
-            concluido: '✅ Concluído'
-        };
-
-        comanda.innerHTML = `
-            <div class="comanda-header" onclick="this.parentElement.classList.toggle('expandida')">
-                <div>
-                    <strong>#${escaparHtml(p.id)}</strong> <small style="color:var(--cor-texto-suave);">(${horaFormatada})</small>
-                    ${temDuvida ? '<span class="badge-duvida-pendente">❓ Mensagem</span>' : ''}
-                </div>
-                <div>
-                    <span class="badge-etapa badge-etapa-${p.status}">${badgeIcones[p.status] || p.status}</span>
-                </div>
-            </div>
-            <div class="comanda-body">
-                <p><strong>Total:</strong> ${fmtPreco(p.total)} | Forma: ${escaparHtml(p.metodo || 'PIX')}</p>
-                <p style="color:var(--cor-texto-suave);margin:4px 0;"><strong>Itens:</strong> ${escaparHtml(itensTexto || 'Sem itens')}</p>
-                
-                <div style="display:flex;gap:6px;margin-top:8px;">
-                    ${p.status !== 'concluido' ? `<button type="button" class="btn btn-primary btn-sm" onclick="avancarStatusAdm('${p.id}', '${p.status}')">Avançar Etapa ➔</button>` : ''}
-                    <button type="button" class="btn ${temDuvida ? 'btn-aviso pulse-chat' : 'btn-outline-dark'} btn-sm" onclick="abrirChatPedido('${p.id}')">
-                        💬 ${temDuvida ? 'Responder Dúvida' : 'Chat'}
-                    </button>
-                </div>
-            </div>
-        `;
-
-        if (p.status === 'analise'     && colAnalise) colAnalise.appendChild(comanda);
-        if (p.status === 'solicitados' && colSolic)   colSolic.appendChild(comanda);
-        if (p.status === 'viagem'      && colViagem)  colViagem.appendChild(comanda);
-        if (p.status === 'concluido'   && colConc)    colConc.appendChild(comanda);
-    });
-
-    [[colAnalise], [colSolic], [colViagem], [colConc]].forEach(([c]) => {
-        if (c && !c.children.length) c.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem comandas</div>`;
-    });
-}
-/* ─── FIM: carregarPedidosAdm ─── */
-
 /* ─── INÍCIO: confirmarExclusaoProdutoAdm ────────────────────── */
 function confirmarExclusaoProdutoAdm(idProduto, nomeProduto) {
     abrirConfirmacao(
@@ -1270,16 +1103,12 @@ const BASE_CONHECIMENTO = {
         saudacao: "Olá! Sou o assistente da Loja. Como posso te orientar hoje?",
         duvidas: [
             {
-                pergunta: "Como consigo um link de acesso?",
-                resposta: "Os links de acesso temporário são concedidos exclusivamente pela administração via WhatsApp. Clique no botão de WhatsApp na tela inicial para falar direto com o atendente."
-            },
-            {
                 pergunta: "Como solicitar meu cadastro?",
-                resposta: "Basta clicar em 'Solicitar Cadastro' na tela de bloqueio e preencher seu nome, telefone WhatsApp e senha. O administrador fará a liberação em instantes."
+                resposta: "Basta clicar em 'Solicitar Cadastro' na tela de bloqueio e preencher seus dados para validação da administração."
             },
             {
                 pergunta: "A plataforma é segura?",
-                resposta: "Sim. Todas as transações utilizam criptografia segura de ponta a ponta, com autenticação determinística para proteção de dados."
+                resposta: "Sim. Todas as transações utilizam criptografia determinística ponta a ponta para proteção absoluta dos dados."
             }
         ]
     },
@@ -1288,15 +1117,15 @@ const BASE_CONHECIMENTO = {
         duvidas: [
             {
                 pergunta: "Como pagar via PIX?",
-                resposta: "Na tela do pedido, toque em 'Pagar / Ver Cobrança', copie o código com um toque no botão verde e cole na área 'PIX Copia e Cola' do aplicativo do seu banco."
+                resposta: "Na tela do pedido, toque em 'Pagar / Instruções', copie o código PIX e pague no aplicativo do seu banco."
             },
             {
                 pergunta: "Como funciona a entrega?",
-                resposta: "Assim que o pagamento é identificado, nosso atendente entra em contato pelo chat do próprio pedido e o status muda na esteira para 'Em Viagem'."
+                resposta: "Assim que o pagamento é identificado, o status muda na esteira para 'Em Viagem' e o chat exclusivo do pedido é liberado."
             },
             {
                 pergunta: "Como falar com o atendente humano?",
-                resposta: "Você pode abrir o chat dentro de qualquer pedido ativo ou mandar uma sugestão/mensagem direta na nossa Central de Ajuda."
+                resposta: "Você pode abrir o chat dentro de qualquer pedido ativo ou utilizar o botão 'Suporte via WhatsApp' no menu do perfil."
             }
         ]
     }
@@ -1352,7 +1181,7 @@ function exibirRespostaAssistente(pergunta, resposta) {
         </div>
     `;
 }
-/* ─── FIM: exibirRespostaAssistente ───────────────────── */
+/* ─── FIM: exibirRespostaAssistente ───────────────────────────── */
 
 /* ─── INÍCIO: responderDuvidaRapida ──────────────────────────── */
 function responderDuvidaRapida(chave) {
@@ -1473,7 +1302,7 @@ async function compartilharPedidoWhatsApp(idPedido) {
     
     const texto = pedido
         ? `Olá! Gostaria de validar os detalhes do meu Pedido #${pedido.id} no valor de ${fmtPreco(pedido.total)} via ${pedido.metodo} (Status: ${pedido.status.toUpperCase()}). Aguardo orientações!`
-        : `Olá! Vim pela LojaSegura e gostaria de falar sobre o Pedido #${idPedido}.`;
+        : `Olá! Vim pela Loja e gostaria de falar sobre o Pedido #${idPedido}.`;
 
     if (navigator.share) {
         try {
@@ -1724,6 +1553,9 @@ async function enviarMensagemChat() {
     if (resposta.sucesso) {
         inputTexto.value = '';
         await renderizarChat();
+        if (estadoSessao.papel === 'adm') {
+            await carregarPedidosAdm(true);
+        }
     } else {
         exibirToast(resposta.mensagem || "Falha ao enviar mensagem.", "error");
     }
@@ -1789,39 +1621,7 @@ async function carregarPainelCentralAdm() {
     }
     atualizarContadorSelecaoLote();
 
-    // 2. Usuários Ativos
-    const divUsuarios = document.getElementById('adm-usuarios-lista');
-    if (divUsuarios) {
-        divUsuarios.innerHTML = '<div class="loading-slot">Carregando usuários ativos...</div>';
-        const respostaUsuarios = await executarRequisicaoAPI("listar_usuarios_adm");
-        divUsuarios.innerHTML = '';
-
-        const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm");
-const divComentarios = document.getElementById('adm-comentarios-lista');
-if (divComentarios) {
-    divComentarios.innerHTML = '';
-    if (respostaComentarios.sucesso && Array.isArray(respostaComentarios.comentarios) && respostaComentarios.comentarios.length > 0) {
-        respostaComentarios.comentarios.forEach(comentario => {
-            const item = document.createElement('div');
-            item.className = 'msg-grupo-item';
-            const hora = comentario.data ? new Date(comentario.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
-            item.innerHTML = `
-                <div class="msg-grupo-topo" onclick="this.parentElement.classList.toggle('aberto')">
-                    <span>${escaparHtml(comentario.nome || 'Anônimo')}</span>
-                    <small style="color:var(--cor-texto-suave);">${hora} ▼</small>
-                </div>
-                <div class="msg-grupo-corpo">
-                    <p>${escaparHtml(comentario.texto || '')}</p>
-                </div>
-            `;
-            divComentarios.appendChild(item);
-        });
-    } else {
-        divComentarios.innerHTML = '<div class="loading-slot">Sem mensagens nas últimas 24 horas.</div>';
-    }
-}
-
-    // 3. Métricas Gerais
+    // 2. Métricas Gerais
     const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas");
     if (respostaMetricas.sucesso) {
         const elementoFaturamento = document.getElementById('metric-faturamento');
@@ -1844,49 +1644,156 @@ if (divComentarios) {
         }
     }
 
-    // 4. Contas Bloqueadas
-    const respostaBloqueados = await executarRequisicaoAPI("listar_bloqueados_adm");
-    const divBloqueados = document.getElementById('adm-bloqueados-lista');
-    if (divBloqueados) {
-        divBloqueados.innerHTML = '';
-        if (respostaBloqueados.sucesso && Array.isArray(respostaBloqueados.contas) && respostaBloqueados.contas.length > 0) {
-            respostaBloqueados.contas.forEach(conta => {
-                const linha = document.createElement('div');
-                linha.style.padding = '6px 0';
-                linha.innerHTML = `<p style="color:#b91c1c;"><strong>${escaparHtml(conta.identificador)}</strong> (${Number(conta.erros) || 0} falhas)</p>`;
-
-                const botaoLiberar = document.createElement('button');
-                botaoLiberar.className = 'btn btn-primary btn-sm';
-                botaoLiberar.textContent = 'Liberar Conta';
-                botaoLiberar.onclick = () => liberarContaUsuarioAdm(conta.identificador);
-                linha.appendChild(botaoLiberar);
-
-                divBloqueados.appendChild(linha);
-            });
-        } else {
-            divBloqueados.innerHTML = '<div class="loading-slot">Nenhuma conta bloqueada.</div>';
-        }
-    }
-
-    // 5. Mensagens Recebidas
+    // 3. Mensagens e Dúvidas Recebidas (Acordeão Retrátil - Últimas 24h)
     const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm");
     const divComentarios = document.getElementById('adm-comentarios-lista');
     if (divComentarios) {
         divComentarios.innerHTML = '';
         if (respostaComentarios.sucesso && Array.isArray(respostaComentarios.comentarios) && respostaComentarios.comentarios.length > 0) {
             respostaComentarios.comentarios.forEach(comentario => {
-                const paragrafo = document.createElement('p');
-                paragrafo.style.cssText = 'font-size:.8rem;padding:6px 0;border-bottom:1px solid var(--cor-borda);';
-                const dataFormatada = comentario.data ? new Date(comentario.data).toLocaleString() : '';
-                paragrafo.innerHTML = `<strong>${escaparHtml(comentario.nome || 'Anônimo')}</strong> <small style="color:var(--cor-texto-suave);">${escaparHtml(dataFormatada)}</small><br>${escaparHtml(comentario.texto || '')}`;
-                divComentarios.appendChild(paragrafo);
+                const item = document.createElement('div');
+                item.className = 'msg-grupo-item';
+                const hora = comentario.data ? new Date(comentario.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+                item.innerHTML = `
+                    <div class="msg-grupo-topo" onclick="this.parentElement.classList.toggle('aberto')">
+                        <span>${escaparHtml(comentario.nome || 'Anônimo')}</span>
+                        <small style="color:var(--cor-texto-suave);">${hora} ▼</small>
+                    </div>
+                    <div class="msg-grupo-corpo">
+                        <p>${escaparHtml(comentario.texto || '')}</p>
+                    </div>
+                `;
+                divComentarios.appendChild(item);
             });
         } else {
-            divComentarios.innerHTML = '<div class="loading-slot">Sem mensagens.</div>';
+            divComentarios.innerHTML = '<div class="loading-slot">Sem mensagens nas últimas 24 horas.</div>';
         }
     }
 }
 /* ─── FIM: carregarPainelCentralAdm ─────────────────────────── */
+
+/* ─── INÍCIO: alternarGavetaAdm ──────────────────────────────── */
+function alternarGavetaAdm(tipo) {
+    const dMembros = document.getElementById('drawer-membros');
+    const dBloq = document.getElementById('drawer-bloqueados');
+    const bMembros = document.getElementById('btn-toggle-membros-drawer');
+    const bBloq = document.getElementById('btn-toggle-bloqueados-drawer');
+
+    if (!dMembros || !dBloq) return;
+
+    if (tipo === 'membros') {
+        dBloq.classList.add('hidden');
+        if (bBloq) bBloq.classList.remove('ativo');
+        dMembros.classList.toggle('hidden');
+        if (bMembros) bMembros.classList.toggle('ativo');
+        if (!dMembros.classList.contains('hidden')) carregarListaMembrosGaveta();
+    } else {
+        dMembros.classList.add('hidden');
+        if (bMembros) bMembros.classList.remove('ativo');
+        dBloq.classList.toggle('hidden');
+        if (bBloq) bBloq.classList.toggle('ativo');
+        if (!dBloq.classList.contains('hidden')) carregarListaBloqueadosGaveta();
+    }
+}
+/* ─── FIM: alternarGavetaAdm ─────────────────────────────────── */
+
+/* ─── INÍCIO: carregarListaMembrosGaveta ─────────────────────── */
+async function carregarListaMembrosGaveta() {
+    const cont = document.getElementById('adm-membros-gaveta-lista');
+    if (!cont) return;
+    cont.innerHTML = '<div class="loading-slot">Carregando membros...</div>';
+
+    const res = await executarRequisicaoAPI("listar_usuarios_adm");
+    cont.innerHTML = '';
+
+    if (res.sucesso && Array.isArray(res.usuarios) && res.usuarios.length > 0) {
+        let html = '<table class="tabela-metricas"><thead><tr><th>Primeiro Nome</th><th>Login (WhatsApp)</th><th>Papel</th><th>Ações</th></tr></thead><tbody>';
+        res.usuarios.forEach(u => {
+            html += `<tr>
+                <td><strong>${escaparHtml(u.primeiroNome)}</strong></td>
+                <td>${escaparHtml(u.telefone)}</td>
+                <td><span class="badge badge-${u.papel}">${escaparHtml(u.papel.toUpperCase())}</span></td>
+                <td>
+                    <button class="btn btn-danger-outline btn-sm" style="padding:2px 6px;" onclick="bloquearUsuarioComMotivo('${u.id}', '${escaparHtml(u.primeiroNome)}')">🔒 Bloquear</button>
+                    <button class="btn btn-ghost btn-sm" style="padding:2px 6px;color:var(--cor-perigo);" onclick="excluirUsuarioMembro('${u.id}')">🗑️</button>
+                </td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        cont.innerHTML = html;
+    } else {
+        cont.innerHTML = '<div class="loading-slot">Nenhum membro registrado.</div>';
+    }
+}
+/* ─── FIM: carregarListaMembrosGaveta ───────────────────────── */
+
+/* ─── INÍCIO: bloquearUsuarioComMotivo ───────────────────────── */
+async function bloquearUsuarioComMotivo(idUsuario, nome) {
+    const motivo = prompt(`Digite o motivo do bloqueio para ${nome}:`);
+    if (!motivo || !motivo.trim()) return;
+
+    mostrarLoader("Bloqueando usuário...");
+    const res = await executarRequisicaoAPI("bloquear_usuario_motivo_adm", {
+        identificador: idUsuario,
+        motivo: motivo.trim()
+    });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast("Usuário bloqueado com sucesso!", "success");
+        carregarListaMembrosGaveta();
+        carregarListaBloqueadosGaveta();
+    } else {
+        exibirToast(res.mensagem || "Erro ao bloquear.", "error");
+    }
+}
+/* ─── FIM: bloquearUsuarioComMotivo ─────────────────────────── */
+
+/* ─── INÍCIO: excluirUsuarioMembro ───────────────────────────── */
+async function excluirUsuarioMembro(idUsuario) {
+    if (!confirm("Deseja realmente excluir permanentemente este usuário da plataforma?")) return;
+    mostrarLoader("Excluindo conta...");
+    const res = await executarRequisicaoAPI("excluir_usuario_adm", { idUsuario });
+    esconderLoader();
+
+    if (res.sucesso) {
+        exibirToast("Usuário removido da plataforma!", "success");
+        carregarListaMembrosGaveta();
+    }
+}
+/* ─── FIM: excluirUsuarioMembro ───────────────────────────── */
+
+/* ─── INÍCIO: carregarListaBloqueadosGaveta ─────────────────── */
+async function carregarListaBloqueadosGaveta() {
+    const cont = document.getElementById('adm-bloqueados-gaveta-lista');
+    const badgeCount = document.getElementById('cont-bloqueados-badge');
+    if (!cont) return;
+
+    const res = await executarRequisicaoAPI("listar_bloqueados_adm");
+    cont.innerHTML = '';
+
+    if (res.sucesso && Array.isArray(res.contas)) {
+        if (badgeCount) badgeCount.textContent = res.contas.length;
+        if (res.contas.length === 0) {
+            cont.innerHTML = '<div class="loading-slot">Nenhum usuário bloqueado no momento.</div>';
+            return;
+        }
+
+        res.contas.forEach(c => {
+            const linha = document.createElement('div');
+            linha.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--cor-borda);display:flex;justify-content:space-between;align-items:center;';
+            linha.innerHTML = `
+                <div>
+                    <strong style="color:var(--cor-perigo);">${escaparHtml(c.identificador)}</strong>
+                    <br><small style="color:var(--cor-texto-suave);">Motivo: ${escaparHtml(c.motivo || 'Bloqueio administrativo')}</small>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="liberarContaUsuarioAdm('${c.identificador}')">Desbloquear</button>
+            `;
+            cont.appendChild(linha);
+        });
+    }
+}
+/* ─── FIM: carregarListaBloqueadosGaveta ─────────────────────── */
 
 /* ─── INÍCIO: atualizarContadorSelecaoLote ───────────────────── */
 function atualizarContadorSelecaoLote() {
@@ -1925,7 +1832,7 @@ async function aprovarSolicitacoesSelecionadasLote() {
 }
 /* ─── FIM: aprovarSolicitacoesSelecionadasLote ─────────────────── */
 
-/* ─── INÍCIO: gerarRelatorioPdfVendas (Diário) ───────────────── */
+/* ─── INÍCIO: gerarRelatorioPdfVendas ────────────────────────── */
 async function gerarRelatorioPdfVendas() {
     if (estadoSessao.papel !== 'adm') return;
 
@@ -2000,19 +1907,16 @@ function imprimirRelatorioAnaliticoIframe(relatorio) {
                 .titulo-empresa { font-size: 18px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.5px; }
                 .subtitulo { font-size: 12px; color: #475569; margin-top: 2px; }
                 .meta-emissao { text-align: right; font-size: 11px; color: #475569; }
-                
                 .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
                 .kpi-card { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #f8fafc; }
                 .kpi-rotulo { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
                 .kpi-valor { font-size: 18px; font-weight: 800; margin-top: 4px; color: #0f172a; }
                 .kpi-valor.destaque { color: #16a34a; }
-
                 .secao-titulo { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
                 table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 11px; }
                 th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: 700; color: #334155; }
                 td { border: 1px solid #e2e8f0; padding: 6px 8px; }
                 .tag-status { display: inline-block; padding: 2px 6px; font-size: 9px; font-weight: 700; border-radius: 4px; background: #e2e8f0; }
-
                 .rodape { margin-top: 28px; border-top: 1px dashed #cbd5e1; padding-top: 10px; display: flex; justify-content: space-between; font-size: 10px; color: #64748b; }
             </style>
         </head>
@@ -2121,10 +2025,12 @@ async function aprovarMembroAdm(idSolicitacao) {
 
 /* ─── INÍCIO: liberarContaUsuarioAdm ─────────────────────────── */
 async function liberarContaUsuarioAdm(identificador) {
+    mostrarLoader("Liberando conta...");
     const resposta = await executarRequisicaoAPI("liberar_conta_adm", { identificador });
+    esconderLoader();
     if (resposta.sucesso) {
         exibirToast(resposta.mensagem || "Conta liberada com sucesso.", "success");
-        await carregarPainelCentralAdm();
+        carregarListaBloqueadosGaveta();
     }
 }
 /* ─── FIM: liberarContaUsuarioAdm ─────────────────────────────── */
@@ -2150,7 +2056,7 @@ function atualizarBadgePendentesAdm(quantidade) {
 }
 /* ─── FIM: atualizarBadgePendentesAdm ─────────────────────────── */
 
-/* ─── INÍCIO: consultarPendentesAdm ──────────────────── */
+/* ─── INÍCIO: consultarPendentesAdm ──────────────────────────── */
 async function consultarPendentesAdm() {
     if (estadoSessao.papel !== 'adm') return;
     try {
@@ -2159,7 +2065,7 @@ async function consultarPendentesAdm() {
         atualizarBadgePendentesAdm(total);
     } catch (e) {}
 }
-/* ─── FIM: consultarPendentesAdm ─────────────────────── */
+/* ─── FIM: consultarPendentesAdm ─────────────────────────────── */
 
 /* ─── INÍCIO: ligarAutoRefreshAdm ────────────────────────────── */
 function ligarAutoRefreshAdm() {
@@ -2185,189 +2091,114 @@ function desligarAutoRefreshAdm() {
 /* ─── FIM: desligarAutoRefreshAdm ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   12. PIPELINE DE PEDIDOS COM ALERTA SONORO (ADM)
+   12. ESTEIRA DE PEDIDOS / COMANDAS RETRÁTEIS (ADM)
    ═══════════════════════════════════════════════════════════════ */
-/* ─── INÍCIO: carregarPedidosAdm ─────────────────────────────── */
-async function carregarPedidosAdm() {
-    const colunaAnalise     = document.getElementById('pipe-analise');
-    const colunaSolicitados = document.getElementById('pipe-solicitados');
-    const colunaViagem      = document.getElementById('pipe-viagem');
-    const colunaConcluido   = document.getElementById('pipe-concluido');
 
-    [colunaAnalise, colunaSolicitados, colunaViagem, colunaConcluido].forEach(coluna => {
-        if (coluna) coluna.innerHTML = '<div class="loading-slot">…</div>';
-    });
+/* ─── INÍCIO: iniciarAutoRefreshEsteira ──────────────────────── */
+function iniciarAutoRefreshEsteira() {
+    pararAutoRefreshEsteira();
+    if (estadoSessao.papel !== 'adm') return;
 
-    const resposta = await executarRequisicaoAPI("listar_pedidos_adm");
-    if (colunaAnalise)     colunaAnalise.innerHTML = '';
-    if (colunaSolicitados) colunaSolicitados.innerHTML = '';
-    if (colunaViagem)      colunaViagem.innerHTML = '';
-    if (colunaConcluido)   colunaConcluido.innerHTML = '';
-
-    if (resposta.sucesso && Array.isArray(resposta.pedidos)) {
-        const emAnalise = resposta.pedidos.filter(p => String(p.status).toLowerCase() === 'analise').length;
-        if (totalPedidosAnaliseAnterior > 0 && emAnalise > totalPedidosAnaliseAnterior) {
-            tocarSomNotificacao('pedido');
+    _timerEsteiraAdm = setInterval(async () => {
+        if (estadoSessao.papel !== 'adm' || document.hidden) return;
+        const painelEsteira = document.getElementById('view-pedidos-adm');
+        if (painelEsteira && painelEsteira.classList.contains('active')) {
+            await carregarPedidosAdm(true);
+        } else {
+            pararAutoRefreshEsteira();
         }
-        totalPedidosAnaliseAnterior = emAnalise;
+    }, 8000);
+}
+/* ─── FIM: iniciarAutoRefreshEsteira ────────────────────────── */
 
-        resposta.pedidos.forEach(pedido => {
-            const divCartao = document.createElement('div');
-            divCartao.style.cssText = 'background:var(--cor-fundo-card);padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid var(--cor-borda);';
+/* ─── INÍCIO: pararAutoRefreshEsteira ────────────────────────── */
+function pararAutoRefreshEsteira() {
+    if (_timerEsteiraAdm) {
+        clearInterval(_timerEsteiraAdm);
+        _timerEsteiraAdm = null;
+    }
+}
+/* ─── FIM: pararAutoRefreshEsteira ──────────────────────────── */
 
-            divCartao.innerHTML = `
-                <small><strong>${escaparHtml(pedido.id)}</strong></small><br>
-                <small>${fmtPreco(pedido.total)}</small><br>
-                <small style="color:var(--cor-texto-suave);">Forma: ${escaparHtml(pedido.metodo || 'PIX')}</small>
-            `;
+/* ─── INÍCIO: carregarPedidosAdm ─────────────────────────────── */
+async function carregarPedidosAdm(silencioso = false) {
+    const colAnalise = document.getElementById('pipe-analise');
+    const colSolic   = document.getElementById('pipe-solicitados');
+    const colViagem  = document.getElementById('pipe-viagem');
+    const colConc    = document.getElementById('pipe-concluido');
 
-            const painelBotoes = document.createElement('div');
-            painelBotoes.style.cssText = 'display:flex;gap:4px;margin-top:6px;';
-
-            if (pedido.status !== 'concluido') {
-                const botaoAvancar = document.createElement('button');
-                botaoAvancar.className = 'btn btn-primary btn-sm';
-                botaoAvancar.textContent = 'Avançar';
-                botaoAvancar.onclick = () => avancarStatusAdm(pedido.id, pedido.status);
-                painelBotoes.appendChild(botaoAvancar);
-            }
-
-            const botaoChatAdm = document.createElement('button');
-            botaoChatAdm.className = 'btn btn-outline-dark btn-sm';
-            botaoChatAdm.textContent = '💬';
-            botaoChatAdm.title = 'Abrir Chat';
-            botaoChatAdm.onclick = () => abrirChatPedido(pedido.id);
-            painelBotoes.appendChild(botaoChatAdm);
-
-            divCartao.appendChild(painelBotoes);
-
-            if (pedido.status === 'analise'     && colunaAnalise)     colunaAnalise.appendChild(divCartao);
-            if (pedido.status === 'solicitados' && colunaSolicitados) colunaSolicitados.appendChild(divCartao);
-            if (pedido.status === 'viagem'      && colunaViagem)      colunaViagem.appendChild(divCartao);
-            if (pedido.status === 'concluido'   && colunaConcluido)   colunaConcluido.appendChild(divCartao);
-        });
+    if (!silencioso) {
+        [colAnalise, colSolic, colViagem, colConc].forEach(c => { if (c) c.innerHTML = '<div class="loading-slot">…</div>'; });
     }
 
-    [[colunaAnalise], [colunaSolicitados], [colunaViagem], [colunaConcluido]].forEach(([coluna]) => {
-        if (coluna && !coluna.children.length) {
-            coluna.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem pedidos</div>`;
-        }
+    const res = await executarRequisicaoAPI("listar_pedidos_adm");
+    if (!res.sucesso || !Array.isArray(res.pedidos)) return;
+
+    [colAnalise, colSolic, colViagem, colConc].forEach(c => { if (c) c.innerHTML = ''; });
+
+    const emAnalise = res.pedidos.filter(p => String(p.status).toLowerCase() === 'analise').length;
+    if (totalPedidosAnaliseAnterior > 0 && emAnalise > totalPedidosAnaliseAnterior) {
+        tocarSomNotificacao('pedido');
+    }
+    totalPedidosAnaliseAnterior = emAnalise;
+
+    // Fila de Prioridade: mais antigos primeiro
+    const pedidosOrdenados = res.pedidos.sort((a, b) => new Date(a.criadoEm) - new Date(b.criadoEm));
+
+    pedidosOrdenados.forEach(p => {
+        const temDuvida = p.temPerguntaPendente === true || String(p.temPerguntaPendente) === 'true';
+        const horaFormatada = p.criadoEm ? new Date(p.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+
+        const comanda = document.createElement('div');
+        comanda.className = `comanda-card comanda-${p.status}`;
+        if (temDuvida) comanda.classList.add('card-pergunta-ativa');
+
+        let itensTexto = '';
+        try {
+            const its = typeof p.itensJson === 'string' ? JSON.parse(p.itensJson) : p.itensJson;
+            if (Array.isArray(its)) itensTexto = its.map(i => `${i.quantidade}x ${i.nome}`).join(', ');
+        } catch(e) {}
+
+        const badgeIcones = {
+            analise: '⏳ Análise',
+            solicitados: '📦 Solicitado',
+            viagem: '🛵 Em Viagem',
+            concluido: '✅ Concluído'
+        };
+
+        comanda.innerHTML = `
+            <div class="comanda-header" onclick="this.parentElement.classList.toggle('expandida')">
+                <div>
+                    <strong>#${escaparHtml(p.id)}</strong> <small style="color:var(--cor-texto-suave);">(${horaFormatada})</small>
+                    ${temDuvida ? '<span class="badge-duvida-pendente" title="Cliente aguardando resposta">❓ Nova Mensagem</span>' : ''}
+                </div>
+                <div>
+                    <span class="badge-etapa badge-etapa-${p.status}">${badgeIcones[p.status] || p.status}</span>
+                </div>
+            </div>
+            <div class="comanda-body">
+                <p><strong>Total:</strong> ${fmtPreco(p.total)} | Forma: ${escaparHtml(p.metodo || 'PIX')}</p>
+                <p style="color:var(--cor-texto-suave);margin:4px 0;"><strong>Itens:</strong> ${escaparHtml(itensTexto || 'Sem itens')}</p>
+                <div style="display:flex;gap:6px;margin-top:8px;">
+                    ${p.status !== 'concluido' ? `<button type="button" class="btn btn-primary btn-sm" onclick="avancarStatusAdm('${p.id}', '${p.status}')">Avançar Etapa ➔</button>` : ''}
+                    <button type="button" class="btn ${temDuvida ? 'btn-aviso pulse-chat' : 'btn-outline-dark'} btn-sm" onclick="abrirChatPedido('${p.id}')">
+                        💬 ${temDuvida ? 'Responder Dúvida' : 'Chat'}
+                    </button>
+                </div>
+            </div>
+        `;
+
+        if (p.status === 'analise'     && colAnalise) colAnalise.appendChild(comanda);
+        if (p.status === 'solicitados' && colSolic)   colSolic.appendChild(comanda);
+        if (p.status === 'viagem'      && colViagem)  colViagem.appendChild(comanda);
+        if (p.status === 'concluido'   && colConc)    colConc.appendChild(comanda);
+    });
+
+    [[colAnalise], [colSolic], [colViagem], [colConc]].forEach(([c]) => {
+        if (c && !c.children.length) c.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem comandas</div>`;
     });
 }
 /* ─── FIM: carregarPedidosAdm ─────────────────────────────────── */
-
-/* ─── INÍCIO: Gavetas Administrativas (Membros & Bloqueados) ─── */
-function alternarGavetaAdm(tipo) {
-    const dMembros = document.getElementById('drawer-membros');
-    const dBloq = document.getElementById('drawer-bloqueados');
-    const bMembros = document.getElementById('btn-toggle-membros-drawer');
-    const bBloq = document.getElementById('btn-toggle-bloqueados-drawer');
-
-    if (tipo === 'membros') {
-        dBloq.classList.add('hidden');
-        bBloq.classList.remove('ativo');
-        dMembros.classList.toggle('hidden');
-        bMembros.classList.toggle('ativo');
-        if (!dMembros.classList.contains('hidden')) carregarListaMembrosGaveta();
-    } else {
-        dMembros.classList.add('hidden');
-        bMembros.classList.remove('ativo');
-        dBloq.classList.toggle('hidden');
-        bBloq.classList.toggle('ativo');
-        if (!dBloq.classList.contains('hidden')) carregarListaBloqueadosGaveta();
-    }
-}
-
-async function carregarListaMembrosGaveta() {
-    const cont = document.getElementById('adm-membros-gaveta-lista');
-    if (!cont) return;
-    cont.innerHTML = '<div class="loading-slot">Carregando membros...</div>';
-
-    const res = await executarRequisicaoAPI("listar_usuarios_adm");
-    cont.innerHTML = '';
-
-    if (res.sucesso && Array.isArray(res.usuarios) && res.usuarios.length > 0) {
-        let html = '<table class="tabela-metricas"><thead><tr><th>Primeiro Nome</th><th>Login (WhatsApp)</th><th>Papel</th><th>Ações</th></tr></thead><tbody>';
-        res.usuarios.forEach(u => {
-            html += `<tr>
-                <td><strong>${escaparHtml(u.primeiroNome)}</strong></td>
-                <td>${escaparHtml(u.telefone)}</td>
-                <td><span class="badge badge-${u.papel}">${escaparHtml(u.papel.toUpperCase())}</span></td>
-                <td>
-                    <button class="btn btn-danger-outline btn-sm" style="padding:2px 6px;" onclick="bloquearUsuarioComMotivo('${u.id}', '${escaparHtml(u.primeiroNome)}')">🔒 Bloquear</button>
-                    <button class="btn btn-ghost btn-sm" style="padding:2px 6px;color:var(--cor-perigo);" onclick="excluirUsuarioMembro('${u.id}')">🗑️</button>
-                </td>
-            </tr>`;
-        });
-        html += '</tbody></table>';
-        cont.innerHTML = html;
-    } else {
-        cont.innerHTML = '<div class="loading-slot">Nenhum membro registrado.</div>';
-    }
-}
-
-async function bloquearUsuarioComMotivo(idUsuario, nome) {
-    const motivo = prompt(`Digite o motivo do bloqueio para ${nome}:`);
-    if (!motivo || !motivo.trim()) return;
-
-    mostrarLoader("Bloqueando usuário...");
-    const res = await executarRequisicaoAPI("bloquear_usuario_motivo_adm", {
-        identificador: idUsuario,
-        motivo: motivo.trim()
-    });
-    esconderLoader();
-
-    if (res.sucesso) {
-        exibirToast("Usuário bloqueado com sucesso!", "success");
-        carregarListaMembrosGaveta();
-        carregarListaBloqueadosGaveta();
-    } else {
-        exibirToast(res.mensagem || "Erro ao bloquear.", "error");
-    }
-}
-
-async function excluirUsuarioMembro(idUsuario) {
-    if (!confirm("Deseja realmente excluir permanentemente este usuário da plataforma?")) return;
-    mostrarLoader("Excluindo conta...");
-    const res = await executarRequisicaoAPI("excluir_usuario_adm", { idUsuario });
-    esconderLoader();
-
-    if (res.sucesso) {
-        exibirToast("Usuário removido da plataforma!", "success");
-        carregarListaMembrosGaveta();
-    }
-}
-
-async function carregarListaBloqueadosGaveta() {
-    const cont = document.getElementById('adm-bloqueados-gaveta-lista');
-    const badgeCount = document.getElementById('cont-bloqueados-badge');
-    if (!cont) return;
-
-    const res = await executarRequisicaoAPI("listar_bloqueados_adm");
-    cont.innerHTML = '';
-
-    if (res.sucesso && Array.isArray(res.contas)) {
-        if (badgeCount) badgeCount.textContent = res.contas.length;
-        if (res.contas.length === 0) {
-            cont.innerHTML = '<div class="loading-slot">Nenhum usuário bloqueado no momento.</div>';
-            return;
-        }
-
-        res.contas.forEach(c => {
-            const linha = document.createElement('div');
-            linha.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--cor-borda);display:flex;justify-content:space-between;align-items:center;';
-            linha.innerHTML = `
-                <div>
-                    <strong style="color:var(--cor-perigo);">${escaparHtml(c.identificador)}</strong>
-                    <br><small style="color:var(--cor-texto-suave);">Motivo: ${escaparHtml(c.motivo || 'Tentativas incorretas')}</small>
-                </div>
-                <button class="btn btn-primary btn-sm" onclick="liberarContaUsuarioAdm('${c.identificador}')">Desbloquear</button>
-            `;
-            cont.appendChild(linha);
-        });
-    }
-}
-/* ─── FIM: Gavetas Administrativas ─── */
 
 /* ─── INÍCIO: avancarStatusAdm ───────────────────────────────── */
 async function avancarStatusAdm(idPedido, statusAtual) {
@@ -2381,8 +2212,8 @@ async function avancarStatusAdm(idPedido, statusAtual) {
     });
 
     if (resposta.sucesso) {
-        exibirToast("Status do pedido atualizado!", "success");
-        await carregarPedidosAdm();
+        exibirToast("Comanda atualizada com sucesso!", "success");
+        await carregarPedidosAdm(true);
     } else {
         exibirToast(resposta.mensagem || "Erro ao atualizar status.", "error");
     }
@@ -2672,7 +2503,6 @@ async function executarLogout() {
     executarLimpezaTotalESaida();
     esconderLoader();
 
-    // Redirecionamento forçado para resetar completamente o estado da página
     const urlLimpa = window.location.origin + window.location.pathname;
     window.location.replace(urlLimpa);
 }
@@ -2802,7 +2632,6 @@ function navegarPara(nomeAba) {
 
     fecharUserDropdown();
 
-    // Controle de timers entre telas
     if (nomeAba !== 'pedidos-adm') {
         pararAutoRefreshEsteira();
     }
@@ -2812,12 +2641,14 @@ function navegarPara(nomeAba) {
     if (nomeAba === 'meus-pedidos') carregarMeusPedidos();
     if (nomeAba === 'pedidos-adm') {
         carregarPedidosAdm();
-        iniciarAutoRefreshEsteira(); // Inicia auto-refresh contínuo
+        iniciarAutoRefreshEsteira();
     }
     if (nomeAba === 'adm') {
         carregarPainelCentralAdm();
         consultarPendentesAdm();
     }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 /* ─── FIM: navegarPara ───────────────────────────────────────── */
 
@@ -2914,6 +2745,7 @@ let listaDuvidasFaq = [
     }
 ];
 
+/* ─── INÍCIO: carregarFaqMemoria ─────────────────────────────── */
 function carregarFaqMemoria() {
     const salvo = localStorage.getItem('loja_faq_dados');
     if (salvo) {
@@ -2921,7 +2753,9 @@ function carregarFaqMemoria() {
     }
 }
 carregarFaqMemoria();
+/* ─── FIM: carregarFaqMemoria ─────────────────────────────────── */
 
+/* ─── INÍCIO: abrirCentralDuvidas ────────────────────────────── */
 function abrirCentralDuvidas() {
     if (estadoSessao.papel === 'visitante') {
         exibirToast("A Central de Dúvidas é exclusiva para membros.", "info");
@@ -2937,7 +2771,9 @@ function abrirCentralDuvidas() {
 
     abrirModal('modal-duvidas-central');
 }
+/* ─── FIM: abrirCentralDuvidas ───────────────────────────────── */
 
+/* ─── INÍCIO: renderizarListaFaq ─────────────────────────────── */
 function renderizarListaFaq() {
     const container = document.getElementById('lista-faq-perguntas');
     if (!container) return;
@@ -2975,7 +2811,9 @@ function renderizarListaFaq() {
         container.appendChild(itemDiv);
     });
 }
+/* ─── FIM: renderizarListaFaq ───────────────────────────────── */
 
+/* ─── INÍCIO: tratarEnvioSugestao ────────────────────────────── */
 async function tratarEnvioSugestao(e) {
     if (e && e.preventDefault) e.preventDefault();
     const campo = document.getElementById('campo-sugestao-texto');
@@ -2997,7 +2835,9 @@ async function tratarEnvioSugestao(e) {
         exibirToast(res.mensagem || "Erro ao enviar sugestão.", "error");
     }
 }
+/* ─── FIM: tratarEnvioSugestao ───────────────────────────────── */
 
+/* ─── INÍCIO: tratarEnvioComentario ──────────────────────────── */
 async function tratarEnvioComentario(e) {
     if (e && e.preventDefault) e.preventDefault();
     const nomeInput = document.getElementById('comentario-nome');
@@ -3017,7 +2857,9 @@ async function tratarEnvioComentario(e) {
         exibirToast(res.mensagem || "Erro ao enviar mensagem.", "error");
     }
 }
+/* ─── FIM: tratarEnvioComentario ─────────────────────────────── */
 
+/* ─── INÍCIO: tratarAdicionarFaq ─────────────────────────────── */
 function tratarAdicionarFaq(e) {
     if (e && e.preventDefault) e.preventDefault();
     const inputP = document.getElementById('faq-nova-pergunta');
@@ -3036,21 +2878,26 @@ function tratarAdicionarFaq(e) {
     renderizarListaFaq();
     exibirToast("Nova dúvida adicionada ao FAQ!", "success");
 }
+/* ─── FIM: tratarAdicionarFaq ─────────────────────────────────── */
 
+/* ─── INÍCIO: abrirModal ─────────────────────────────────────── */
 function abrirModal(idModal) {
     const modal = document.getElementById(idModal);
     if (modal) modal.classList.add('active');
 }
+/* ─── FIM: abrirModal ─────────────────────────────────────────── */
 
+/* ─── INÍCIO: fecharModal ────────────────────────────────────── */
 function fecharModal(idModal) {
     const modal = document.getElementById(idModal);
     if (modal) modal.classList.remove('active');
     if (idModal === 'modal-chat') pararAutoRefreshChat();
 }
+/* ─── FIM: fecharModal ────────────────────────────────────────── */
 
 let _callbackConfirmacao = null;
 
-/* ─── CORREÇÃO CRÍTICA DO CALLBACK DE CONFIRMAÇÃO ──────────── */
+/* ─── INÍCIO: abrirConfirmacao ───────────────────────────────── */
 function abrirConfirmacao(titulo, mensagemTextoOuHtml, callbackAcao) {
     const elementoTitulo = document.getElementById('confirmar-titulo');
     const elementoMensagem = document.getElementById('confirmar-mensagem');
@@ -3069,7 +2916,7 @@ function abrirConfirmacao(titulo, mensagemTextoOuHtml, callbackAcao) {
     const btnOk = document.getElementById('confirmar-btn-ok');
     if (btnOk) {
         btnOk.onclick = () => {
-            const cb = _callbackConfirmacao; // Salva a referência antes de limpar
+            const cb = _callbackConfirmacao;
             fecharConfirmacao();
             if (typeof cb === 'function') cb();
         };
@@ -3077,7 +2924,9 @@ function abrirConfirmacao(titulo, mensagemTextoOuHtml, callbackAcao) {
 
     abrirModal('modal-confirmar');
 }
+/* ─── FIM: abrirConfirmacao ─────────────────────────────────── */
 
+/* ─── INÍCIO: abrirConfirmacaoElemento ───────────────────────── */
 function abrirConfirmacaoElemento(titulo, elementoDom, callbackAcao) {
     const elementoTitulo = document.getElementById('confirmar-titulo');
     const elementoMensagem = document.getElementById('confirmar-mensagem');
@@ -3093,7 +2942,7 @@ function abrirConfirmacaoElemento(titulo, elementoDom, callbackAcao) {
     const btnOk = document.getElementById('confirmar-btn-ok');
     if (btnOk) {
         btnOk.onclick = () => {
-            const cb = _callbackConfirmacao; // Salva a referência antes de limpar
+            const cb = _callbackConfirmacao;
             fecharConfirmacao();
             if (typeof cb === 'function') cb();
         };
@@ -3101,12 +2950,16 @@ function abrirConfirmacaoElemento(titulo, elementoDom, callbackAcao) {
 
     abrirModal('modal-confirmar');
 }
+/* ─── FIM: abrirConfirmacaoElemento ─────────────────────────── */
 
+/* ─── INÍCIO: fecharConfirmacao ─────────────────────────────── */
 function fecharConfirmacao() {
     fecharModal('modal-confirmar');
     _callbackConfirmacao = null;
 }
+/* ─── FIM: fecharConfirmacao ─────────────────────────────────── */
 
+/* ─── INÍCIO: exibirToast ────────────────────────────────────── */
 function exibirToast(mensagem, tipo = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -3116,7 +2969,9 @@ function exibirToast(mensagem, tipo = 'info') {
     container.appendChild(toast);
     setTimeout(() => toast.remove(), 3500);
 }
+/* ─── FIM: exibirToast ───────────────────────────────────────── */
 
+/* ─── INÍCIO: Listener Overlay Modais ────────────────────────── */
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', evento => {
         if (evento.target === overlay) {
@@ -3124,10 +2979,11 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
             if (overlay.id === 'modal-chat') pararAutoRefreshChat();
         }
     });
+});
+/* ─── FIM: Listener Overlay Modais ──────────────────────────── */
 
- /* ─── INÍCIO: Interceptador do Botão Voltar (Mobile / Android) ── */
-window.addEventListener('popstate', (evento) => {
-    // 1. Fecha modais de tela se algum estiver aberto
+/* ─── INÍCIO: Interceptador do Botão Voltar (Mobile / Android) ── */
+window.addEventListener('popstate', () => {
     const modaisAbertos = document.querySelectorAll('.modal-overlay.active, .lightbox-modal.active');
     if (modaisAbertos.length > 0) {
         modaisAbertos.forEach(m => {
@@ -3138,65 +2994,62 @@ window.addEventListener('popstate', (evento) => {
         return;
     }
 
-    // 2. Se estiver em abas secundárias, retorna para a vitrine
     const abaAtual = document.querySelector('.view-panel.active');
     if (abaAtual && abaAtual.id !== 'view-vitrine' && abaAtual.id !== 'view-bloqueado') {
         navegarPara('vitrine');
     }
 });
 
-// Adiciona um estado no histórico ao abrir qualquer modal
-const abrirModalOriginal = window.abrirModal;
+const abrirModalOriginal = window.abrirModal || abrirModal;
 window.abrirModal = function(idModal) {
     history.pushState({ modalAberto: idModal }, '');
     abrirModalOriginal(idModal);
 };
-/* ─── FIM: Interceptador do Botão Voltar (Mobile / Android) ──── */ 
-});
+/* ─── FIM: Interceptador do Botão Voltar (Mobile / Android) ──── */
 
 /* ═══════════════════════════════════════════════════════════════
-   17. EXPORTAÇÕES GLOBAIS (LIGAÇÃO COM BINDINGS)
+   17. EXPORTAÇÕES GLOBAIS (LIGAÇÃO COM BINDINGS & DOM)
    ═══════════════════════════════════════════════════════════════ */
-window.abrirModal                    = abrirModal;
-window.fecharModal                   = fecharModal;
-window.abrirConfirmacao              = abrirConfirmacao;
-window.exibirConfirmacao             = abrirConfirmacao;
-window.fecharConfirmacao             = fecharConfirmacao;
-window.confirmarLogout               = confirmarLogout;
-window.executarLogout                = executarLogout;
-window.enviarPedidoDesbloqueio       = enviarPedidoDesbloqueio;
-window.navegarPara                   = navegarPara;
-window.tratarCriacaoPedido           = tratarCriacaoPedido;
-window.removerFotoCarregada          = removerFotoCarregada;
-window.gerarLinkTemporarioAdm        = gerarLinkTemporarioAdm;
-window.copiarLinkGerado              = copiarLinkGerado;
-window.carregarPainelCentralAdm      = carregarPainelCentralAdm;
-window.enviarMensagemChat            = enviarMensagemChat;
-window.tratarEnvioMensagemChat       = enviarMensagemChat;
-window.abrirChatPedido               = abrirChatPedido;
-window.tratarSolicitacaoCadastro     = tratarSolicitacaoCadastro;
-window.tratarLogin                   = tratarLogin;
-window.tratarCadastroProduto         = tratarCadastroProduto;
-window.aplicarFiltroVitrine          = aplicarFiltroVitrine;
-window.filtrarVitrineEmTempoReal     = aplicarFiltroVitrine;
-window.selecionarCategoriaChip       = selecionarCategoriaChip;
-window.adicionarAoCarrinho           = adicionarAoCarrinho;
-window.processarUploadImagem         = processarUploadImagem;
-window.copiarPixCopiaECola           = copiarPixCopiaECola;
-window.abrirCentralDuvidas           = abrirCentralDuvidas;
-window.tratarEnvioSugestao           = tratarEnvioSugestao;
-window.tratarEnvioComentario         = tratarEnvioComentario;
-window.tratarAdicionarFaq            = tratarAdicionarFaq;
-window.executarLimpezaTotalESaida    = executarLimpezaTotalESaida;
-window.confirmarExclusaoProdutoAdm   = confirmarExclusaoProdutoAdm;
-window.excluirProdutoAdm             = excluirProdutoAdm;
-window.aplicarNavPorPapel            = aplicarNavPorPapel;
-window.atualizarAvatarUsuario        = atualizarAvatarUsuario;
-window.toggleUserDropdown            = toggleUserDropdown;
-window.fecharUserDropdown            = fecharUserDropdown;
-window.atualizarBadgeCarrinho        = atualizarBadgeCarrinho;
+window.abrirModal                          = abrirModal;
+window.fecharModal                         = fecharModal;
+window.abrirConfirmacao                    = abrirConfirmacao;
+window.exibirConfirmacao                   = abrirConfirmacao;
+window.fecharConfirmacao                   = fecharConfirmacao;
+window.confirmarLogout                     = confirmarLogout;
+window.executarLogout                      = executarLogout;
+window.enviarPedidoDesbloqueio             = enviarPedidoDesbloqueio;
+window.navegarPara                         = navegarPara;
+window.tratarCriacaoPedido                 = tratarCriacaoPedido;
+window.removerFotoCarregada                = removerFotoCarregada;
+window.gerarLinkTemporarioAdm              = gerarLinkTemporarioAdm;
+window.copiarLinkGerado                    = copiarLinkGerado;
+window.carregarPainelCentralAdm            = carregarPainelCentralAdm;
+window.enviarMensagemChat                  = enviarMensagemChat;
+window.tratarEnvioMensagemChat             = enviarMensagemChat;
+window.abrirChatPedido                     = abrirChatPedido;
+window.tratarSolicitacaoCadastro           = tratarSolicitacaoCadastro;
+window.tratarLogin                         = tratarLogin;
+window.tratarCadastroProduto               = tratarCadastroProduto;
+window.aplicarFiltroVitrine                = aplicarFiltroVitrine;
+window.filtrarVitrineEmTempoReal           = aplicarFiltroVitrine;
+window.selecionarCategoriaChip             = selecionarCategoriaChip;
+window.adicionarAoCarrinho                 = adicionarAoCarrinho;
+window.processarUploadImagem               = processarUploadImagem;
+window.copiarPixCopiaECola                 = copiarPixCopiaECola;
+window.abrirCentralDuvidas                 = abrirCentralDuvidas;
+window.tratarEnvioSugestao                 = tratarEnvioSugestao;
+window.tratarEnvioComentario               = tratarEnvioComentario;
+window.tratarAdicionarFaq                  = tratarAdicionarFaq;
+window.executarLimpezaTotalESaida          = executarLimpezaTotalESaida;
+window.confirmarExclusaoProdutoAdm         = confirmarExclusaoProdutoAdm;
+window.excluirProdutoAdm                   = excluirProdutoAdm;
+window.aplicarNavPorPapel                  = aplicarNavPorPapel;
+window.atualizarAvatarUsuario              = atualizarAvatarUsuario;
+window.toggleUserDropdown                  = toggleUserDropdown;
+window.fecharUserDropdown                  = fecharUserDropdown;
+window.atualizarBadgeCarrinho              = atualizarBadgeCarrinho;
 
-// Funções de acessibilidade, relatórios e controle de acesso
+// Funções de acessibilidade, esteira e controle administrativo
 window.alternarModoEscuro                  = alternarModoEscuro;
 window.abrirLightboxFoto                   = abrirLightboxFoto;
 window.fecharLightbox                      = fecharLightbox;
@@ -3209,3 +3062,15 @@ window.aprovarSolicitacoesSelecionadasLote = aprovarSolicitacoesSelecionadasLote
 window.gerarRelatorioPdfVendas             = gerarRelatorioPdfVendas;
 window.tocarSomNotificacao                 = tocarSomNotificacao;
 window.alternarModoAcessoSistema           = alternarModoAcessoSistema;
+
+// Funções de comandas, prioridades e gavetas
+window.carregarPedidosAdm                  = carregarPedidosAdm;
+window.avancarStatusAdm                    = avancarStatusAdm;
+window.iniciarAutoRefreshEsteira           = iniciarAutoRefreshEsteira;
+window.pararAutoRefreshEsteira             = pararAutoRefreshEsteira;
+window.alternarGavetaAdm                   = alternarGavetaAdm;
+window.carregarListaMembrosGaveta          = carregarListaMembrosGaveta;
+window.bloquearUsuarioComMotivo            = bloquearUsuarioComMotivo;
+window.excluirUsuarioMembro                = excluirUsuarioMembro;
+window.carregarListaBloqueadosGaveta       = carregarListaBloqueadosGaveta;
+window.liberarContaUsuarioAdm              = liberarContaUsuarioAdm;
