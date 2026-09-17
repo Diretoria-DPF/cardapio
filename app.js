@@ -3,7 +3,7 @@
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO GOOGLE APPS SCRIPT:
-const URL_BACKEND_APPS_SCRIPT = "https://lojasegura-backend.vercel.app";
+const URL_BACKEND_APPS_SCRIPT = "https://lojasegura-backend.vercel.app/api";
 /* ═══════════════════════════════════════════════════════════════
    0. FINGERPRINT, DEVTOOLS, ÁUDIO & VISIBILIDADE
    ═══════════════════════════════════════════════════════════════ */
@@ -394,6 +394,84 @@ function pararTemporizadorSilencioso() {
     }
 }
 /* ─── FIM: pararTemporizadorSilencioso ────────────────────────── */
+
+/* ─── INÍCIO: executarRequisicaoAPI (com Auto-Retry Resiliente) ─ */
+async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true, tentativa = 1) {
+    try {
+        const payload = dadosExtras;
+        const corpo = {
+            acao,
+            payload,
+            fingerprint: FINGERPRINT
+        };
+
+        if (estadoSessao.token) {
+            corpo.token = estadoSessao.token;
+        } else {
+            const linkToken = sessionStorage.getItem('plataforma_link_token');
+            if (linkToken) corpo.token = linkToken;
+        }
+
+        const resposta = await fetchComTimeout(URL_BACKEND_APPS_SCRIPT, 25000, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(corpo)
+        });
+
+        const textoResposta = await resposta.text();
+        let json;
+        try {
+            json = JSON.parse(textoResposta);
+        } catch (erroParse) {
+            return { sucesso: false, erroTransitorio: true, mensagem: "Servidor ocupado. Aguarde um instante..." };
+        }
+
+        if (!json.sucesso && json.codigo === 'SISTEMA_BLOQUEADO') {
+            exibirToast(json.mensagem || "Plataforma em manutenção.", "error");
+            if (estadoSessao.papel !== 'adm') {
+                navegarPara('bloqueado');
+            }
+            return json;
+        }
+
+        if (!json.sucesso && json.codigo === 'LINK_EXPIRED') {
+            if (estadoSessao.papel === 'visitante') {
+                exibirToast(json.mensagem || "O link temporário expirou.", "error");
+                executarLimpezaTotalESaida(true);
+            }
+            return json;
+        }
+
+        if (!json.sucesso && json.codigo === 'SESSION_EXPIRED') {
+            if (tentarRefresh) {
+                const rt = estadoSessao.refreshToken || sessionStorage.getItem('plataforma_refresh_token');
+                if (rt) {
+                    const ok = await tentarRenovarSessao(rt);
+                    if (ok) {
+                        return executarRequisicaoAPI(acao, dadosExtras, false);
+                    }
+                }
+            }
+            exibirToast("Sua sessão foi encerrada. Entre novamente.", "info");
+            executarLogout();
+            return { sucesso: false, mensagem: "Sessão expirada." };
+        }
+
+        return json;
+
+    } catch (erroRede) {
+        // Se falhar na primeira vez (ex: banco acordando), tenta novamente em 1.5s
+        if (tentativa === 1) {
+            console.warn(`[API] Primeira tentativa falhou (${acao}). Tentando reconectar ao banco...`);
+            await new Promise(r => setTimeout(r, 1500));
+            return executarRequisicaoAPI(acao, dadosExtras, tentarRefresh, 2);
+        }
+
+        console.warn("[API] Oscilação de rede persistente:", erroRede);
+        return { sucesso: false, erroRede: true, mensagem: "Sem conexão momentânea com o servidor." };
+    }
+}
+/* ─── FIM: executarRequisicaoAPI ─────────────────────────────── */
 
 /* ─── INÍCIO: executarLimpezaTotalESaida ─────────────────────── */
 function executarLimpezaTotalESaida(silencioso = false) {
