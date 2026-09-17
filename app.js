@@ -1197,7 +1197,7 @@ function responderDuvidaRapida(chave) {
    10. MEUS PEDIDOS, COMPARTILHAMENTO & CHAT
    ═══════════════════════════════════════════════════════════════ */
 
-* ─── INÍCIO: carregarMeusPedidos ────────────────────────────── */
+/* ─── INÍCIO: carregarMeusPedidos ────────────────────────────── */
 async function carregarMeusPedidos() {
     const container = document.getElementById('meus-pedidos-container');
     if (!container) return;
