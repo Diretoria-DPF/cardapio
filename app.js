@@ -3124,6 +3124,34 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
             if (overlay.id === 'modal-chat') pararAutoRefreshChat();
         }
     });
+
+ /* ─── INÍCIO: Interceptador do Botão Voltar (Mobile / Android) ── */
+window.addEventListener('popstate', (evento) => {
+    // 1. Fecha modais de tela se algum estiver aberto
+    const modaisAbertos = document.querySelectorAll('.modal-overlay.active, .lightbox-modal.active');
+    if (modaisAbertos.length > 0) {
+        modaisAbertos.forEach(m => {
+            if (m.id === 'modal-lightbox') fecharLightbox();
+            else fecharModal(m.id);
+        });
+        fecharConfirmacao();
+        return;
+    }
+
+    // 2. Se estiver em abas secundárias, retorna para a vitrine
+    const abaAtual = document.querySelector('.view-panel.active');
+    if (abaAtual && abaAtual.id !== 'view-vitrine' && abaAtual.id !== 'view-bloqueado') {
+        navegarPara('vitrine');
+    }
+});
+
+// Adiciona um estado no histórico ao abrir qualquer modal
+const abrirModalOriginal = window.abrirModal;
+window.abrirModal = function(idModal) {
+    history.pushState({ modalAberto: idModal }, '');
+    abrirModalOriginal(idModal);
+};
+/* ─── FIM: Interceptador do Botão Voltar (Mobile / Android) ──── */ 
 });
 
 /* ═══════════════════════════════════════════════════════════════
