@@ -2,11 +2,12 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#0f172a">
+    <link rel="icon" href="data:,">
     
-    <!-- Política de Segurança de Conteúdo (CSP) Consolidada -->
+    <!-- Política de Segurança Consolidada (CORS e Conexões Autorizadas) -->
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'self';
                    img-src 'self' data: https: blob:;
@@ -17,21 +18,28 @@
                    base-uri 'self';">
                    
     <title>Loja</title>
-    <!-- Versão com cache-buster (?v=2) para forçar atualização no navegador -->
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
-<body>
+<body class="bloqueio-captura">
+
+<!-- CORTINA DE PROTEÇÃO VISUAL CONTRA CAPTURAS DE TELA -->
+<div id="cortina-privacidade" class="cortina-privacidade hidden">
+    <div class="cortina-aviso">
+        <span>🛡️</span>
+        <p>Conteúdo restrito e protegido.<br>Retorne ao aplicativo para visualizar.</p>
+    </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════
-     HEADER DA APLICAÇÃO 
+     HEADER PRINCIPAL
      ═══════════════════════════════════════════════════════════ -->
 <header class="app-header">
     <div class="app-header__left">
-        <span class="logo" aria-label="Loja">Loja</span>
+        <span class="logo">Loja</span>
     </div>
 
     <div class="app-header__right">
-        <!-- Alternador de Tema (Modo Escuro / Claro) -->
+        <!-- Alternador de Tema Escuro / Claro -->
         <button type="button" id="theme-toggle-btn" class="icon-btn" data-action="alternar-tema" aria-label="Alternar modo escuro">
             <svg id="theme-icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
@@ -40,17 +48,11 @@
                 <circle cx="12" cy="12" r="5"></circle>
                 <line x1="12" y1="1" x2="12" y2="3"></line>
                 <line x1="12" y1="21" x2="12" y2="23"></line>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                <line x1="1" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="12" x2="23" y2="12"></line>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
             </svg>
         </button>
 
-        <!-- Cesta Resumida no Cabeçalho -->
-        <button type="button" id="header-cart-btn" class="icon-btn hidden" data-action="navegar" data-view="carrinho" aria-label="Cesta de compras">
+        <!-- Botão Resumido do Carrinho no Topo -->
+        <button type="button" id="header-cart-btn" class="icon-btn hidden" data-action="navegar" data-view="carrinho" aria-label="Carrinho de compras">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="9" cy="21" r="1"></circle>
                 <circle cx="20" cy="21" r="1"></circle>
@@ -59,36 +61,24 @@
             <span id="header-cart-count" class="icon-btn__badge">0</span>
         </button>
 
-        <!-- Visitante: Botões de Acesso -->
+        <!-- Visitante: Botão Entrar -->
         <div id="anon-buttons" class="button-group">
-            <button type="button" class="btn btn-ghost btn-sm" data-action="abrir-modal" data-modal="modal-cadastro">
-                Cadastrar
-            </button>
             <button type="button" class="btn btn-primary btn-sm" data-action="abrir-modal" data-modal="modal-login">
                 Entrar
             </button>
         </div>
 
-        <!-- Usuário Autenticado: Avatar e Menu Dropdown -->
+        <!-- Membro Logado: Avatar e Menu -->
         <div id="auth-buttons" class="user-menu hidden">
-            <button type="button" id="user-avatar-btn" class="avatar-btn" aria-haspopup="menu" aria-expanded="false">
+            <button type="button" id="user-avatar-btn" class="avatar-btn">
                 <span id="user-initials">?</span>
             </button>
-            <div id="user-dropdown" class="dropdown hidden" role="menu">
+            <div id="user-dropdown" class="dropdown hidden">
                 <div class="dropdown__header">
                     <span id="user-display-name" class="dropdown__name">Olá</span>
-                    <span id="role-badge" class="badge badge-visitor">Visitante</span>
+                    <span id="role-badge" class="badge badge-visitor">Membro</span>
                 </div>
                 <div class="dropdown__divider"></div>
-                <!-- Suporte via WhatsApp direto para Membros Logados -->
-                <a href="https://wa.me/5574998048300?text=Ol%C3%A1!%20Sou%20membro%20da%20plataforma%20e%20preciso%20de%20suporte." 
-                   target="_blank" rel="noopener noreferrer" 
-                   class="dropdown__item" style="text-decoration:none;color:var(--cor-whatsapp);font-weight:600;">
-                    💬 Suporte via WhatsApp
-                </a>
-                <button type="button" class="dropdown__item" data-action="abrir-central-duvidas">
-                    Central de Ajuda
-                </button>
                 <button type="button" class="dropdown__item dropdown__item--danger" data-action="confirmar-logout">
                     Encerrar sessão
                 </button>
@@ -98,168 +88,113 @@
 </header>
 
 <!-- ═══════════════════════════════════════════════════════════
-     CONTAINER PRINCIPAL (TELAS)
+     TELAS PRINCIPAIS (VIEWS)
      ═══════════════════════════════════════════════════════════ -->
 <main class="app-main" id="app-main">
 
-    <!-- ─── TELA DE BLOQUEIO (VISITANTES SEM LINK) ─── -->
+    <!-- ─── TELA INICIAL SIMPLIFICADA (VISITANTE / BLOQUEADO) ─── -->
     <section id="view-bloqueado" class="view-panel hidden">
         <div class="hero-screen">
-            <div class="hero-screen__icon" aria-hidden="true">
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
-            </div>
-            <h1 class="hero-screen__title">Plataforma Exclusiva</h1>
+            <div class="hero-screen__icon">🛡️</div>
+            <h1 class="hero-screen__title">Catálogo Restrito</h1>
             <p class="hero-screen__text">
-                O acesso a esta vitrine é restrito. Para navegar, conhecer os produtos e fazer pedidos,
-                você precisa do <strong>link de convite</strong> ou de uma conta aprovada.
+                Ambiente exclusivo para membros convidados. Para visualizar os produtos e realizar pedidos, cadastre-se com a indicação de um membro ativo.
             </p>
+            
             <div class="hero-screen__actions">
-                <button type="button" class="btn btn-primary btn-block" data-action="abrir-modal" data-modal="modal-cadastro">
-                    Solicitar Cadastro
-                </button>
-                <button type="button" class="btn btn-ghost btn-block" data-action="abrir-modal" data-modal="modal-login">
-                    Já sou membro
+                <button type="button" class="btn btn-primary btn-block" style="font-size:1rem;padding:15px;" data-action="abrir-modal" data-modal="modal-instrucoes-cadastro">
+                    📋 Instruções para uso da plataforma
                 </button>
             </div>
-            <p class="hero-screen__hint">
-                Recebeu um link do administrador?<br>Basta abri-lo no navegador.
+
+            <p class="hero-screen__hint" style="margin-top:16px;">
+                Já possui conta ativa? Toque em <strong>Entrar</strong> no topo da tela.
             </p>
         </div>
     </section>
 
-    <!-- ─── TELA 1: VITRINE DO CATÁLOGO ─── -->
+    <!-- ─── TELA 1: VITRINE LIMPA (SEM BARRA DE PESQUISA) ─── -->
     <section id="view-vitrine" class="view-panel active">
         <header class="screen-header">
-            <h2 id="vitrine-title">Catálogo</h2>
-            <p class="screen-header__desc">Toque duas vezes na foto para ampliar em tela cheia.</p>
+            <h2 id="vitrine-title">Produtos Disponíveis</h2>
+            <p class="screen-header__desc">Escolha a quantidade desejada de cada item:</p>
         </header>
 
-        <div class="search-bar">
-            <svg class="search-bar__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input type="search" id="filtro-produtos" placeholder="Buscar produto..." data-action="filtro-vitrine" aria-label="Filtrar produtos por nome">
-        </div>
-
-        <div class="chips-container" id="vitrine-chips" role="tablist" aria-label="Categorias">
-            <button type="button" class="chip active" data-action="filtrar-categoria" data-categoria="todos" role="tab" aria-selected="true">
-                Todos
-            </button>
-            <button type="button" class="chip" data-action="filtrar-categoria" data-categoria="mais-vendidos" role="tab" aria-selected="false">
-                Mais Vendidos
-            </button>
-            <button type="button" class="chip" data-action="filtrar-categoria" data-categoria="destaque" role="tab" aria-selected="false">
-                Em Destaque
-            </button>
-        </div>
-
         <div id="produtos-container" class="cards-grid"></div>
-
-        <div id="container-duvidas-discreto" class="help-cta hidden">
-            <button type="button" class="help-cta__btn" data-action="abrir-central-duvidas">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                </svg>
-                <span>Central de Dúvidas & Sugestões</span>
-            </button>
-        </div>
     </section>
 
-    <!-- ─── TELA 2: MINHA CESTA DE COMPRAS ─── -->
+    <!-- ─── TELA 2: MEU CARRINHO LIMPO ─── -->
     <section id="view-carrinho" class="view-panel">
         <header class="screen-header">
-            <h2>Minha Cesta</h2>
-            <p class="screen-header__desc">Revise os itens antes de finalizar.</p>
+            <h2>Meu Carrinho</h2>
+            <p class="screen-header__desc">Confira os itens selecionados antes de pagar:</p>
         </header>
 
         <div id="carrinho-itens-lista" class="cart-items-wrapper"></div>
 
         <div class="cart-summary-card">
             <div class="cart-total-row">
-                <span>Total</span>
+                <span>Total a Pagar:</span>
                 <strong id="carrinho-total-valor">R$ 0,00</strong>
             </div>
 
             <div class="form-group">
                 <label for="metodo-pagamento">Forma de pagamento</label>
                 <select id="metodo-pagamento">
-                    <option value="PIX">PIX (instantâneo)</option>
+                    <option value="PIX">PIX (Instantâneo)</option>
                     <option value="CARTAO">Cartão de Crédito</option>
-                    <option value="BTC">Bitcoin (BTC)</option>
-                    <option value="USDT">Tether (USDT)</option>
+                    <option value="USDT">Cripto (USDT / BTC)</option>
                 </select>
             </div>
 
-            <button type="button" class="btn btn-success btn-block" id="btn-confirmar-pedido" data-action="criar-pedido">
-                Finalizar Pedido
+            <button type="button" class="btn btn-success btn-block" id="btn-confirmar-pedido" data-action="criar-pedido" style="font-size:1rem;padding:14px;">
+                Gerar Chave PIX ➔
             </button>
         </div>
     </section>
 
-    <!-- ─── TELA 3: MEUS PEDIDOS ─── -->
+    <!-- ─── TELA 3: MEUS PEDIDOS (FLUXO 3 ETAPAS + WHATSAPP) ─── -->
     <section id="view-meus-pedidos" class="view-panel">
         <header class="screen-header">
             <h2>Meus Pedidos</h2>
-            <p class="screen-header__desc">Acompanhe a fila de entrega e compartilhe os dados.</p>
+            <p class="screen-header__desc">Acompanhe a liberação e envie o comprovante de pagamento:</p>
         </header>
         <div id="meus-pedidos-container"></div>
     </section>
 
-    <!-- ─── TELA 4: NOVO PRODUTO (ADM) ─── -->
+    <!-- ─── TELA 4: CADASTRAR PRODUTO (ADM) ─── -->
     <section id="view-novo-produto" class="view-panel">
         <header class="screen-header">
-            <h2>Novo Produto</h2>
-            <p class="screen-header__desc">Adicione novos itens ao catálogo.</p>
+            <h2>Cadastrar Produto</h2>
         </header>
-
         <div class="card">
             <form id="form-novo-produto" data-action="cadastrar-produto">
                 <div class="form-group">
-                    <label for="adm-prod-nome">Nome do produto</label>
-                    <input type="text" id="adm-prod-nome" required placeholder="Ex: Refeição">
+                    <label for="adm-prod-nome">Nome do item</label>
+                    <input type="text" id="adm-prod-nome" required placeholder="Ex: Produto Selecionado">
                 </div>
-
                 <div class="form-group">
                     <label for="adm-prod-preco">Preço (R$)</label>
-                    <input type="number" id="adm-prod-preco" step="0.01" min="0.01" required placeholder="99.90">
+                    <input type="number" id="adm-prod-preco" step="0.01" min="0.01" required placeholder="50.00">
                 </div>
-
                 <div class="form-group">
-                    <label for="adm-prod-arquivo">Foto ou GIF</label>
-                    <input type="file" id="adm-prod-arquivo" accept="image/*,.gif" data-action="upload-imagem">
+                    <label for="adm-prod-arquivo">Foto do Produto</label>
+                    <input type="file" id="adm-prod-arquivo" accept="image/*" data-action="upload-imagem">
                     <input type="hidden" id="adm-prod-foto-final">
-
                     <div id="preview-container" class="preview-box hidden">
-                        <img id="img-preview" src="" alt="Pré-visualização">
-                        <button type="button" class="btn btn-danger-outline btn-sm" data-action="remover-foto">
-                            Remover
-                        </button>
+                        <img id="img-preview" src="" alt="Prévia">
+                        <button type="button" class="btn btn-danger-outline btn-sm" data-action="remover-foto">Remover</button>
                     </div>
                 </div>
-
-                <div class="form-group">
-                    <label for="adm-prod-foto-url">Ou link externo (opcional)</label>
-                    <input type="url" id="adm-prod-foto-url" placeholder="https://exemplo.com/foto.jpg">
-                </div>
-
                 <div class="form-group">
                     <label for="adm-prod-visibilidade">Visibilidade</label>
                     <select id="adm-prod-visibilidade">
-                        <option value="publico">Público (visitantes e membros)</option>
-                        <option value="registrado">Membros (apenas registrados)</option>
-                        <option value="adm">Oculto (apenas ADM)</option>
+                        <option value="publico">Público (Todos)</option>
+                        <option value="registrado">Apenas Membros</option>
+                        <option value="adm">Oculto (ADM)</option>
                     </select>
                 </div>
-
-                <button type="submit" class="btn btn-primary btn-block" id="btn-salvar-produto">
-                    Publicar Produto
-                </button>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-salvar-produto">Publicar Item</button>
             </form>
         </div>
     </section>
@@ -267,245 +202,140 @@
     <!-- ─── TELA 5: ESTEIRA DE COMANDAS (ADM) ─── -->
     <section id="view-pedidos-adm" class="view-panel">
         <header class="screen-header">
-            <h2>Fila de Pedidos</h2>
-            <p class="screen-header__desc">Organização de comandas prioridade por horário.</p>
+            <h2>Esteira de Pedidos</h2>
+            <p class="screen-header__desc">Organização e avanço das comandas em tempo real:</p>
         </header>
-
         <div class="pipeline-grid">
             <div class="pipeline-col">
-                <h4>⏳ Análise</h4>
+                <h4>⏳ 1. Pagamento</h4>
                 <div id="pipe-analise"></div>
             </div>
             <div class="pipeline-col">
-                <h4>📦 Solicitados</h4>
+                <h4>👩‍🍳 2. Em Preparação</h4>
                 <div id="pipe-solicitados"></div>
             </div>
             <div class="pipeline-col">
-                <h4>🛵 Em viagem</h4>
-                <div id="pipe-viagem"></div>
+                <div class="pipeline-header-col">
+                    <h4>✅ 3. Pedido Pronto</h4>
+                    <button type="button" class="btn-limpar-coluna" onclick="limparConcluidosAdm()">🧹 Limpar</button>
+                </div>
+                <div id="pipe-concluido"></div>
             </div>
-            <div class="pipeline-col">
-    <div class="pipeline-header-col">
-        <h4>✅ Concluídos</h4>
-        <button type="button" class="btn-limpar-coluna" onclick="limparConcluidosAdm()" title="Limpar comandas concluídas da esteira">🧹 Limpar</button>
-    </div>
-    <div id="pipe-concluido"></div>
-</div>
         </div>
     </section>
 
-    <!-- ─── TELA 6: PAINEL CENTRAL ADMINISTRATIVO ─── -->
+    <!-- ─── TELA 6: PAINEL ADMINISTRATIVO ─── -->
     <section id="view-adm" class="view-panel">
         <header class="screen-header">
-            <h2>Painel Central</h2>
-            <p class="screen-header__desc">Aprovações, usuários, links temporários e relatórios.</p>
+            <h2>Painel Administrativo</h2>
         </header>
 
-        <!-- BARRA SUSPENSA DE NAVEGAÇÃO RÁPIDA: MEMBROS E BLOQUEADOS -->
         <div class="adm-toolbar-flutuante">
-    <button type="button" class="btn-drawer btn-drawer-membros" id="btn-toggle-membros-drawer" onclick="alternarGavetaAdm('membros')">
-        👤 Membros Ativos
-    </button>
-    <button type="button" class="btn-drawer btn-drawer-bloqueados" id="btn-toggle-bloqueados-drawer" onclick="alternarGavetaAdm('bloqueados')">
-        🔒 Bloqueados (<span id="cont-bloqueados-badge">0</span>)
-    </button>
-</div>
+            <button type="button" class="btn-drawer btn-drawer-membros" id="btn-toggle-membros-drawer" onclick="alternarGavetaAdm('membros')">
+                👤 Membros Ativos
+            </button>
+            <button type="button" class="btn-drawer btn-drawer-bloqueados" id="btn-toggle-bloqueados-drawer" onclick="alternarGavetaAdm('bloqueados')">
+                🔒 Bloqueados (<span id="cont-bloqueados-badge">0</span>)
+            </button>
+        </div>
 
-        <!-- Painel Retrátil: Membros Ativos -->
         <div id="drawer-membros" class="gaveta-suspensa hidden">
             <div class="card__head">
-                <h3 class="card__title">👤 Membros Registrados</h3>
+                <h3 class="card__title">Membros Registrados</h3>
                 <button type="button" class="btn btn-ghost btn-sm" onclick="carregarListaMembrosGaveta()">Atualizar</button>
             </div>
-            <div id="adm-membros-gaveta-lista" class="loading-slot">A carregar...</div>
+            <div id="adm-membros-gaveta-lista" class="loading-slot">Carregando...</div>
         </div>
 
-        <!-- Painel Retrátil: Usuários Bloqueados -->
         <div id="drawer-bloqueados" class="gaveta-suspensa hidden">
             <div class="card__head">
-                <h3 class="card__title">🔒 Usuários Bloqueados</h3>
+                <h3 class="card__title">Usuários Bloqueados</h3>
                 <button type="button" class="btn btn-ghost btn-sm" onclick="carregarListaBloqueadosGaveta()">Atualizar</button>
             </div>
-            <div id="adm-bloqueados-gaveta-lista" class="loading-slot">Nenhum bloqueio.</div>
+            <div id="adm-bloqueados-gaveta-lista" class="loading-slot">Nenhum bloqueio registrado.</div>
         </div>
 
-        <!-- Card: Emitir Link de Acesso -->
+        <!-- Emissão de Links Temporários -->
         <div class="card">
-            <h3 class="card__title">Emitir Link de Acesso</h3>
-            <p class="card__desc">Gere um link temporário para liberar acesso provisório.</p>
-
+            <h3 class="card__title">Emitir Link Temporário</h3>
             <div class="row-inline">
-                <select id="select-duracao-link" data-action="mudar-duracao-link" aria-label="Duração">
-                    <option value="10">10 minutos</option>
+                <select id="select-duracao-link" data-action="mudar-duracao-link">
                     <option value="15" selected>15 minutos</option>
                     <option value="30">30 minutos</option>
                     <option value="60">1 hora</option>
-                    <option value="personalizado">Personalizado...</option>
                 </select>
-                <input type="number" id="input-duracao-personalizada" class="hidden input-inline" placeholder="Minutos" min="1" max="10080">
-                <button type="button" class="btn btn-primary" data-action="gerar-link">Gerar</button>
+                <button type="button" class="btn btn-primary" data-action="gerar-link">Gerar Link</button>
             </div>
-
-            <div id="area-link-gerado" class="link-display-box hidden">
-                <label for="campo-link-gerado" class="link-display-box__label">Link gerado</label>
+            <div id="area-link-gerado" class="link-display-box hidden" style="margin-top:10px;">
                 <div class="row-inline">
                     <input type="text" id="campo-link-gerado" readonly>
                     <button type="button" class="btn btn-success" data-action="copiar-link">Copiar</button>
                 </div>
-                <small class="link-display-box__hint">Partilhe com quem deseja autorizar.</small>
             </div>
         </div>
 
-        <!-- Card: Controle de Usabilidade (Kill Switch) -->
-        <div class="card card-modo-acesso" style="border: 2px solid var(--cor-borda); margin-bottom: 18px; padding: 14px; border-radius: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;">
-                    <span>🛡️</span> Usabilidade da Plataforma
-                </h4>
-                <span id="badge-modo-acesso-adm" class="badge badge-membro">LIBERADO (PADRÃO)</span>
-            </div>
-            <p style="font-size: 0.85rem; color: var(--cor-texto-suave); margin: 0 0 12px 0;">
-                Controle o acesso geral ao sistema. Ative o bloqueio para manutenções ou emergências.
-            </p>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button type="button" class="btn btn-danger btn-sm" id="btn-lockdown-adm" 
-                        data-action="alterar-modo-acesso" data-modo="APENAS_ADM">
-                    🔒 Bloquear Acesso (Apenas ADM)
-                </button>
-                <button type="button" class="btn btn-success btn-sm hidden" id="btn-padrao-adm" 
-                        data-action="alterar-modo-acesso" data-modo="PADRAO">
-                    🌐 Liberar Acesso (Padrão)
-                </button>
-            </div>
-        </div>
-
-        <!-- Card: Validação de Cadastros Pendentes -->
+        <!-- Aprovação de Novos Cadastros com Indicação e Idade -->
         <div class="card">
             <div class="card__head">
-                <h3 class="card__title">Validação de Cadastros</h3>
-                <button type="button" class="btn btn-ghost btn-sm" data-action="carregar-painel-adm">
-                    Atualizar
-                </button>
+                <h3 class="card__title">Cadastros Aguardando Aprovação</h3>
+                <button type="button" class="btn btn-ghost btn-sm" data-action="carregar-painel-adm">Atualizar</button>
             </div>
-
-            <div id="adm-lote-toolbar" class="batch-toolbar hidden">
-                <div class="batch-toolbar__left">
-                    <input type="checkbox" id="chk-selecionar-todos-cadastros" data-action="toggle-selecionar-todos">
-                    <label for="chk-selecionar-todos-cadastros">Selecionar todos (<span id="count-selecionados-lote">0</span>)</label>
-                </div>
-                <button type="button" class="btn btn-success btn-sm" id="btn-aprovar-lote" data-action="aprovar-lote">
-                    Aprovar Selecionados
-                </button>
-            </div>
-
-            <div id="adm-solicitacoes-lista" class="loading-slot">A carregar...</div>
+            <div id="adm-solicitacoes-lista" class="loading-slot">Carregando solicitações...</div>
         </div>
 
-        <!-- Card: Métricas de Vendas -->
+        <!-- Métricas de Vendas -->
         <div class="card" id="area-metricas-adm">
             <div class="card__head">
-                <h3 class="card__title">Métricas de Vendas</h3>
-                <button type="button" class="btn btn-outline-dark btn-sm" data-action="exportar-pdf">
-                    📄 Exportar PDF
-                </button>
+                <h3 class="card__title">Fechamento do Dia</h3>
+                <button type="button" class="btn btn-outline-dark btn-sm" data-action="exportar-pdf">📄 PDF</button>
             </div>
             <div class="metrics-summary">
                 <div class="metric-box">
-                    <span>Faturamento</span>
+                    <span>Faturamento do Dia</span>
                     <strong id="metric-faturamento">R$ 0,00</strong>
                 </div>
                 <div class="metric-box">
-                    <span>Pedidos</span>
+                    <span>Total de Pedidos</span>
                     <strong id="metric-pedidos">0</strong>
                 </div>
             </div>
             <div id="tabela-metricas-produtos"></div>
         </div>
-
-        <!-- Card: Mensagens Recebidas (Acordeão Retrátil das últimas 24h) -->
-        <div class="card">
-            <h3 class="card__title">Mensagens Recebidas (Últimas 24h)</h3>
-            <p class="card__desc">Dúvidas de chats de pedidos e mensagens enviadas pelos membros.</p>
-            <div id="adm-comentarios-lista"></div>
-        </div>
     </section>
 
 </main>
 
-<!-- Barra Flutuante de Sacola (Estilo iFood) -->
-<div id="floating-cart-bar" class="floating-cart-bar hidden" role="button" aria-label="Ver sacola de compras">
+<!-- BARRA FLUTUANTE DA SACOLA / CARRINHO -->
+<div id="floating-cart-bar" class="floating-cart-bar hidden" role="button" aria-label="Ver Carrinho">
     <div class="floating-cart-bar__left">
         <span class="floating-cart-bar__count" id="float-cart-count">0 itens</span>
         <span class="floating-cart-bar__total" id="float-cart-total">R$ 0,00</span>
     </div>
     <div class="floating-cart-bar__cta">
-        Ver Sacola ➔
+        Ver Carrinho ➔
     </div>
 </div>
 
-<!-- Botão Flutuante de Ajuda -->
-<button type="button" id="btn-flutuante-ajuda" class="floating-help-btn" data-action="abrir-assistente" aria-label="Atendente Virtual e Ajuda">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-    </svg>
-    <span>Ajuda</span>
-</button>
-
-<!-- Menu Inferior Fixo -->
-<nav class="bottom-nav hidden" id="app-nav-bar" aria-label="Navegação principal">
+<!-- MENU INFERIOR DE NAVEGAÇÃO -->
+<nav class="bottom-nav hidden" id="app-nav-bar">
     <button type="button" class="bottom-nav__item active" id="tab-btn-vitrine" data-action="navegar" data-view="vitrine" data-roles="visitante,membro,entregador,adm">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-        </svg>
-        <span>Vitrine</span>
+        <span>🛒 Catálogo</span>
     </button>
-
     <button type="button" class="bottom-nav__item hidden" id="tab-btn-carrinho" data-action="navegar" data-view="carrinho" data-roles="membro">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="9" cy="21" r="1"></circle>
-            <circle cx="20" cy="21" r="1"></circle>
-            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-        </svg>
-        <span>Cesta</span>
+        <span>🛍️ Carrinho</span>
         <span id="cart-counter" class="bottom-nav__badge">0</span>
     </button>
-
-    <button type="button" class="bottom-nav__item hidden" id="tab-btn-meus-pedidos" data-action="navegar" data-view="meus-pedidos" data-roles="membro,entregador">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="16" y1="13" x2="8" y2="13"></line>
-            <line x1="16" y1="17" x2="8" y2="17"></line>
-        </svg>
-        <span>Pedidos</span>
+    <button type="button" class="bottom-nav__item hidden" id="tab-btn-meus-pedidos" data-action="navegar" data-view="meus-pedidos" data-roles="membro">
+        <span>📦 Meus Pedidos</span>
     </button>
-
     <button type="button" class="bottom-nav__item hidden" id="tab-btn-novo-produto" data-action="navegar" data-view="novo-produto" data-roles="adm">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        <span>Produto</span>
+        <span>➕ Produto</span>
     </button>
-
-    <button type="button" class="bottom-nav__item hidden" id="tab-btn-pedidos-adm" data-action="navegar" data-view="pedidos-adm" data-roles="adm,entregador">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7"></rect>
-            <rect x="14" y="3" width="7" height="7"></rect>
-            <rect x="14" y="14" width="7" height="7"></rect>
-            <rect x="3" y="14" width="7" height="7"></rect>
-        </svg>
-        <span>Esteira</span>
+    <button type="button" class="bottom-nav__item hidden" id="tab-btn-pedidos-adm" data-action="navegar" data-view="pedidos-adm" data-roles="adm">
+        <span>📋 Esteira</span>
     </button>
-
     <button type="button" class="bottom-nav__item hidden" id="tab-btn-adm" data-action="navegar" data-view="adm" data-roles="adm">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 20V10"></path>
-            <path d="M18 20V4"></path>
-            <path d="M6 20v-4"></path>
-        </svg>
-        <span>Painel</span>
+        <span>⚙️ Painel</span>
     </button>
 </nav>
 
@@ -513,193 +343,127 @@
      MODAIS DA APLICAÇÃO
      ═══════════════════════════════════════════════════════════ -->
 
-<!-- Modal de Login -->
-<div id="modal-login" class="modal-overlay" role="dialog" aria-modal="true">
+<!-- MODAL: INSTRUÇÕES DE USO + FORMULÁRIO DE CADASTRO COMPLETO -->
+<div id="modal-instrucoes-cadastro" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <button type="button" class="btn-close" data-action="fechar-modal" data-modal="modal-login" aria-label="Fechar">&times;</button>
+        <button type="button" class="btn-close" data-action="fechar-modal" data-modal="modal-instrucoes-cadastro">&times;</button>
         <div class="modal-body">
-            <h3>Acessar Conta</h3>
-            <p class="modal-subtitle">Entre com seu número de WhatsApp e senha cadastrada.</p>
-            <form id="form-login" data-action="login">
-                <div class="form-group">
-                    <label for="login-usuario">Telefone WhatsApp</label>
-                    <input type="text" id="login-usuario" required placeholder="Ex: (00) 00000-0000">
-                </div>
-                <div class="form-group">
-                    <label for="login-senha">Senha</label>
-                    <input type="password" id="login-senha" required placeholder="Sua senha">
-                </div>
-                <button type="submit" class="btn btn-primary btn-block" id="btn-entrar">
-                    Entrar
-                </button>
-            </form>
-
-            <div id="box-desbloqueio-conta" class="alert-danger hidden">
-                <p>Conta suspensa preventivamente. Solicite liberação:</p>
-                <button type="button" class="btn btn-danger-outline btn-block" data-action="pedir-desbloqueio" id="btn-solicitar-desbloqueio">
-                    Pedir Liberação
-                </button>
+            <h3>Instruções para Uso da Plataforma</h3>
+            
+            <div style="background:var(--cor-fundo-elevado);border:1px solid var(--cor-borda);padding:12px;border-radius:8px;margin:10px 0 16px;font-size:0.85rem;line-height:1.5;color:var(--cor-texto-suave);">
+                <strong style="color:var(--cor-primaria);display:block;margin-bottom:6px;">Como funciona o seu acesso:</strong>
+                1. Preencha seus dados reais e a indicação no formulário abaixo.<br>
+                2. A administração analisará as informações enviadas.<br>
+                3. Você receberá uma <strong>mensagem no WhatsApp</strong> confirmando sua aprovação.<br>
+                4. Assim que aprovado, faça login para ter acesso a todos os produtos disponíveis!
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal de Solicitação de Cadastro com Termos LGPD Formatados -->
-<div id="modal-cadastro" class="modal-overlay" role="dialog" aria-modal="true">
-    <div class="modal-dialog">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <button type="button" class="btn-close" data-action="fechar-modal" data-modal="modal-cadastro" aria-label="Fechar">&times;</button>
-        <div class="modal-body">
-            <h3>Criar Conta</h3>
-            <p class="modal-subtitle">Preencha os dados abaixo para validação</p>
 
             <form id="form-registro" data-action="enviar-cadastro">
                 <div class="form-group">
-                    <label for="cad-nome">Nome ou apelido</label>
-                    <input type="text" id="cad-nome" required placeholder="Ex: Maria Silva">
-                </div>
-                <div class="form-group">
-                    <label for="cad-telefone">WhatsApp com DDD</label>
-                    <input type="tel" id="cad-telefone" required placeholder="(00) 00000-0000" maxlength="15">
-                </div>
-                <div class="form-group">
-                    <label for="cad-senha">Senha (mínimo 6 caracteres)</label>
-                    <input type="password" id="cad-senha" required minlength="6" placeholder="******">
-                </div>
-                <div class="form-group">
-                    <label for="cad-senha-conf">Confirmar senha</label>
-                    <input type="password" id="cad-senha-conf" required minlength="6" placeholder="******">
-                </div>
-                <div class="form-group">
-                    <label for="cad-twitter">Twitter(X) (opcional)</label>
-                    <input type="text" id="cad-twitter" placeholder="@usuario">
-                </div>
-                <div class="form-group">
-                    <label for="cad-telegram">Telegram (opcional)</label>
-                    <input type="text" id="cad-telegram" placeholder="@usuario">
+                    <label for="cad-nome">Seu Nome Completo</label>
+                    <input type="text" id="cad-nome" required placeholder="Digite seu nome completo">
                 </div>
 
-                <!-- Termos de Privacidade e Tratamento de Dados (Formatado) -->
-                <div class="terms-container" style="background:var(--cor-fundo-elevado);padding:12px;border-radius:8px;border:1px solid var(--cor-borda);margin-bottom:14px;">
+                <div class="form-group">
+                    <label for="cad-telefone">Seu Número de WhatsApp (com DDD)</label>
+                    <input type="tel" id="cad-telefone" required placeholder="Ex: (74) 99804-8300" maxlength="15">
+                </div>
+
+                <div class="form-group">
+                    <label for="cad-idade">Sua Idade</label>
+                    <input type="number" id="cad-idade" required min="18" max="120" placeholder="Ex: 25">
+                </div>
+
+                <div class="form-group">
+                    <label for="cad-indicado-nome">Nome de quem indicou a plataforma</label>
+                    <input type="text" id="cad-indicado-nome" required placeholder="Nome do membro que indicou">
+                </div>
+
+                <div class="form-group">
+                    <label for="cad-indicado-telefone">Número de WhatsApp de quem indicou</label>
+                    <input type="tel" id="cad-indicado-telefone" required placeholder="Ex: (74) 99999-9999" maxlength="15">
+                </div>
+
+                <div class="form-group">
+                    <label for="cad-senha">Crie sua Senha de Acesso</label>
+                    <input type="password" id="cad-senha" required minlength="6" placeholder="Mínimo 6 dígitos">
+                </div>
+
+                <div class="form-group">
+                    <label for="cad-senha-conf">Confirme sua Senha</label>
+                    <input type="password" id="cad-senha-conf" required minlength="6" placeholder="Repita a senha">
+                </div>
+
+                <!-- POLÍTICA DE PRIVACIDADE E ISENÇÃO DE RESPONSABILIDADE -->
+                <div style="background:var(--cor-fundo-elevado);border:1px solid var(--cor-borda);padding:10px;border-radius:6px;margin:14px 0;">
                     <div style="display:flex;align-items:flex-start;gap:8px;">
                         <input type="checkbox" id="cad-termos" required style="margin-top:3px;">
                         <label for="cad-termos" style="font-size:0.75rem;line-height:1.45;color:var(--cor-texto-suave);">
-                            Concordo com os <strong>Termos e Política de Privacidade</strong> da plataforma:
-                            <ul style="margin:6px 0 0 16px;padding:0;list-style-type:disc;">
-                                <li><strong>Dados Coletados:</strong> Nome, Numero (WhatsApp) e redes sociais opcionais.</li>
-                                <li><strong>Finalidade:</strong> Acesso à vitrine exclusiva, processamento de pedidos e suporte direto.</li>
-                                <li><strong>Sigilo e Proteção:</strong> Suas informações são confidenciais e nunca serão comercializadas com terceiros.</li>
-                                <li><strong>Exclusão:</strong> Você pode solicitar a remoção permanente de todos os seus dados a qualquer momento falando com o suporte.</li>
-                            </ul>
+                            Declaro que sou responsável pela autenticidade e veracidade de todas as informações prestadas neste formulário. Concordo expressamente com os <strong>Termos de Uso e Política de Privacidade</strong> da plataforma, reconhecendo que a administração é <strong>isenta de qualquer responsabilidade</strong> civil ou criminal pelos dados inseridos pelos usuários.
                         </label>
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-block" id="btn-enviar-cadastro">
-                    Enviar Solicitação
+                <button type="submit" class="btn btn-primary btn-block" id="btn-enviar-cadastro" style="padding:14px;font-size:0.95rem;">
+                    Enviar Cadastro para Aprovação
                 </button>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Modal de Chat do Pedido -->
-<div id="modal-chat" class="modal-overlay" role="dialog" aria-modal="true">
-    <div class="modal-dialog">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <button type="button" class="btn-close" data-action="fechar-modal" data-modal="modal-chat" aria-label="Fechar">&times;</button>
+<!-- MODAL: LOGIN -->
+<div id="modal-login" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-dialog modal-sm">
+        <button type="button" class="btn-close" data-action="fechar-modal" data-modal="modal-login">&times;</button>
         <div class="modal-body">
-            <h3>Chat do Pedido <span id="chat-pedido-id" class="chat-id"></span></h3>
-            <p class="modal-subtitle">Canal temporário direto com o suporte e entrega.</p>
-            <div id="chat-mensagens" class="chat-wrapper" aria-live="polite"></div>
-            <div class="chat-input-row">
-                <input type="text" id="chat-input" placeholder="Escreva uma mensagem..." maxlength="300">
-                <button type="button" class="btn btn-primary" id="btn-chat-enviar" data-action="enviar-chat">
-                    Enviar
+            <h3>Entrar na Conta</h3>
+            <p class="modal-subtitle">Informe seu WhatsApp e senha cadastrada:</p>
+            <form id="form-login" data-action="login">
+                <div class="form-group">
+                    <label for="login-usuario">Seu WhatsApp</label>
+                    <input type="text" id="login-usuario" required placeholder="Ex: 74998048300">
+                </div>
+                <div class="form-group">
+                    <label for="login-senha">Sua Senha</label>
+                    <input type="password" id="login-senha" required placeholder="Sua senha">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-entrar" style="padding:12px;">
+                    Acessar Catálogo
                 </button>
-            </div>
+            </form>
         </div>
     </div>
 </div>
 
-<!-- Central de Ajuda & FAQ -->
-<div id="modal-duvidas-central" class="modal-overlay" role="dialog" aria-modal="true">
-    <div class="modal-dialog">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <button type="button" class="btn-close" data-action="fechar-modal" data-modal="modal-duvidas-central" aria-label="Fechar">&times;</button>
-        <div class="modal-body">
-            <h3>Central de Ajuda</h3>
-            <p class="modal-subtitle">Dúvidas frequentes</p>
-
-            <div class="faq-container">
-                <h4 class="faq-header-title">Perguntas Frequentes</h4>
-                <div id="lista-faq-perguntas" class="faq-list"></div>
-            </div>
-
-            <div class="sugestao-box-sutil">
-                <h4>Enviar Mensagem ou Sugestão</h4>
-                <p>Deseja relatar algo ou sugerir um produto?</p>
-                <form id="form-sugestao" data-action="enviar-sugestao">
-                    <div class="form-group">
-                        <textarea id="campo-sugestao-texto" rows="3" placeholder="Escreva sua mensagem com clareza..." maxlength="500" required></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-outline-dark btn-sm">Enviar</button>
-                </form>
-            </div>
-
-            <div id="adm-editor-faq-area" class="adm-faq-editor hidden">
-                <hr class="adm-editor-hr">
-                <h4>Gerenciar Perguntas (ADM)</h4>
-                <form id="form-novo-faq" data-action="adicionar-faq">
-                    <div class="form-group">
-                        <input type="text" id="faq-nova-pergunta" placeholder="Pergunta..." required>
-                    </div>
-                    <div class="form-group">
-                        <textarea id="faq-nova-resposta" rows="2" placeholder="Resposta..." required></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-sm">Salvar no FAQ</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal de Confirmação Genérico -->
+<!-- MODAL: CONFIRMAÇÃO DE EXCLUSÃO (CARRINHO E COMANDAS) -->
 <div id="modal-confirmar" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-dialog modal-sm">
-        <div class="sheet-handle" aria-hidden="true"></div>
         <div class="modal-body">
-            <h3 id="confirmar-titulo">Confirmar</h3>
-            <div id="confirmar-mensagem">Tem certeza?</div>
-            <div class="modal-actions">
-                <button type="button" class="btn btn-ghost" data-action="fechar-confirmacao">
-                    Cancelar
-                </button>
-                <button type="button" class="btn btn-danger" id="confirmar-btn-ok">
-                    Confirmar
-                </button>
+            <h3 id="confirmar-titulo">Confirmar Remoção</h3>
+            <div id="confirmar-mensagem" style="font-size:0.85rem;margin:10px 0 16px;color:var(--cor-texto-suave);">Tem certeza?</div>
+            <div class="modal-actions" style="display:flex;gap:8px;">
+                <button type="button" class="btn btn-ghost btn-block" data-action="fechar-confirmacao">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-block" id="confirmar-btn-ok">Sim, Remover</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal Lightbox (Visualizador de Imagem) -->
-<div id="modal-lightbox" class="lightbox-modal" role="dialog" aria-modal="true" aria-label="Visualizador de imagem">
-    <button type="button" class="lightbox-modal__close" id="lightbox-fechar" aria-label="Fechar imagem">&times;</button>
-    <img class="lightbox-modal__img" id="lightbox-img" src="" alt="Imagem ampliada do produto">
+<!-- MODAL: LIGHTBOX DE FOTO -->
+<div id="modal-lightbox" class="lightbox-modal">
+    <button type="button" class="lightbox-modal__close" id="lightbox-fechar">&times;</button>
+    <img class="lightbox-modal__img" id="lightbox-img" src="" alt="Ampliação">
 </div>
 
-<!-- Loader Overlay -->
-<div id="loader-overlay" class="loader-overlay hidden" role="status" aria-live="polite">
+<div id="loader-overlay" class="loader-overlay hidden">
     <div class="spinner"></div>
-    <span id="loader-text">A carregar...</span>
+    <span id="loader-text">Carregando...</span>
 </div>
 
-<!-- Container de Notificações Toast -->
-<div id="toast-container" class="toast-wrapper" aria-live="polite"></div>
+<div id="toast-container" class="toast-wrapper"></div>
 
-<!-- Carregamento direto em texto limpo com versionamento para forçar descarte de cache -->
-<script src="app.min.js?v=2"></script>
+<script src="app.js?v=3"></script>
+<script src="bindings.js?v=3"></script>
 </body>
 </html>
