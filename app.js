@@ -1,5 +1,5 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v26 — Versão Completa & Consolidada)
+   app.js — Plataforma Comercial Segura (v28 — Versão Integral & Consolidada)
    ============================================================================ */
 
 // URL OFICIAL DA SUA API NO VERCEL:
@@ -38,17 +38,33 @@ const FINGERPRINT = gerarFingerprint();
 /* ─── INÍCIO: ativarBlindagemDevTools ────────────────────────── */
 function ativarBlindagemDevTools() {
     document.addEventListener('contextmenu', e => e.preventDefault());
+    
     document.addEventListener('keydown', e => {
         if (
             e.key === 'F12' ||
+            e.key === 'PrintScreen' ||
             (e.ctrlKey && e.shiftKey && ['I', 'i', 'J', 'j', 'C', 'c'].includes(e.key)) ||
-            (e.ctrlKey && ['U', 'u'].includes(e.key)) ||
+            (e.ctrlKey && ['U', 'u', 'S', 's', 'P', 'p'].includes(e.key)) ||
             (e.metaKey && e.altKey && ['I', 'i', 'J', 'j', 'C', 'c'].includes(e.key))
         ) {
             e.preventDefault();
             e.stopPropagation();
+            if (e.key === 'PrintScreen') {
+                try { navigator.clipboard.writeText(''); } catch (err) {}
+                exibirToast("Captura de tela bloqueada nesta plataforma.", "error");
+            }
             return false;
         }
+    });
+
+    window.addEventListener('blur', () => {
+        const cortina = document.getElementById('cortina-privacidade');
+        if (cortina) cortina.classList.remove('hidden');
+    });
+
+    window.addEventListener('focus', () => {
+        const cortina = document.getElementById('cortina-privacidade');
+        if (cortina) cortina.classList.add('hidden');
     });
 }
 /* ─── FIM: ativarBlindagemDevTools ──────────────────────────── */
@@ -288,22 +304,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 /* ─── INÍCIO: assegurarElementosAuxiliares ────────────────────── */
 function assegurarElementosAuxiliares() {
-    if (!document.getElementById('btn-flutuante-ajuda')) {
-        const fab = document.createElement('button');
-        fab.type = 'button';
-        fab.id = 'btn-flutuante-ajuda';
-        fab.className = 'floating-help-btn';
-        fab.setAttribute('data-action', 'abrir-assistente');
-        fab.setAttribute('aria-label', 'Atendente Virtual e Ajuda');
-        fab.innerHTML = `
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-            <span>Ajuda</span>
-        `;
-        document.body.appendChild(fab);
-    }
-
     if (!document.getElementById('modal-lightbox')) {
         const lb = document.createElement('div');
         lb.id = 'modal-lightbox';
@@ -343,7 +343,7 @@ async function verificarTokenUrl() {
     try {
         const url = `${URL_BACKEND_APPS_SCRIPT}?acao=validar_link&tokenAcesso=${encodeURIComponent(tokenAcesso)}`;
         const resp = await fetchComTimeout(url, 15000);
-        const res  = await resp.json();
+        const res = await resp.json();
 
         if (res.valido) {
             _linkAutorizadoValido = true;
@@ -485,7 +485,7 @@ async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = tru
             return { sucesso: false, erroTransitorio: true, mensagem: "Servidor ocupado. Aguarde um instante..." };
         }
 
-        // BLOQUEIO DE MANUTENÇÃO AMIGÁVEL
+        // Bloqueio de manutenção amigável
         if (!json.sucesso && json.codigo === 'SISTEMA_BLOQUEADO') {
             if (estadoSessao.papel === 'adm') {
                 return json;
@@ -667,7 +667,7 @@ function fecharLightbox() {
 /* ─── FIM: fecharLightbox ─────────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   7. VITRINE, CHIPS, COMPRA RÁPIDA E BARRA FLUTUANTE
+   7. VITRINE & SELETOR DE QUANTIDADE (+ / -)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: sincronizarProdutosServidor ────────────────────── */
@@ -685,7 +685,8 @@ async function sincronizarProdutosServidor() {
         const resultado = await resposta.json();
         if (resultado.sucesso && Array.isArray(resultado.produtos)) {
             catalogoProdutos = resultado.produtos;
-            aplicarFiltroVitrine();
+            catalogoFiltrado = resultado.produtos;
+            renderizarVitrine();
             CacheLoja.salvar('produtos_' + estadoSessao.papel, catalogoProdutos);
         }
     } catch (erro) {
@@ -694,118 +695,60 @@ async function sincronizarProdutosServidor() {
 }
 /* ─── FIM: sincronizarProdutosServidor ───────────────────────── */
 
-/* ─── INÍCIO: selecionarCategoriaChip ───────────────────────── */
-function selecionarCategoriaChip(categoria, elementoChip) {
-    categoriaAtiva = categoria || "todos";
-
-    document.querySelectorAll('.chip').forEach(c => {
-        c.classList.remove('active');
-        c.setAttribute('aria-selected', 'false');
-    });
-
-    if (elementoChip) {
-        elementoChip.classList.add('active');
-        elementoChip.setAttribute('aria-selected', 'true');
-    }
-
-    aplicarFiltroVitrine();
-}
-/* ─── FIM: selecionarCategoriaChip ───────────────────────────── */
-
-/* ─── INÍCIO: aplicarFiltroVitrine ──────────────────────────── */
-function aplicarFiltroVitrine(termoManual = null) {
-    const inputFiltro = document.getElementById('filtro-produtos');
-    const termo = (termoManual !== null ? termoManual : (inputFiltro ? inputFiltro.value : '')).trim().toLowerCase();
-
-    let resultado = catalogoProdutos;
-
-    if (termo) {
-        resultado = resultado.filter(p => String(p.nome || '').toLowerCase().includes(termo));
-    }
-
-    if (categoriaAtiva === 'mais-vendidos') {
-        resultado = resultado.filter((p, index) => {
-            const nomeMinusculo = String(p.nome || '').toLowerCase();
-            return p.categoria === 'mais-vendidos' || p.maisVendido === true || nomeMinusculo.includes('mais') || (index % 2 === 0);
-        });
-    } else if (categoriaAtiva === 'destaque') {
-        resultado = resultado.filter((p, index) => {
-            const nomeMinusculo = String(p.nome || '').toLowerCase();
-            return p.categoria === 'destaque' || p.destaque === true || nomeMinusculo.includes('destaque') || (index % 2 !== 0);
-        });
-    }
-
-    catalogoFiltrado = resultado;
-    renderizarVitrine();
-}
-/* ─── FIM: aplicarFiltroVitrine ─────────────────────────────── */
-
 /* ─── INÍCIO: renderizarVitrine ──────────────────────────────── */
 function renderizarVitrine() {
     const grid = document.getElementById('produtos-container');
     if (!grid) return;
     grid.innerHTML = '';
 
-    if (!catalogoFiltrado || catalogoFiltrado.length === 0) {
-        const termo = document.getElementById('filtro-produtos')?.value.trim();
-        grid.innerHTML = `
-            <div class="empty-state">
-                <strong>${termo ? 'Nenhum produto encontrado' : 'Vitrine vazia'}</strong>
-                ${termo ? `Nada corresponde a "${escaparHtml(termo)}".` : 'Aguarde novos produtos da administração.'}
-            </div>`;
+    if (!catalogoProdutos || catalogoProdutos.length === 0) {
+        grid.innerHTML = `<div class="empty-state"><strong>Nenhum produto disponível no momento.</strong></div>`;
         return;
     }
 
-    catalogoFiltrado.forEach(p => {
+    catalogoProdutos.forEach(p => {
         const card = document.createElement('div');
         card.className = 'product-card';
 
-        const img = document.createElement('img');
-        img.className = 'product-thumb';
-        img.src = p.foto || 'https://via.placeholder.com/300x200?text=Sem+Foto';
-        img.alt = p.nome || 'Produto';
-        img.loading = 'lazy';
-        img.title = 'Toque duas vezes para ampliar a foto';
+        const itemNaCesta = cestaCompras.find(i => String(i.id) === String(p.id));
+        const quantidadeAtual = itemNaCesta ? itemNaCesta.quantidade : 0;
 
-        const body = document.createElement('div');
-        body.className = 'product-details';
+        card.innerHTML = `
+            <img class="product-thumb" src="${p.foto || 'https://via.placeholder.com/300x200?text=Sem+Foto'}" alt="${escaparHtml(p.nome)}" loading="lazy">
+            <div class="product-details">
+                <h3 class="product-name">${escaparHtml(p.nome)}</h3>
+                <p class="product-price">${fmtPreco(p.preco)}</p>
+            </div>
+        `;
 
-        const t = document.createElement('h3');
-        t.className = 'product-name';
-        t.textContent = p.nome || 'Sem nome';
+        const body = card.querySelector('.product-details');
 
-        const pr = document.createElement('p');
-        pr.className = 'product-price';
-        pr.textContent = fmtPreco(p.preco);
+        if (estadoSessao.papel === 'membro') {
+            const controleQtd = document.createElement('div');
+            controleQtd.className = 'card-qty-control';
 
-        body.append(t, pr);
+            const btnMenos = document.createElement('button');
+            btnMenos.type = 'button';
+            btnMenos.className = 'btn-qty';
+            btnMenos.textContent = '-';
+            btnMenos.onclick = () => alterarQuantidadeProdutoCard(p, -1);
 
-        if (estadoSessao.papel === 'membro' || estadoSessao.papel === 'entregador') {
-            const grupoAcoes = document.createElement('div');
-            grupoAcoes.className = 'card-actions-group';
+            const displayQtd = document.createElement('span');
+            displayQtd.className = 'qty-display';
+            displayQtd.id = `qty-card-${p.id}`;
+            displayQtd.textContent = quantidadeAtual;
 
-            const btnComprar = document.createElement('button');
-            btnComprar.type = 'button';
-            btnComprar.className = 'btn btn-comprar-agora btn-block btn-sm';
-            btnComprar.textContent = '✨ Comprar Agora';
-            btnComprar.onclick = () => comprarProdutoDireto(p.id);
+            const btnMais = document.createElement('button');
+            btnMais.type = 'button';
+            btnMais.className = 'btn-qty';
+            btnMais.textContent = '+';
+            btnMais.onclick = () => alterarQuantidadeProdutoCard(p, 1);
 
-            const btnCesta = document.createElement('button');
-            btnCesta.type = 'button';
-            btnCesta.className = 'btn btn-primary btn-block btn-sm';
-            btnCesta.textContent = '+ Cesta';
-            btnCesta.onclick = (e) => adicionarAoCarrinho(p, e.currentTarget);
-
-            grupoAcoes.append(btnComprar, btnCesta);
-            body.appendChild(grupoAcoes);
+            controleQtd.append(btnMenos, displayQtd, btnMais);
+            body.appendChild(controleQtd);
         } else if (estadoSessao.papel === 'adm') {
             const painelAdm = document.createElement('div');
             painelAdm.className = 'adm-visib-controls';
-
-            const tag = document.createElement('span');
-            tag.style.fontWeight = 'bold';
-            tag.style.color = p.visibilidade === 'adm' ? '#dc2626' : (p.visibilidade === 'registrado' ? '#2563eb' : '#16a34a');
-            tag.textContent = `[${String(p.visibilidade).toUpperCase()}]`;
 
             const selectVisib = document.createElement('select');
             selectVisib.innerHTML = `
@@ -815,7 +758,7 @@ function renderizarVitrine() {
             `;
             selectVisib.onchange = () => alterarVisibilidadeProdutoAdm(p.id, selectVisib.value);
 
-            painelAdm.append(tag, selectVisib);
+            painelAdm.appendChild(selectVisib);
             body.appendChild(painelAdm);
 
             const btnExcluir = document.createElement('button');
@@ -827,79 +770,42 @@ function renderizarVitrine() {
         } else {
             const aviso = document.createElement('small');
             aviso.className = 'visitor-note';
-            aviso.textContent = 'Cadastre-se ou entre para comprar.';
+            aviso.textContent = 'Aprovados podem adicionar itens.';
             body.appendChild(aviso);
         }
 
-        card.append(img, body);
         grid.appendChild(card);
     });
 }
 /* ─── FIM: renderizarVitrine ─────────────────────────────────── */
 
-/* ─── INÍCIO: comprarProdutoDireto ───────────────────────────── */
-function comprarProdutoDireto(idProduto) {
-    const prod = catalogoProdutos.find(p => String(p.id) === String(idProduto));
-    if (!prod) return;
+/* ─── INÍCIO: alterarQuantidadeProdutoCard ───────────────────── */
+function alterarQuantidadeProdutoCard(produto, delta) {
+    const item = cestaCompras.find(i => String(i.id) === String(produto.id));
 
-    cestaCompras = [{
-        id: prod.id,
-        nome: prod.nome,
-        preco: typeof prod.preco === 'number' ? prod.preco : parseFloat(String(prod.preco).replace(',', '.')),
-        quantidade: 1
-    }];
-
-    atualizarBadgeCarrinho(1);
-    atualizarBarraFlutuanteSacola();
-    navegarPara('carrinho');
-}
-/* ─── FIM: comprarProdutoDireto ───────────────────────────────── */
-
-/* ─── INÍCIO: adicionarAoCarrinho ────────────────────────────── */
-function adicionarAoCarrinho(produto, btnElemento = null) {
-    const itemExistente = cestaCompras.find(item => item.id === produto.id);
-    if (itemExistente) {
-        itemExistente.quantidade += 1;
-    } else {
+    if (item) {
+        item.quantidade += delta;
+        if (item.quantidade <= 0) {
+            cestaCompras = cestaCompras.filter(i => String(i.id) !== String(produto.id));
+        }
+    } else if (delta > 0) {
         cestaCompras.push({
             id: produto.id,
             nome: produto.nome,
-            preco: typeof produto.preco === 'number'
-                ? produto.preco
-                : parseFloat(String(produto.preco).replace(',', '.')),
+            preco: Number(produto.preco),
             quantidade: 1
         });
     }
 
+    const display = document.getElementById(`qty-card-${produto.id}`);
+    const itemAtualizado = cestaCompras.find(i => String(i.id) === String(produto.id));
+    if (display) display.textContent = itemAtualizado ? itemAtualizado.quantidade : 0;
+
     const totalItens = cestaCompras.reduce((acc, i) => acc + i.quantidade, 0);
     atualizarBadgeCarrinho(totalItens);
     atualizarBarraFlutuanteSacola();
-
-    if (btnElemento) {
-        const textoOriginal = btnElemento.textContent;
-        btnElemento.textContent = '✓ Salvo';
-        btnElemento.classList.add('btn-adicionado');
-        btnElemento.disabled = true;
-
-        setTimeout(() => {
-            btnElemento.textContent = textoOriginal;
-            btnElemento.classList.remove('btn-adicionado');
-            btnElemento.disabled = false;
-        }, 1100);
-    } else {
-        exibirToast(`${produto.nome} adicionado à cesta.`, "info");
-    }
-
-    ['cart-counter', 'header-cart-count'].forEach(idBadge => {
-        const badge = document.getElementById(idBadge);
-        if (badge) {
-            badge.classList.remove('badge-bounce');
-            void badge.offsetWidth;
-            badge.classList.add('badge-bounce');
-        }
-    });
 }
-/* ─── FIM: adicionarAoCarrinho ───────────────────────────────── */
+/* ─── FIM: alterarQuantidadeProdutoCard ───────────────────────── */
 
 /* ─── INÍCIO: atualizarBarraFlutuanteSacola ──────────────────── */
 function atualizarBarraFlutuanteSacola() {
@@ -912,13 +818,14 @@ function atualizarBarraFlutuanteSacola() {
             bar = document.createElement('div');
             bar.id = 'floating-cart-bar';
             bar.className = 'floating-cart-bar';
+            bar.onclick = () => navegarPara('carrinho');
             bar.innerHTML = `
                 <div class="floating-cart-bar__left">
                     <span class="floating-cart-bar__count" id="float-cart-count">0 itens</span>
                     <span class="floating-cart-bar__total" id="float-cart-total">R$ 0,00</span>
                 </div>
                 <div class="floating-cart-bar__cta">
-                    Ver Sacola ➔
+                    Ver Carrinho ➔
                 </div>
             `;
             document.body.appendChild(bar);
@@ -942,10 +849,7 @@ function renderizarCarrinho() {
     let valorTotal = 0;
 
     if (cestaCompras.length === 0) {
-        lista.innerHTML = `<div class="empty-state">
-            <strong>Sua cesta está vazia</strong>
-            Adicione itens da vitrine.
-        </div>`;
+        lista.innerHTML = `<div class="empty-state"><strong>Seu carrinho está vazio.</strong>Adicione itens pelo catálogo.</div>`;
         const totalEl = document.getElementById('carrinho-total-valor');
         if (totalEl) totalEl.textContent = 'R$ 0,00';
         atualizarBadgeCarrinho(0);
@@ -957,53 +861,66 @@ function renderizarCarrinho() {
         const subtotal = item.preco * item.quantidade;
         valorTotal += subtotal;
 
-        const linha = document.createElement('div');
-        linha.className = 'cart-item-row';
+        const cardItem = document.createElement('div');
+        cardItem.className = 'cart-item-clean';
 
-        const descricao = document.createElement('span');
-        descricao.textContent = item.nome;
-        descricao.style.flex = '1';
-        descricao.style.minWidth = '0';
-        descricao.style.overflow = 'hidden';
-        descricao.style.textOverflow = 'ellipsis';
-        descricao.style.whiteSpace = 'nowrap';
-
-        const campoQuantidade = document.createElement('input');
-        campoQuantidade.type = 'number';
-        campoQuantidade.min = 1;
-        campoQuantidade.value = item.quantidade;
-        campoQuantidade.style.cssText = 'width:56px;padding:4px 6px;text-align:center;';
-        campoQuantidade.onchange = () => {
-            item.quantidade = Math.max(1, Number(campoQuantidade.value) || 1);
-            renderizarCarrinho();
-        };
-
-        const precoTexto = document.createElement('strong');
-        precoTexto.textContent = fmtPreco(subtotal);
-        precoTexto.style.minWidth = '70px';
-        precoTexto.style.textAlign = 'right';
-
-        const botaoRemover = document.createElement('button');
-        botaoRemover.className = 'btn btn-danger-outline btn-sm';
-        botaoRemover.textContent = '✕';
-        botaoRemover.title = 'Remover item';
-        botaoRemover.onclick = () => {
-            cestaCompras = cestaCompras.filter(el => el.id !== item.id);
-            renderizarCarrinho();
-        };
-
-        linha.append(descricao, campoQuantidade, precoTexto, botaoRemover);
-        lista.appendChild(linha);
+        cardItem.innerHTML = `
+            <div style="flex:1;">
+                <strong>${escaparHtml(item.nome)}</strong>
+                <div style="color:var(--cor-texto-suave);font-size:0.8rem;">Unitário: ${fmtPreco(item.preco)}</div>
+                <strong style="color:var(--cor-sucesso-escura);">${fmtPreco(subtotal)}</strong>
+            </div>
+            
+            <div style="display:flex;align-items:center;">
+                <div class="card-qty-control" style="margin:0;">
+                    <button type="button" class="btn-qty" onclick="modificarQtdCarrinho('${item.id}', -1)">-</button>
+                    <span class="qty-display">${item.quantidade}</span>
+                    <button type="button" class="btn-qty" onclick="modificarQtdCarrinho('${item.id}', 1)">+</button>
+                </div>
+                <button type="button" class="btn-lixeira" title="Remover item" onclick="solicitarRemocaoItemCarrinho('${item.id}', '${escaparHtml(item.nome)}')">
+                    🗑️
+                </button>
+            </div>
+        `;
+        lista.appendChild(cardItem);
     });
 
     const totalEl = document.getElementById('carrinho-total-valor');
     if (totalEl) totalEl.textContent = fmtPreco(valorTotal);
-
-    const totalItens = cestaCompras.reduce((acc, i) => acc + i.quantidade, 0);
-    atualizarBadgeCarrinho(totalItens);
-    atualizarBarraFlutuanteSacola();
 }
 /* ─── FIM: renderizarCarrinho ─────────────────────────────────── */
+
+/* ─── INÍCIO: modificarQtdCarrinho ───────────────────────────── */
+function modificarQtdCarrinho(idProduto, delta) {
+    const item = cestaCompras.find(i => String(i.id) === String(idProduto));
+    if (!item) return;
+
+    if (item.quantidade + delta <= 0) {
+        solicitarRemocaoItemCarrinho(item.id, item.nome);
+    } else {
+        item.quantidade += delta;
+        renderizarCarrinho();
+        renderizarVitrine();
+        atualizarBarraFlutuanteSacola();
+    }
+}
+/* ─── FIM: modificarQtdCarrinho ───────────────────────────────── */
+
+/* ─── INÍCIO: solicitarRemocaoItemCarrinho ───────────────────── */
+function solicitarRemocaoItemCarrinho(idProduto, nomeProduto) {
+    abrirConfirmacao(
+        "Remover do Carrinho",
+        `Deseja realmente retirar "${nomeProduto}" do seu pedido?`,
+        () => {
+            cestaCompras = cestaCompras.filter(i => String(i.id) !== String(idProduto));
+            renderizarCarrinho();
+            renderizarVitrine();
+            atualizarBarraFlutuanteSacola();
+            exibirToast("Item removido do carrinho.", "info");
+        }
+    );
+}
+/* ─── FIM: solicitarRemocaoItemCarrinho ───────────────────────── */
 
 /* ─── INÍCIO: tratarCriacaoPedido ────────────────────────────── */
 async function tratarCriacaoPedido() {
@@ -1025,7 +942,7 @@ async function tratarCriacaoPedido() {
     botaoCarregando('btn-confirmar-pedido', false);
 
     if (resposta.sucesso) {
-        exibirToast(`Pedido ${resposta.idPedido} gerado com sucesso!`, "success");
+        exibirToast(`Pedido gerado com sucesso!`, "success");
         tocarSomNotificacao('pedido');
 
         const metodoEscolhido = metodo;
@@ -1095,121 +1012,20 @@ async function excluirProdutoAdm(idProduto) {
 /* ─── FIM: excluirProdutoAdm ─────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   9. ATENDENTE VIRTUAL & DÚVIDAS
-   ═══════════════════════════════════════════════════════════════ */
-
-/* ─── INÍCIO: BASE_CONHECIMENTO ──────────────────────────────── */
-const BASE_CONHECIMENTO = {
-    visitante: {
-        saudacao: "Olá! Sou o assistente da Loja. Como posso te orientar hoje?",
-        duvidas: [
-            {
-                pergunta: "Como solicitar meu cadastro de membro?",
-                resposta: "Toque em 'Solicitar Cadastro' na tela inicial, informe seu nome, WhatsApp e defina sua senha. O acesso poderá ser liberado em alguns instantes."
-            },
-            {
-                pergunta: "Como funciona a plataforma de compras?",
-                resposta: "Somos um catálogo exclusivo e direto. Você navega pelos produtos disponíveis e, após solicitar e aprovar seu cadastro, realiza pedidos."
-            }
-        ]
-    },
-    membro: {
-        saudacao: "Olá! Em que posso te ajudar? Dúvidas, pagamentos ou pedidos?",
-        duvidas: [
-            {
-                pergunta: "Como funciona o envio do comprovante?",
-                resposta: "Ao clicar em 'Informar Pagamento', nosso WhatsApp receberá o resumo do seu pedido. Basta responder à mensagem anexando o arquivo ou foto do comprovante."
-            },
-            {
-                pergunta: "Como acompanhar a fila do meu pedido?",
-                resposta: "Na aba 'Pedidos', você visualiza o avanço em 4 etapas: Análise, Preparação, Em Viagem e Concluído."
-            },
-            {
-                pergunta: "Posso falar com um atendente humano?",
-                resposta: "Sim! Você pode abrir o chat exclusivo dentro de qualquer pedido ativo ou usar a opção 'Suporte via WhatsApp' no menu do seu perfil."
-            },
-            {
-                pergunta: "Como cancelar ou alterar itens de um pedido?",
-                resposta: "Se o seu pedido estiver na etapa 'Análise', basta abrir o chat do pedido ou chamar o suporte no WhatsApp para solicitar o ajuste."
-            }
-        ]
-    }
-};
-/* ─── FIM: BASE_CONHECIMENTO ────────────────────────────────── */
-
-/* ─── INÍCIO: abrirAssistenteVirtual ─────────────────────────── */
-function abrirAssistenteVirtual() {
-    const papel = estadoSessao.papel === 'visitante' ? 'visitante' : 'membro';
-    const dados = BASE_CONHECIMENTO[papel];
-
-    const container = document.createElement('div');
-    container.style.cssText = 'text-align:left;padding:4px 0;';
-
-    const saudacao = document.createElement('p');
-    saudacao.style.cssText = 'font-size:0.9rem;color:var(--cor-texto);margin-bottom:12px;font-weight:600;';
-    saudacao.textContent = dados.saudacao;
-
-    const boxPerguntas = document.createElement('div');
-    boxPerguntas.className = 'assistant-quick-box';
-
-    dados.duvidas.forEach(d => {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'assistant-quick-chip';
-        chip.textContent = d.pergunta;
-        chip.onclick = () => {
-            exibirRespostaAssistente(d.pergunta, d.resposta);
-        };
-        boxPerguntas.appendChild(chip);
-    });
-
-    const respostaArea = document.createElement('div');
-    respostaArea.id = 'assistant-resposta-area';
-    respostaArea.style.cssText = 'margin-top:12px;font-size:0.85rem;line-height:1.45;color:var(--cor-texto-suave);';
-
-    container.append(saudacao, boxPerguntas, respostaArea);
-
-    abrirConfirmacaoElemento("Atendente Virtual", container, () => {});
-    const btnOk = document.getElementById('confirmar-btn-ok');
-    if (btnOk) btnOk.textContent = "Fechar";
-}
-/* ─── FIM: abrirAssistenteVirtual ─────────────────────────────── */
-
-/* ─── INÍCIO: exibirRespostaAssistente ───────────────────────── */
-function exibirRespostaAssistente(pergunta, resposta) {
-    const area = document.getElementById('assistant-resposta-area');
-    if (!area) return;
-
-    area.innerHTML = `
-        <div style="background:var(--cor-fundo-elevado);padding:10px 12px;border-radius:8px;border:1px solid var(--cor-borda);">
-            <strong style="color:var(--cor-primaria);display:block;margin-bottom:4px;">${escaparHtml(pergunta)}</strong>
-            <span>${escaparHtml(resposta)}</span>
-        </div>
-    `;
-}
-/* ─── FIM: exibirRespostaAssistente ───────────────────────────── */
-
-/* ─── INÍCIO: responderDuvidaRapida ──────────────────────────── */
-function responderDuvidaRapida(chave) {
-    abrirAssistenteVirtual();
-}
-/* ─── FIM: responderDuvidaRapida ─────────────────────────────── */
-
-/* ═══════════════════════════════════════════════════════════════
-   10. MEUS PEDIDOS, COMPARTILHAMENTO & CHAT
+   9. MEUS PEDIDOS, COMPROVANTE WHATSAPP & FLUXO 3 ETAPAS
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: carregarMeusPedidos ────────────────────────────── */
 async function carregarMeusPedidos() {
     const container = document.getElementById('meus-pedidos-container');
     if (!container) return;
-    container.innerHTML = '<div class="loading-slot">Carregando os seus pedidos...</div>';
+    container.innerHTML = '<div class="loading-slot">Carregando pedidos...</div>';
 
     const resposta = await executarRequisicaoAPI("listar_meus_pedidos");
     container.innerHTML = '';
 
     if (!resposta.sucesso || !resposta.pedidos || resposta.pedidos.length === 0) {
-        container.innerHTML = `<div class="empty-state"><strong>Nenhum pedido ainda</strong>Quando criar um pedido, ele aparece aqui.</div>`;
+        container.innerHTML = `<div class="empty-state"><strong>Nenhum pedido em andamento.</strong></div>`;
         return;
     }
 
@@ -1218,243 +1034,106 @@ async function carregarMeusPedidos() {
     resposta.pedidos.forEach(pedido => {
         const cartao = document.createElement('div');
         cartao.className = 'card';
-        const statusMinusculo = String(pedido.status || '').toLowerCase();
+        const st = String(pedido.status || '').toLowerCase();
 
-        const fases = ['analise', 'solicitados', 'viagem', 'concluido'];
-        let indiceFaseAtual = fases.indexOf(statusMinusculo);
-        if (indiceFaseAtual === -1) indiceFaseAtual = 0;
-
-        let mensagemStatus = "Aguardando confirmação do pagamento.";
-        if (statusMinusculo === 'solicitados') mensagemStatus = "Pagamento aprovado! Em separação no estoque.";
-        if (statusMinusculo === 'viagem')      mensagemStatus = "Produto a caminho do endereço / pronto para entrega.";
-        if (statusMinusculo === 'concluido')   mensagemStatus = "Pedido concluído e entregue!";
-        if (statusMinusculo === 'cancelado')   mensagemStatus = "Pedido cancelado.";
-
-        const obterClasseEtapa = (indiceEtapa) => {
-            if (statusMinusculo === 'concluido') return 'completed';
-            if (indiceEtapa < indiceFaseAtual)   return 'completed';
-            if (indiceEtapa === indiceFaseAtual) return 'active';
-            return '';
-        };
+        // 3 Etapas: 1. Pagamento, 2. Em Preparação, 3. Pedido Pronto
+        const s1Concluido = ['solicitados', 'viagem', 'concluido'].includes(st);
+        const s2Concluido = ['viagem', 'concluido'].includes(st);
+        const s3Concluido = st === 'concluido';
 
         cartao.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:center;">
-                <h4>Pedido: #${escaparHtml(pedido.id)}</h4>
+                <h4>Pedido #${escaparHtml(pedido.id)}</h4>
                 <strong style="color:var(--cor-sucesso-escura);">${fmtPreco(pedido.total)}</strong>
             </div>
-            <p style="font-size:0.8rem;color:var(--cor-texto-suave);margin-top:2px;">
-                Forma: <strong>${escaparHtml(pedido.metodo || 'PIX')}</strong>
-            </p>
 
-            <div class="order-stepper">
-                <div class="order-step ${obterClasseEtapa(0)}">
-                    <div class="step-circle">1</div>
-                    <span class="step-label">Análise</span>
+            <div class="order-stepper-clean">
+                <div class="step-item ${s1Concluido ? 'concluido' : (st === 'analise' ? 'ativo' : '')}">
+                    <div class="step-circulo">${s1Concluido ? '✓' : '1'}</div>
+                    <span>Pagamento</span>
                 </div>
-                <div class="order-step ${obterClasseEtapa(1)}">
-                    <div class="step-circle">2</div>
-                    <span class="step-label">Solicitado</span>
+                <div class="step-item ${s2Concluido ? 'concluido' : (st === 'solicitados' ? 'ativo' : '')}">
+                    <div class="step-circulo">${s2Concluido ? '✓' : '2'}</div>
+                    <span>Em Preparação</span>
                 </div>
-                <div class="order-step ${obterClasseEtapa(2)}">
-                    <div class="step-circle">3</div>
-                    <span class="step-label">Em Viagem</span>
-                </div>
-                <div class="order-step ${obterClasseEtapa(3)}">
-                    <div class="step-circle">✓</div>
-                    <span class="step-label">Concluído</span>
+                <div class="step-item ${s3Concluido ? 'concluido' : (st === 'viagem' ? 'ativo' : '')}">
+                    <div class="step-circulo">${s3Concluido ? '✓' : '3'}</div>
+                    <span>Pedido Pronto</span>
                 </div>
             </div>
 
-            <div class="order-stepper-msg">
-                <span>📍</span>
-                <span>${escaparHtml(mensagemStatus)}</span>
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+                ${st === 'analise' ? `<button type="button" class="btn btn-success btn-sm" onclick="abrirCobrancaPedido('${pedido.id}')">💳 Pagar PIX</button>` : ''}
+                <button type="button" class="btn btn-whatsapp btn-sm btn-block" onclick="enviarComprovanteWhatsApp('${pedido.id}')">
+                    📲 Enviar Comprovante no WhatsApp
+                </button>
             </div>
         `;
-
-        const painelAcoes = document.createElement('div');
-        painelAcoes.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;';
-
-        if (statusMinusculo === 'analise') {
-            const botaoPagar = document.createElement('button');
-            botaoPagar.className = 'btn btn-success btn-sm';
-            botaoPagar.textContent = '💳 Pagar / Instruções';
-            botaoPagar.onclick = () => abrirCobrancaPedido(pedido.id, pedido.metodo);
-            painelAcoes.appendChild(botaoPagar);
-        }
-
-        const botaoInformar = document.createElement('button');
-        botaoInformar.className = 'btn btn-whatsapp btn-sm';
-        botaoInformar.innerHTML = '📲 Informar Pagamento';
-        botaoInformar.title = 'Enviar dados do pedido e comprovante no WhatsApp';
-        botaoInformar.onclick = () => informarPagamentoWhatsApp(pedido.id);
-        painelAcoes.appendChild(botaoInformar);
-
-        if (pedido.chatAtivo) {
-            const botaoChat = document.createElement('button');
-            botaoChat.className = 'btn btn-primary btn-sm';
-            botaoChat.textContent = '💬 Abrir Chat';
-            botaoChat.onclick = () => abrirChatPedido(pedido.id);
-            painelAcoes.appendChild(botaoChat);
-        }
-
-        cartao.appendChild(painelAcoes);
         container.appendChild(cartao);
     });
 }
 /* ─── FIM: carregarMeusPedidos ───────────────────────────────── */
 
-/* ─── INÍCIO: informarPagamentoWhatsApp ──────────────────────── */
-function informarPagamentoWhatsApp(idPedido) {
+/* ─── INÍCIO: enviarComprovanteWhatsApp ──────────────────────── */
+function enviarComprovanteWhatsApp(idPedido) {
     const pedido = (estadoSessao.pedidosRecentes || []).find(p => String(p.id) === String(idPedido));
     
-    let resumoItens = "";
+    let listaItens = "";
     if (pedido && pedido.itensJson) {
         try {
             const arr = typeof pedido.itensJson === 'string' ? JSON.parse(pedido.itensJson) : pedido.itensJson;
             if (Array.isArray(arr)) {
-                resumoItens = arr.map(i => `• ${i.quantidade}x ${i.nome} (${fmtPreco(i.preco * i.quantidade)})`).join('\n');
+                listaItens = arr.map(i => `${i.quantidade}x ${i.nome}`).join(', ');
             }
         } catch (e) {}
     }
 
-    const texto = pedido
-        ? `*COMPROVANTE DE PAGAMENTO*\n` +
-          `-------------------------------\n` +
-          `*Pedido:* #${pedido.id}\n` +
-          `*Cliente:* ${estadoSessao.nomeUsuario}\n` +
-          `*Valor Total:* ${fmtPreco(pedido.total)}\n` +
-          `*Forma de Pagto:* ${pedido.metodo || 'PIX'}\n` +
-          (resumoItens ? `\n*Itens:* \n${resumoItens}\n` : '') +
-          `-------------------------------\n` +
-          `Envio em anexo o meu comprovante de pagamento para liberação do pedido!`
-        : `Olá! Gostaria de informar o pagamento referente ao Pedido #${idPedido}. Segue o comprovante em anexo.`;
+    const texto = 
+`*COMPROVANTE DE PAGAMENTO*
+-------------------------------
+*Pedido:* ${listaItens || idPedido}
+*Cliente:* ${estadoSessao.nomeUsuario}
+*Valor Total:* ${fmtPreco(pedido ? pedido.total : 0)}
+*Forma de Pagto:* PIX
+-------------------------------
+Envio em anexo o meu comprovante de pagamento para liberação do pedido!`;
 
-    const numeroLoja = "5574998048300";
-    const urlWa = `https://wa.me/${numeroLoja}?text=${encodeURIComponent(texto)}`;
+    const urlWa = `https://wa.me/5574998048300?text=${encodeURIComponent(texto)}`;
     window.open(urlWa, '_blank');
 }
-/* ─── FIM: informarPagamentoWhatsApp ────────────────────────── */
-
-/* ─── INÍCIO: compartilharPedidoWhatsApp ─────────────────────── */
-async function compartilharPedidoWhatsApp(idPedido) {
-    const pedido = (estadoSessao.pedidosRecentes || []).find(p => String(p.id) === String(idPedido));
-    
-    const texto = pedido
-        ? `Olá! Gostaria de validar os detalhes do meu Pedido #${pedido.id} no valor de ${fmtPreco(pedido.total)} via ${pedido.metodo} (Status: ${pedido.status.toUpperCase()}). Aguardo orientações!`
-        : `Olá! Vim pela Loja e gostaria de falar sobre o Pedido #${idPedido}.`;
-
-    if (navigator.share) {
-        try {
-            await navigator.share({
-                title: `Pedido #${idPedido}`,
-                text: texto
-            });
-            return;
-        } catch (e) {}
-    }
-
-    const numeroLoja = "5574998048300";
-    const urlWa = `https://wa.me/${numeroLoja}?text=${encodeURIComponent(texto)}`;
-    window.open(urlWa, '_blank');
-}
-/* ─── FIM: compartilharPedidoWhatsApp ───────────────────────── */
+/* ─── FIM: enviarComprovanteWhatsApp ────────────────────────── */
 
 /* ─── INÍCIO: abrirCobrancaPedido ────────────────────────────── */
 async function abrirCobrancaPedido(idPedido, metodo) {
-    mostrarLoader("Gerando instruções de pagamento...");
-    const resposta = await executarRequisicaoAPI("gerar_pagamento", {
-        idPedido: idPedido,
-        metodo: metodo || "PIX"
-    });
+    mostrarLoader("Gerando chave PIX...");
+    const resposta = await executarRequisicaoAPI("gerar_pagamento", { idPedido, metodo: metodo || "PIX" });
     esconderLoader();
 
-    if (!resposta.sucesso) {
-        return exibirToast(resposta.mensagem || "Não foi possível gerar a cobrança.", "error");
-    }
-
-    if (resposta.jaPago) {
-        return exibirToast("Este pedido já se encontra pago e em fase de entrega!", "success");
-    }
+    if (!resposta.sucesso) return exibirToast(resposta.mensagem || "Erro na cobrança.", "error");
 
     const cobranca = resposta.cobranca;
-    const caixaConteudo = document.createElement('div');
-    caixaConteudo.style.cssText = 'text-align:center;padding:10px;';
+    const caixa = document.createElement('div');
+    caixa.style.cssText = 'text-align:center;padding:10px;';
 
-    if (cobranca.tipo === "PIX") {
-        const imgQr = document.createElement('img');
-        imgQr.src = cobranca.qrCodeUrl;
-        imgQr.alt = "QR Code PIX";
-        imgQr.style.cssText = 'width:190px;height:190px;margin:0 auto 12px;display:block;border:1px solid var(--cor-borda-forte);border-radius:8px;';
+    const imgQr = document.createElement('img');
+    imgQr.src = cobranca.qrCodeUrl;
+    imgQr.style.cssText = 'width:190px;height:190px;margin:0 auto 10px;display:block;border-radius:8px;';
 
-        const instrucoes = document.createElement('p');
-        instrucoes.style.cssText = 'font-size:.85rem;color:var(--cor-texto-suave);margin-bottom:8px;';
-        instrucoes.textContent = cobranca.instrucoes;
+    const inputPix = document.createElement('input');
+    inputPix.type = 'text';
+    inputPix.id = 'pix-copia-cola';
+    inputPix.value = cobranca.pixCopiaECola;
+    inputPix.readOnly = true;
+    inputPix.style.cssText = 'font-size:.75rem;margin-bottom:8px;text-align:center;width:100%;';
 
-        const inputPix = document.createElement('input');
-        inputPix.type = 'text';
-        inputPix.id = 'pix-copia-cola';
-        inputPix.value = cobranca.pixCopiaECola;
-        inputPix.readOnly = true;
-        inputPix.style.cssText = 'font-size:.75rem;margin-bottom:8px;text-align:center;width:100%;';
-        inputPix.onclick = () => inputPix.select();
+    const btnCopiar = document.createElement('button');
+    btnCopiar.className = 'btn btn-primary btn-block';
+    btnCopiar.textContent = '📋 Copiar Código PIX';
+    btnCopiar.onclick = (e) => copiarPixCopiaECola(e.currentTarget);
 
-        const botaoCopiar = document.createElement('button');
-        botaoCopiar.type = 'button';
-        botaoCopiar.className = 'btn btn-primary btn-block';
-        botaoCopiar.id = 'btn-copiar-pix';
-        botaoCopiar.textContent = '📋 Copiar Código PIX';
-        botaoCopiar.onclick = (e) => copiarPixCopiaECola(e.currentTarget);
+    caixa.append(imgQr, inputPix, btnCopiar);
 
-        caixaConteudo.append(imgQr, instrucoes, inputPix, botaoCopiar);
-
-    } else if (cobranca.tipo === "CRIPTO") {
-        const imgQr = document.createElement('img');
-        imgQr.src = cobranca.qrCodeUrl;
-        imgQr.alt = "QR Code Cripto";
-        imgQr.style.cssText = 'width:180px;height:180px;margin:0 auto 10px;display:block;border-radius:8px;';
-
-        const valorTexto = document.createElement('p');
-        valorTexto.innerHTML = `<strong>Transferir:</strong> ${escaparHtml(cobranca.quantidadeEstimada)} ${escaparHtml(cobranca.moeda)}`;
-
-        const carteiraTexto = document.createElement('p');
-        carteiraTexto.style.cssText = 'font-size:.75rem;color:var(--cor-texto-suave);word-break:break-all;margin:6px 0;';
-        carteiraTexto.innerHTML = `<strong>Carteira:</strong><br>${escaparHtml(cobranca.carteiraDestino)}`;
-
-        const botaoCopiar = document.createElement('button');
-        botaoCopiar.type = 'button';
-        botaoCopiar.className = 'btn btn-primary btn-block';
-        botaoCopiar.textContent = '📋 Copiar Carteira';
-        botaoCopiar.onclick = (e) => {
-            navigator.clipboard.writeText(cobranca.carteiraDestino);
-            const btn = e.currentTarget;
-            const original = btn.textContent;
-            btn.textContent = '✓ Carteira Copiada!';
-            btn.classList.add('btn-adicionado');
-            setTimeout(() => {
-                btn.textContent = original;
-                btn.classList.remove('btn-adicionado');
-            }, 1800);
-            exibirToast("Carteira copiada com sucesso!", "success");
-        };
-
-        caixaConteudo.append(imgQr, valorTexto, carteiraTexto, botaoCopiar);
-
-    } else if (cobranca.tipo === "CARTAO") {
-        const instrucoes = document.createElement('p');
-        instrucoes.style.cssText = 'margin-bottom:12px;';
-        instrucoes.textContent = cobranca.instrucoes;
-
-        const linkCheckout = document.createElement('a');
-        linkCheckout.href = cobranca.urlCheckout;
-        linkCheckout.target = '_blank';
-        linkCheckout.className = 'btn btn-success btn-block';
-        linkCheckout.style.cssText = 'text-decoration:none;display:block;';
-        linkCheckout.textContent = '🔒 Ir para Pagamento Seguro';
-
-        caixaConteudo.append(instrucoes, linkCheckout);
-    }
-
-    abrirConfirmacaoElemento(`Pagamento Pedido #${idPedido}`, caixaConteudo, () => {
+    abrirConfirmacaoElemento(`Pagamento do Pedido #${estadoSessao.nomeUsuario}`, caixa, () => {
         carregarMeusPedidos();
     });
 }
@@ -1602,7 +1281,7 @@ async function enviarMensagemChat() {
 /* ─── FIM: enviarMensagemChat ─────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   11. PAINEL CENTRAL, LOTE E RELATÓRIO PDF (ADM)
+   10. PAINEL CENTRAL, LOTE E RELATÓRIO PDF (ADM)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: carregarPainelCentralAdm ───────────────────────── */
@@ -1613,7 +1292,6 @@ async function carregarPainelCentralAdm() {
 
     // 1. Cadastros Pendentes
     const divSolicitacoes = document.getElementById('adm-solicitacoes-lista');
-    const toolbarLote = document.getElementById('adm-lote-toolbar');
     if (divSolicitacoes) divSolicitacoes.innerHTML = '<div class="loading-slot">Procurando novos cadastros...</div>';
 
     const respostaSolic = await executarRequisicaoAPI("listar_solicitacoes_adm");
@@ -1623,24 +1301,16 @@ async function carregarPainelCentralAdm() {
     if (divSolicitacoes) {
         divSolicitacoes.innerHTML = '';
         if (totalPendentes > 0) {
-            if (toolbarLote) toolbarLote.classList.remove('hidden');
-
             respostaSolic.solicitacoes.forEach(solicitacao => {
                 const linha = document.createElement('div');
                 linha.style.cssText = 'padding:10px 0;border-bottom:1px solid var(--cor-borda);display:flex;align-items:flex-start;gap:10px;';
 
-                const chk = document.createElement('input');
-                chk.type = 'checkbox';
-                chk.className = 'chk-solicitacao-item';
-                chk.value = solicitacao.id;
-                chk.style.cssText = 'width:auto;margin-top:4px;';
-
                 const info = document.createElement('div');
                 info.style.flex = '1';
                 info.innerHTML = `
-                    <p><strong>${escaparHtml(solicitacao.nome)}</strong> (Login: ${escaparHtml(solicitacao.telefone)})</p>
+                    <p><strong>${escaparHtml(solicitacao.nome)}</strong> (WhatsApp: ${escaparHtml(solicitacao.telefone)})</p>
                     <p style="font-size:.78rem;color:var(--cor-texto-suave);">
-                        Twitter: ${escaparHtml(solicitacao.twitter || '-')} | Telegram: ${escaparHtml(solicitacao.telegram || '-')}
+                        Idade: <strong>${solicitacao.idade || '18+'}</strong> anos | Indicado por: <strong>${escaparHtml(solicitacao.indicadoPor || '-')}</strong> (${escaparHtml(solicitacao.indicadoTel || '-')})
                     </p>
                 `;
 
@@ -1650,15 +1320,13 @@ async function carregarPainelCentralAdm() {
                 botaoAprovar.textContent = 'Aprovar';
                 botaoAprovar.onclick = () => aprovarMembroAdm(solicitacao.id);
 
-                linha.append(chk, info, botaoAprovar);
+                linha.append(info, botaoAprovar);
                 divSolicitacoes.appendChild(linha);
             });
         } else {
-            if (toolbarLote) toolbarLote.classList.add('hidden');
             divSolicitacoes.innerHTML = '<div class="loading-slot">Nenhuma solicitação pendente.</div>';
         }
     }
-    atualizarContadorSelecaoLote();
 
     // 2. Métricas Gerais
     const respostaMetricas = await executarRequisicaoAPI("obter_metricas_vendas");
@@ -1680,57 +1348,6 @@ async function carregarPainelCentralAdm() {
                 html += '</tbody></table>';
                 divTabela.innerHTML = html;
             }
-        }
-    }
-
-    // 3. Mensagens e Dúvidas Recebidas (Acordeão Retrátil com Avatar e Exclusão)
-    const respostaComentarios = await executarRequisicaoAPI("listar_comentarios_adm");
-    const divComentarios = document.getElementById('adm-comentarios-lista');
-    if (divComentarios) {
-        divComentarios.innerHTML = '';
-        if (respostaComentarios.sucesso && Array.isArray(respostaComentarios.comentarios) && respostaComentarios.comentarios.length > 0) {
-            const obterAvatarPorNome = (nome) => {
-                const primeiro = String(nome || '').trim().split(' ')[0].toLowerCase();
-                if (primeiro.endsWith('a') || ['maria', 'alice', 'laura', 'heloisa', 'beatriz'].includes(primeiro)) return '👩';
-                if (primeiro.endsWith('o') || primeiro.endsWith('or') || ['lucas', 'pedro', 'gabriel', 'joao', 'daniel'].includes(primeiro)) return '👨';
-                return '👤';
-            };
-
-            respostaComentarios.comentarios.forEach(msg => {
-                const card = document.createElement('div');
-                card.className = 'msg-cliente-card';
-
-                const avatar = obterAvatarPorNome(msg.nome);
-                const hora = msg.data ? new Date(msg.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
-                const temDuvida = msg.temDuvida === true;
-
-                card.innerHTML = `
-                    <div class="msg-cliente-header" onclick="this.parentElement.classList.toggle('aberto')">
-                        <div>
-                            <span style="font-size:1.1rem;margin-right:4px;">${avatar}</span>
-                            <strong>${escaparHtml(msg.nome || 'Cliente')}</strong>
-                            ${msg.id_pedido ? `<small style="color:var(--cor-primaria);margin-left:6px;">(#${escaparHtml(msg.id_pedido)})</small>` : ''}
-                            ${temDuvida ? '<span class="badge-duvida-pendente" style="margin-left:6px;">❓ Mensagem</span>' : ''}
-                        </div>
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <small style="color:var(--cor-texto-suave);">${hora}</small>
-                            <span style="font-size:0.75rem;">▼</span>
-                        </div>
-                    </div>
-                    <div class="msg-cliente-drawer">
-                        <div class="msg-chat-balao">
-                            ${escaparHtml(msg.texto || '')}
-                        </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
-                            ${msg.id_pedido ? `<button type="button" class="btn btn-primary btn-sm" onclick="abrirChatPedido('${msg.id_pedido}')">💬 Abrir e Responder</button>` : '<span></span>'}
-                            <button type="button" class="btn btn-danger-outline btn-sm" onclick="apagarMensagemAdm(${msg.id}, '${msg.origem}')">🗑️ Apagar Mensagem</button>
-                        </div>
-                    </div>
-                `;
-                divComentarios.appendChild(card);
-            });
-        } else {
-            divComentarios.innerHTML = '<div class="loading-slot">Sem mensagens nas últimas 24 horas.</div>';
         }
     }
 }
@@ -1771,12 +1388,12 @@ async function carregarListaMembrosGaveta() {
     cont.innerHTML = '';
 
     if (res.sucesso && Array.isArray(res.usuarios) && res.usuarios.length > 0) {
-        let html = '<table class="tabela-metricas"><thead><tr><th>Primeiro Nome</th><th>Login (WhatsApp)</th><th>Papel</th><th>Ações</th></tr></thead><tbody>';
+        let html = '<table class="tabela-metricas"><thead><tr><th>Nome</th><th>WhatsApp</th><th>Idade</th><th>Ações</th></tr></thead><tbody>';
         res.usuarios.forEach(u => {
             html += `<tr>
                 <td><strong>${escaparHtml(u.primeiroNome)}</strong></td>
                 <td>${escaparHtml(u.telefone)}</td>
-                <td><span class="badge badge-${u.papel}">${escaparHtml(u.papel.toUpperCase())}</span></td>
+                <td>${u.idade || '-'} anos</td>
                 <td>
                     <button class="btn btn-danger-outline btn-sm" style="padding:2px 6px;" onclick="bloquearUsuarioComMotivo('${u.id}', '${escaparHtml(u.primeiroNome)}')">🔒 Bloquear</button>
                     <button class="btn btn-ghost btn-sm" style="padding:2px 6px;color:var(--cor-perigo);" onclick="excluirUsuarioMembro('${u.id}')">🗑️</button>
@@ -1858,43 +1475,6 @@ async function carregarListaBloqueadosGaveta() {
     }
 }
 /* ─── FIM: carregarListaBloqueadosGaveta ─────────────────────── */
-
-/* ─── INÍCIO: atualizarContadorSelecaoLote ───────────────────── */
-function atualizarContadorSelecaoLote() {
-    const selecionados = document.querySelectorAll('.chk-solicitacao-item:checked');
-    const labelContador = document.getElementById('count-selecionados-lote');
-    const chkMaster = document.getElementById('chk-selecionar-todos-cadastros');
-    const todos = document.querySelectorAll('.chk-solicitacao-item');
-
-    if (labelContador) labelContador.textContent = selecionados.length;
-    if (chkMaster && todos.length > 0) {
-        chkMaster.checked = (selecionados.length === todos.length);
-    }
-}
-/* ─── FIM: atualizarContadorSelecaoLote ───────────────────────── */
-
-/* ─── INÍCIO: aprovarSolicitacoesSelecionadasLote ─────────────── */
-async function aprovarSolicitacoesSelecionadasLote() {
-    const selecionados = Array.from(document.querySelectorAll('.chk-solicitacao-item:checked')).map(c => c.value);
-
-    if (selecionados.length === 0) {
-        return exibirToast("Selecione pelo menos um cadastro para aprovação.", "info");
-    }
-
-    mostrarLoader(`Aprovando ${selecionados.length} membros em lote...`);
-    const res = await executarRequisicaoAPI("aprovar_cadastros_lote", {
-        idsSolicitacoes: selecionados
-    });
-    esconderLoader();
-
-    if (res.sucesso) {
-        exibirToast(res.mensagem || `${selecionados.length} membros aprovados com sucesso!`, "success");
-        await carregarPainelCentralAdm();
-    } else {
-        exibirToast(res.mensagem || "Erro ao aprovar cadastros em lote.", "error");
-    }
-}
-/* ─── FIM: aprovarSolicitacoesSelecionadasLote ─────────────────── */
 
 /* ─── INÍCIO: gerarRelatorioPdfVendas ────────────────────────── */
 async function gerarRelatorioPdfVendas() {
@@ -2155,7 +1735,7 @@ function desligarAutoRefreshAdm() {
 /* ─── FIM: desligarAutoRefreshAdm ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   12. ESTEIRA DE PEDIDOS / COMANDAS RETRÁTEIS (ADM)
+   11. ESTEIRA DE PEDIDOS / COMANDAS RETRÁTEIS (ADM)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: iniciarAutoRefreshEsteira ──────────────────────── */
@@ -2188,17 +1768,16 @@ function pararAutoRefreshEsteira() {
 async function carregarPedidosAdm(silencioso = false) {
     const colAnalise = document.getElementById('pipe-analise');
     const colSolic   = document.getElementById('pipe-solicitados');
-    const colViagem  = document.getElementById('pipe-viagem');
     const colConc    = document.getElementById('pipe-concluido');
 
     if (!silencioso) {
-        [colAnalise, colSolic, colViagem, colConc].forEach(c => { if (c) c.innerHTML = '<div class="loading-slot">…</div>'; });
+        [colAnalise, colSolic, colConc].forEach(c => { if (c) c.innerHTML = '<div class="loading-slot">…</div>'; });
     }
 
     const res = await executarRequisicaoAPI("listar_pedidos_adm");
     if (!res.sucesso || !Array.isArray(res.pedidos)) return;
 
-    [colAnalise, colSolic, colViagem, colConc].forEach(c => { if (c) c.innerHTML = ''; });
+    [colAnalise, colSolic, colConc].forEach(c => { if (c) c.innerHTML = ''; });
 
     const emAnalise = res.pedidos.filter(p => String(p.status).toLowerCase() === 'analise').length;
     if (totalPedidosAnaliseAnterior > 0 && emAnalise > totalPedidosAnaliseAnterior) {
@@ -2206,18 +1785,15 @@ async function carregarPedidosAdm(silencioso = false) {
     }
     totalPedidosAnaliseAnterior = emAnalise;
 
-    // Fila de Prioridade: mais antigos primeiro
     const pedidosOrdenados = res.pedidos
         .filter(p => p.status !== 'arquivado')
         .sort((a, b) => new Date(a.criadoEm) - new Date(b.criadoEm));
 
     pedidosOrdenados.forEach(p => {
-        const temDuvida = p.temPerguntaPendente === true || String(p.temPerguntaPendente) === 'true';
         const horaFormatada = p.criadoEm ? new Date(p.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
 
         const comanda = document.createElement('div');
         comanda.className = `comanda-card comanda-${p.status}`;
-        if (temDuvida) comanda.classList.add('card-pergunta-ativa');
 
         let itensTexto = '';
         try {
@@ -2226,13 +1802,11 @@ async function carregarPedidosAdm(silencioso = false) {
         } catch(e) {}
 
         const badgeIcones = {
-            analise: '⏳ Análise',
-            solicitados: '📦 Solicitado',
-            viagem: '🛵 Em Viagem',
-            concluido: '✅ Concluído'
+            analise: '⏳ 1. Pagamento',
+            solicitados: '👩‍🍳 2. Em Preparação',
+            concluido: '✅ 3. Pedido Pronto'
         };
 
-        // Layout da Comanda: Concluídos iniciam compactos/retraídos
         if (p.status === 'concluido') {
             comanda.innerHTML = `
                 <div class="comanda-header" onclick="this.parentElement.classList.toggle('expandida')">
@@ -2249,7 +1823,6 @@ async function carregarPedidosAdm(silencioso = false) {
                     <p><strong>Forma:</strong> ${escaparHtml(p.metodo || 'PIX')}</p>
                     <p style="color:var(--cor-texto-suave);margin:4px 0;"><strong>Itens:</strong> ${escaparHtml(itensTexto || 'Sem itens')}</p>
                     <div style="display:flex;gap:6px;margin-top:8px;">
-                        <button type="button" class="btn btn-outline-dark btn-sm" onclick="abrirChatPedido('${p.id}')">💬 Chat</button>
                         <button type="button" class="btn btn-danger-outline btn-sm" onclick="cancelarExcluirPedidoAdm('${p.id}')">🗑️ Excluir</button>
                     </div>
                 </div>
@@ -2259,7 +1832,6 @@ async function carregarPedidosAdm(silencioso = false) {
                 <div class="comanda-header" onclick="this.parentElement.classList.toggle('expandida')">
                     <div>
                         <strong>#${escaparHtml(p.id)}</strong> <small style="color:var(--cor-texto-suave);">(${horaFormatada})</small>
-                        ${temDuvida ? '<span class="badge-duvida-pendente">❓ Mensagem</span>' : ''}
                     </div>
                     <div>
                         <span class="badge-etapa badge-etapa-${p.status}">${badgeIcones[p.status] || p.status}</span>
@@ -2270,9 +1842,6 @@ async function carregarPedidosAdm(silencioso = false) {
                     <p style="color:var(--cor-texto-suave);margin:4px 0;"><strong>Itens:</strong> ${escaparHtml(itensTexto || 'Sem itens')}</p>
                     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
                         <button type="button" class="btn btn-primary btn-sm" onclick="avancarStatusAdm('${p.id}', '${p.status}')">Avançar ➔</button>
-                        <button type="button" class="btn ${temDuvida ? 'btn-aviso pulse-chat' : 'btn-outline-dark'} btn-sm" onclick="abrirChatPedido('${p.id}')">
-                            💬 ${temDuvida ? 'Responder' : 'Chat'}
-                        </button>
                         <button type="button" class="btn btn-danger-outline btn-sm" onclick="cancelarExcluirPedidoAdm('${p.id}')">Cancelar Pedido</button>
                     </div>
                 </div>
@@ -2281,11 +1850,10 @@ async function carregarPedidosAdm(silencioso = false) {
 
         if (p.status === 'analise'     && colAnalise) colAnalise.appendChild(comanda);
         if (p.status === 'solicitados' && colSolic)   colSolic.appendChild(comanda);
-        if (p.status === 'viagem'      && colViagem)  colViagem.appendChild(comanda);
         if (p.status === 'concluido'   && colConc)    colConc.appendChild(comanda);
     });
 
-    [[colAnalise], [colSolic], [colViagem], [colConc]].forEach(([c]) => {
+    [[colAnalise], [colSolic], [colConc]].forEach(([c]) => {
         if (c && !c.children.length) c.innerHTML = `<div class="loading-slot" style="font-size:.75rem;">Sem comandas</div>`;
     });
 }
@@ -2295,7 +1863,7 @@ async function carregarPedidosAdm(silencioso = false) {
 function cancelarExcluirPedidoAdm(idPedido) {
     abrirConfirmacao(
         "Cancelar Pedido",
-        `Deseja realmente excluir e cancelar permanentemente o Pedido #${idPedido}? O chat e o registro serão apagados.`,
+        `Deseja realmente excluir e cancelar permanentemente o Pedido #${idPedido}?`,
         async () => {
             mostrarLoader("Cancelando pedido...");
             const res = await executarRequisicaoAPI("cancelar_pedido_adm", { idPedido });
@@ -2332,8 +1900,7 @@ function limparConcluidosAdm() {
 /* ─── INÍCIO: avancarStatusAdm ───────────────────────────────── */
 async function avancarStatusAdm(idPedido, statusAtual) {
     let proximoStatus = 'solicitados';
-    if (statusAtual === 'solicitados') proximoStatus = 'viagem';
-    if (statusAtual === 'viagem')      proximoStatus = 'concluido';
+    if (statusAtual === 'solicitados') proximoStatus = 'concluido';
 
     const resposta = await executarRequisicaoAPI("atualizar_status_pedido", {
         idPedido: idPedido,
@@ -2350,24 +1917,13 @@ async function avancarStatusAdm(idPedido, statusAtual) {
 /* ─── FIM: avancarStatusAdm ──────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   13. LINKS TEMPORÁRIOS, FOTOS E CADASTRO DE PRODUTOS
+   12. LINKS TEMPORÁRIOS, FOTOS E CADASTRO DE PRODUTOS
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: gerarLinkTemporarioAdm ─────────────────────────── */
 async function gerarLinkTemporarioAdm() {
     const selectDuracao = document.getElementById('select-duracao-link');
-    const inputPersonalizado = document.getElementById('input-duracao-personalizada');
-
-    let minutosFinais = 15;
-
-    if (selectDuracao && selectDuracao.value === 'personalizado') {
-        minutosFinais = parseInt(inputPersonalizado.value, 10);
-        if (isNaN(minutosFinais) || minutosFinais <= 0) {
-            return exibirToast("Digite um número de minutos válido maior que zero.", "error");
-        }
-    } else if (selectDuracao) {
-        minutosFinais = parseInt(selectDuracao.value, 10) || 15;
-    }
+    let minutosFinais = parseInt(selectDuracao?.value, 10) || 15;
 
     mostrarLoader(`Gerando link para ${minutosFinais} minutos...`);
 
@@ -2410,21 +1966,6 @@ function processarUploadImagem(evento) {
     const ficheiro = evento.target.files[0];
     if (!ficheiro) return;
 
-    if (ficheiro.type === "image/gif") {
-        if (ficheiro.size > 200 * 1024) {
-            exibirToast("O GIF é muito pesado. Escolha um ficheiro de até 200KB.", "error");
-            evento.target.value = "";
-            return;
-        }
-        const leitor = new FileReader();
-        leitor.onload = e => {
-            fotoBase64Temporaria = e.target.result;
-            exibirPreviewImagem(fotoBase64Temporaria);
-        };
-        leitor.readAsDataURL(ficheiro);
-        return;
-    }
-
     const leitor = new FileReader();
     leitor.onload = e => {
         const imagem = new Image();
@@ -2459,11 +2000,9 @@ function processarUploadImagem(evento) {
 function exibirPreviewImagem(origemBase64) {
     const imgPreview = document.getElementById('img-preview');
     const containerPreview = document.getElementById('preview-container');
-    const inputUrl = document.getElementById('adm-prod-foto-url');
 
     if (imgPreview) imgPreview.src = origemBase64;
     if (containerPreview) containerPreview.classList.remove('hidden');
-    if (inputUrl) inputUrl.value = "";
 }
 /* ─── FIM: exibirPreviewImagem ───────────────────────────────── */
 
@@ -2488,20 +2027,20 @@ async function tratarCadastroProduto(evento) {
     const precoStr     = String(document.getElementById('adm-prod-preco').value || '').replace(',', '.');
     const preco        = parseFloat(precoStr);
     const visibilidade = document.getElementById('adm-prod-visibilidade').value;
-    const urlFoto      = document.getElementById('adm-prod-foto-url').value.trim();
-    const fotoFinal    = fotoBase64Temporaria || urlFoto || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400";
+    const fotoFinal    = fotoBase64Temporaria || "https://via.placeholder.com/300x200?text=Sem+Foto";
 
     if (!nome || isNaN(preco) || preco <= 0) {
         return exibirToast("Preencha nome e preço válidos.", "error");
     }
 
     botaoCarregando('btn-salvar-produto', true);
-    exibirToast("A guardar produto...", "info");
+    mostrarLoader("Salvando produto no catálogo...");
 
     const resposta = await executarRequisicaoAPI("cadastrar_produto", {
         produto: { nome, preco, foto: fotoFinal, visibilidade }
     });
 
+    esconderLoader();
     botaoCarregando('btn-salvar-produto', false);
 
     if (resposta.sucesso) {
@@ -2519,37 +2058,46 @@ async function tratarCadastroProduto(evento) {
 /* ─── FIM: tratarCadastroProduto ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   14. AUTENTICAÇÃO, CADASTRO E CONTROLE DE SESSÃO
+   13. AUTENTICAÇÃO, CADASTRO COM INDICAÇÃO E CONTROLE DE SESSÃO
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: tratarSolicitacaoCadastro ──────────────────────── */
 async function tratarSolicitacaoCadastro(evento) {
     if (evento && evento.preventDefault) evento.preventDefault();
 
-    const nome      = document.getElementById('cad-nome').value.trim();
-    const telefone  = extrairApenasDigitos(document.getElementById('cad-telefone').value);
-    const senha     = document.getElementById('cad-senha').value;
+    const nome = document.getElementById('cad-nome').value.trim();
+    const telefone = extrairApenasDigitos(document.getElementById('cad-telefone').value);
+    const idade = parseInt(document.getElementById('cad-idade').value, 10);
+    const indicadoPorNome = document.getElementById('cad-indicado-nome').value.trim();
+    const indicadoPorTelefone = extrairApenasDigitos(document.getElementById('cad-indicado-telefone').value);
+    const senha = document.getElementById('cad-senha').value;
     const senhaConf = document.getElementById('cad-senha-conf').value;
-    const twitter   = document.getElementById('cad-twitter').value.trim();
-    const telegram  = document.getElementById('cad-telegram').value.trim();
 
-    if (telefone.length < 10) return exibirToast("Informe seu WhatsApp completo com DDD (ex: 74998048300).", "error");
-    if (senha !== senhaConf) return exibirToast("As senhas digitadas não coincidem.", "error");
-    if (senha.length < 6)    return exibirToast("A senha deve conter no mínimo 6 caracteres.", "error");
+    if (telefone.length < 10) return exibirToast("Informe seu WhatsApp completo com DDD.", "error");
+    if (isNaN(idade) || idade < 18) return exibirToast("Apenas maiores de 18 anos.", "error");
+    if (!indicadoPorNome || indicadoPorTelefone.length < 10) return exibirToast("Informe quem indicou você e o WhatsApp dele.", "error");
+    if (senha !== senhaConf) return exibirToast("As senhas digitadas não conferem.", "error");
+    if (senha.length < 6) return exibirToast("A senha deve ter no mínimo 6 dígitos.", "error");
 
     botaoCarregando('btn-enviar-cadastro', true);
-    exibirToast("A enviar solicitação...", "info");
+    mostrarLoader("Enviando solicitação de cadastro...");
 
     const resposta = await executarRequisicaoAPI("solicitar_cadastro", {
-        nome, telefone, senha, twitter, telegram
+        nome,
+        telefone,
+        idade,
+        indicadoPorNome,
+        indicadoPorTelefone,
+        senha
     });
 
+    esconderLoader();
     botaoCarregando('btn-enviar-cadastro', false);
 
     if (resposta.sucesso) {
-        exibirToast(resposta.mensagem || "Solicitação enviada com sucesso!", "success");
+        exibirToast("Cadastro enviado! Você será avisado no WhatsApp assim que aprovado.", "success");
         document.getElementById('form-registro').reset();
-        fecharModal('modal-cadastro');
+        fecharModal('modal-instrucoes-cadastro');
     } else {
         exibirToast(resposta.mensagem || "Erro ao registrar solicitação.", "error");
     }
@@ -2582,7 +2130,6 @@ async function tratarLogin(evento) {
         localStorage.setItem('plataforma_sessao', JSON.stringify(estadoSessao));
 
         document.getElementById('form-login').reset();
-        document.getElementById('box-desbloqueio-conta').classList.add('hidden');
         fecharModal('modal-login');
         atualizarInterfaceSessao();
 
@@ -2591,24 +2138,9 @@ async function tratarLogin(evento) {
         exibirToast(resposta.mensagem || `Bem-vindo(a), ${resposta.nome}!`, "success");
     } else {
         exibirToast(resposta.mensagem || "Credenciais inválidas.", "error");
-        if (resposta.requerLiberacaoAdm) {
-            document.getElementById('box-desbloqueio-conta').classList.remove('hidden');
-        }
     }
 }
 /* ─── FIM: tratarLogin ───────────────────────────────────────── */
-
-/* ─── INÍCIO: enviarPedidoDesbloqueio ────────────────────────── */
-async function enviarPedidoDesbloqueio() {
-    if (!identificadorEmTentativa) return;
-    const resposta = await executarRequisicaoAPI("pedir_desbloqueio", { identificador: identificadorEmTentativa });
-    if (resposta.sucesso) {
-        exibirToast(resposta.mensagem || "Pedido de liberação enviado com sucesso.", "success");
-        const btn = document.getElementById('btn-solicitar-desbloqueio');
-        if (btn) btn.disabled = true;
-    }
-}
-/* ─── FIM: enviarPedidoDesbloqueio ───────────────────────────── */
 
 /* ─── INÍCIO: confirmarLogout ────────────────────────────────── */
 function confirmarLogout() {
@@ -2658,7 +2190,7 @@ function restaurarSessaoLocal() {
 /* ─── FIM: restaurarSessaoLocal ───────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   15. CONTROLE VISUAL E NAVEGAÇÃO
+   14. CONTROLE VISUAL E NAVEGAÇÃO
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── INÍCIO: atualizarInterfaceSessao ───────────────────────── */
@@ -2669,9 +2201,7 @@ function atualizarInterfaceSessao() {
     const badge          = document.getElementById('role-badge');
     const navBar         = document.getElementById('app-nav-bar');
     const headerCartBtn  = document.getElementById('header-cart-btn');
-
     const viewBloqueado  = document.getElementById('view-bloqueado');
-    const containerDuvidas = document.getElementById('container-duvidas-discreto');
 
     if (badge) {
         badge.textContent = estadoSessao.papel.toUpperCase();
@@ -2683,8 +2213,6 @@ function atualizarInterfaceSessao() {
     atualizarAvatarUsuario();
 
     aplicarNavPorPapel(estadoSessao.papel);
-
-    if (containerDuvidas) containerDuvidas.classList.add('hidden');
 
     if (!_linkAutorizadoValido && estadoSessao.papel === 'visitante') {
         if (navBar) navBar.classList.add('hidden');
@@ -2727,10 +2255,6 @@ function atualizarInterfaceSessao() {
         }
     }
 
-    if (['membro', 'entregador', 'adm'].includes(estadoSessao.papel)) {
-        if (containerDuvidas) containerDuvidas.classList.remove('hidden');
-    }
-
     const algumPainelVisivel = document.querySelector('.view-panel.active:not(.hidden)');
     if (!algumPainelVisivel) navegarPara('vitrine');
 
@@ -2744,26 +2268,6 @@ function atualizarInterfaceSessao() {
     atualizarBarraFlutuanteSacola();
 }
 /* ─── FIM: atualizarInterfaceSessao ───────────────────────────── */
-
-/* ─── INÍCIO: apagarMensagemAdm ──────────────────────────────── */
-function apagarMensagemAdm(idMensagem, origem) {
-    abrirConfirmacao(
-        "Apagar Mensagem",
-        "Deseja realmente apagar esta mensagem do histórico?",
-        async () => {
-            mostrarLoader("Apagando mensagem...");
-            const res = await executarRequisicaoAPI("excluir_mensagem_adm", { id: idMensagem, origem });
-            esconderLoader();
-            if (res.sucesso) {
-                exibirToast("Mensagem apagada com sucesso!", "success");
-                await carregarPainelCentralAdm();
-            } else {
-                exibirToast("Erro ao apagar mensagem.", "error");
-            }
-        }
-    );
-}
-/* ─── FIM: apagarMensagemAdm ────────────────────────────────── */
 
 /* ─── INÍCIO: navegarPara ────────────────────────────────────── */
 function navegarPara(nomeAba) {
@@ -2876,158 +2380,8 @@ function atualizarBadgeCarrinho(quantidade) {
 /* ─── FIM: atualizarBadgeCarrinho ─────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════
-   16. CENTRAL DE DÚVIDAS E MODAIS GENÉRICOS
+   15. MODAIS & CONFIRMAÇÃO
    ═══════════════════════════════════════════════════════════════ */
-
-let listaDuvidasFaq = [
-    {
-        pergunta: "Como funciona a entrega do pedido?",
-        resposta: "Após a confirmação do pagamento, um chat exclusivo é aberto no seu pedido com todas as orientações da rota de entrega."
-    },
-    {
-        pergunta: "Quais são as formas de pagamento aceitas?",
-        resposta: "Aceitamos PIX dinâmico com confirmação imediata, Cartão de Crédito e Criptomoedas."
-    },
-    {
-        pergunta: "Quanto tempo dura o chat temporário do pedido?",
-        resposta: "Permanece ativo durante toda a entrega. Ao ser concluído pela administração, ele é finalizado com segurança."
-    }
-];
-
-/* ─── INÍCIO: carregarFaqMemoria ─────────────────────────────── */
-function carregarFaqMemoria() {
-    const salvo = localStorage.getItem('loja_faq_dados');
-    if (salvo) {
-        try { listaDuvidasFaq = JSON.parse(salvo); } catch (e) {}
-    }
-}
-carregarFaqMemoria();
-/* ─── FIM: carregarFaqMemoria ─────────────────────────────────── */
-
-/* ─── INÍCIO: abrirCentralDuvidas ────────────────────────────── */
-function abrirCentralDuvidas() {
-    if (estadoSessao.papel === 'visitante') {
-        exibirToast("A Central de Dúvidas é exclusiva para membros.", "info");
-        abrirModal('modal-login');
-        return;
-    }
-
-    renderizarListaFaq();
-    const editorAdm = document.getElementById('adm-editor-faq-area');
-    if (editorAdm) {
-        editorAdm.classList.toggle('hidden', estadoSessao.papel !== 'adm');
-    }
-
-    abrirModal('modal-duvidas-central');
-}
-/* ─── FIM: abrirCentralDuvidas ───────────────────────────────── */
-
-/* ─── INÍCIO: renderizarListaFaq ─────────────────────────────── */
-function renderizarListaFaq() {
-    const container = document.getElementById('lista-faq-perguntas');
-    if (!container) return;
-    container.innerHTML = '';
-
-    listaDuvidasFaq.forEach((item, index) => {
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'faq-item';
-
-        const questao = document.createElement('div');
-        questao.className = 'faq-question';
-        questao.setAttribute('data-action', 'toggle-faq');
-        questao.innerHTML = `<span>${escaparHtml(item.pergunta)}</span> <small>▼</small>`;
-
-        const resposta = document.createElement('div');
-        resposta.className = 'faq-answer';
-        resposta.textContent = item.resposta;
-
-        if (estadoSessao.papel === 'adm') {
-            const btnExcluir = document.createElement('button');
-            btnExcluir.className = 'btn btn-danger-outline btn-sm';
-            btnExcluir.style.cssText = 'margin-top:6px;font-size:0.65rem;padding:2px 6px;';
-            btnExcluir.textContent = 'Excluir Dúvida';
-            btnExcluir.onclick = (e) => {
-                e.stopPropagation();
-                listaDuvidasFaq.splice(index, 1);
-                localStorage.setItem('loja_faq_dados', JSON.stringify(listaDuvidasFaq));
-                renderizarListaFaq();
-                exibirToast("Dúvida removida com sucesso.", "info");
-            };
-            resposta.appendChild(btnExcluir);
-        }
-
-        itemDiv.append(questao, resposta);
-        container.appendChild(itemDiv);
-    });
-}
-/* ─── FIM: renderizarListaFaq ───────────────────────────────── */
-
-/* ─── INÍCIO: tratarEnvioSugestao ────────────────────────────── */
-async function tratarEnvioSugestao(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    const campo = document.getElementById('campo-sugestao-texto');
-    const texto = campo ? campo.value.trim() : '';
-    if (!texto) return;
-
-    mostrarLoader("A enviar sugestão...");
-    const res = await executarRequisicaoAPI("enviar_comentario", {
-        nome: `[SUGESTÃO] ${estadoSessao.nomeUsuario}`,
-        mensagem: texto
-    });
-    esconderLoader();
-
-    if (res.sucesso) {
-        exibirToast("Sugestão enviada com sucesso à administração!", "success");
-        if (campo) campo.value = '';
-        fecharModal('modal-duvidas-central');
-    } else {
-        exibirToast(res.mensagem || "Erro ao enviar sugestão.", "error");
-    }
-}
-/* ─── FIM: tratarEnvioSugestao ───────────────────────────────── */
-
-/* ─── INÍCIO: tratarEnvioComentario ──────────────────────────── */
-async function tratarEnvioComentario(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    const nomeInput = document.getElementById('comentario-nome');
-    const msgInput = document.getElementById('comentario-mensagem');
-    const nome = nomeInput ? nomeInput.value.trim() : estadoSessao.nomeUsuario;
-    const mensagem = msgInput ? msgInput.value.trim() : '';
-    if (!mensagem) return;
-
-    mostrarLoader("Enviando mensagem...");
-    const res = await executarRequisicaoAPI("enviar_comentario", { nome, mensagem });
-    esconderLoader();
-
-    if (res.sucesso) {
-        exibirToast("Mensagem enviada com sucesso!", "success");
-        if (msgInput) msgInput.value = '';
-    } else {
-        exibirToast(res.mensagem || "Erro ao enviar mensagem.", "error");
-    }
-}
-/* ─── FIM: tratarEnvioComentario ─────────────────────────────── */
-
-/* ─── INÍCIO: tratarAdicionarFaq ─────────────────────────────── */
-function tratarAdicionarFaq(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    const inputP = document.getElementById('faq-nova-pergunta');
-    const inputR = document.getElementById('faq-nova-resposta');
-    const pergunta = inputP ? inputP.value.trim() : '';
-    const resposta = inputR ? inputR.value.trim() : '';
-
-    if (!pergunta || !resposta) return;
-
-    listaDuvidasFaq.push({ pergunta, resposta });
-    localStorage.setItem('loja_faq_dados', JSON.stringify(listaDuvidasFaq));
-
-    if (inputP) inputP.value = '';
-    if (inputR) inputR.value = '';
-
-    renderizarListaFaq();
-    exibirToast("Nova dúvida adicionada ao FAQ!", "success");
-}
-/* ─── FIM: tratarAdicionarFaq ─────────────────────────────────── */
 
 /* ─── INÍCIO: abrirModal ─────────────────────────────────────── */
 function abrirModal(idModal) {
@@ -3157,7 +2511,7 @@ window.abrirModal = function(idModal) {
 /* ─── FIM: Interceptador do Botão Voltar (Mobile / Android) ──── */
 
 /* ═══════════════════════════════════════════════════════════════
-   17. EXPORTAÇÕES GLOBAIS (LIGAÇÃO COM BINDINGS & DOM)
+   16. EXPORTAÇÕES GLOBAIS (LIGAÇÃO COM BINDINGS & DOM)
    ═══════════════════════════════════════════════════════════════ */
 window.abrirModal                          = abrirModal;
 window.fecharModal                         = fecharModal;
@@ -3166,29 +2520,17 @@ window.exibirConfirmacao                   = abrirConfirmacao;
 window.fecharConfirmacao                   = fecharConfirmacao;
 window.confirmarLogout                     = confirmarLogout;
 window.executarLogout                      = executarLogout;
-window.enviarPedidoDesbloqueio             = enviarPedidoDesbloqueio;
 window.navegarPara                         = navegarPara;
 window.tratarCriacaoPedido                 = tratarCriacaoPedido;
 window.removerFotoCarregada                = removerFotoCarregada;
 window.gerarLinkTemporarioAdm              = gerarLinkTemporarioAdm;
 window.copiarLinkGerado                    = copiarLinkGerado;
 window.carregarPainelCentralAdm            = carregarPainelCentralAdm;
-window.enviarMensagemChat                  = enviarMensagemChat;
-window.tratarEnvioMensagemChat             = enviarMensagemChat;
-window.abrirChatPedido                     = abrirChatPedido;
 window.tratarSolicitacaoCadastro           = tratarSolicitacaoCadastro;
 window.tratarLogin                         = tratarLogin;
 window.tratarCadastroProduto               = tratarCadastroProduto;
-window.aplicarFiltroVitrine                = aplicarFiltroVitrine;
-window.filtrarVitrineEmTempoReal           = aplicarFiltroVitrine;
-window.selecionarCategoriaChip             = selecionarCategoriaChip;
-window.adicionarAoCarrinho                 = adicionarAoCarrinho;
 window.processarUploadImagem               = processarUploadImagem;
 window.copiarPixCopiaECola                 = copiarPixCopiaECola;
-window.abrirCentralDuvidas                 = abrirCentralDuvidas;
-window.tratarEnvioSugestao                 = tratarEnvioSugestao;
-window.tratarEnvioComentario               = tratarEnvioComentario;
-window.tratarAdicionarFaq                  = tratarAdicionarFaq;
 window.executarLimpezaTotalESaida          = executarLimpezaTotalESaida;
 window.confirmarExclusaoProdutoAdm         = confirmarExclusaoProdutoAdm;
 window.excluirProdutoAdm                   = excluirProdutoAdm;
@@ -3198,25 +2540,23 @@ window.toggleUserDropdown                  = toggleUserDropdown;
 window.fecharUserDropdown                  = fecharUserDropdown;
 window.atualizarBadgeCarrinho              = atualizarBadgeCarrinho;
 
-// Funções de acessibilidade, esteira e controle administrativo
+// Funções de acessibilidade e controle administrativo
 window.alternarModoEscuro                  = alternarModoEscuro;
 window.abrirLightboxFoto                   = abrirLightboxFoto;
 window.fecharLightbox                      = fecharLightbox;
-window.comprarProdutoDireto                = comprarProdutoDireto;
-window.compartilharPedidoWhatsApp          = compartilharPedidoWhatsApp;
-window.abrirAssistenteVirtual              = abrirAssistenteVirtual;
-window.responderDuvidaRapida               = responderDuvidaRapida;
-window.atualizarContadorSelecaoLote        = atualizarContadorSelecaoLote;
-window.aprovarSolicitacoesSelecionadasLote = aprovarSolicitacoesSelecionadasLote;
 window.gerarRelatorioPdfVendas             = gerarRelatorioPdfVendas;
 window.tocarSomNotificacao                 = tocarSomNotificacao;
 window.alternarModoAcessoSistema           = alternarModoAcessoSistema;
-window.informarPagamentoWhatsApp           = informarPagamentoWhatsApp;
 window.cancelarExcluirPedidoAdm            = cancelarExcluirPedidoAdm;
 window.limparConcluidosAdm                 = limparConcluidosAdm;
-window.apagarMensagemAdm                   = apagarMensagemAdm;
 
-// Funções de comandas, prioridades e gavetas
+// Funções de vitrine e carrinho simplificado
+window.alterarQuantidadeProdutoCard        = alterarQuantidadeProdutoCard;
+window.modificarQtdCarrinho                = modificarQtdCarrinho;
+window.solicitarRemocaoItemCarrinho        = solicitarRemocaoItemCarrinho;
+window.enviarComprovanteWhatsApp           = enviarComprovanteWhatsApp;
+
+// Funções de comandas e gavetas
 window.carregarPedidosAdm                  = carregarPedidosAdm;
 window.avancarStatusAdm                    = avancarStatusAdm;
 window.iniciarAutoRefreshEsteira           = iniciarAutoRefreshEsteira;
