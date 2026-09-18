@@ -1,5 +1,5 @@
 /* ============================================================================
-   style.css — Plataforma Comercial Segura (v6 — Proporções e Ícones Travados)
+   style.css — Plataforma Comercial Segura (v7 — Consolidado, Completo & Blindado)
    ============================================================================ */
 
 /* ─── 1. RESET E VARIÁVEIS ─────────────────────────────────── */
@@ -71,7 +71,41 @@ body {
     min-height: 100vh;
 }
 
-/* Trava global de segurança para imagens e vetores SVG */
+/* Blindagem de captura e seleção de texto */
+.bloqueio-captura {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+}
+
+/* Cortina de proteção visual contra capturas de tela externas */
+.cortina-privacidade {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.98);
+    backdrop-filter: blur(20px);
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+}
+
+.cortina-aviso {
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.cortina-aviso span {
+    font-size: 3.5rem;
+    display: block;
+    margin-bottom: 12px;
+}
+
 img {
     max-width: 100%;
     height: auto;
@@ -463,18 +497,11 @@ svg {
     background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
     border-radius: 50%;
     color: var(--cor-primaria);
+    font-size: 2.2rem;
 }
 [data-theme="dark"] .hero-screen__icon {
     background: linear-gradient(135deg, #1e3a8a 0%, #172554 100%);
     color: #60a5fa;
-}
-
-.hero-screen__icon svg {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
-    flex-shrink: 0;
 }
 
 .hero-screen__title {
@@ -656,6 +683,48 @@ svg {
 }
 .btn-comprar-agora:hover:not(:disabled) {
     background-color: var(--cor-sucesso-escura);
+}
+
+/* Controles de Quantidade (+ / -) dentro do Card */
+.card-qty-control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--cor-fundo-elevado);
+    border: 1.5px solid var(--cor-borda);
+    border-radius: 8px;
+    padding: 3px;
+    margin-top: 8px;
+    width: 100%;
+    max-width: 140px;
+}
+
+.btn-qty {
+    width: 34px;
+    height: 34px;
+    background: var(--cor-fundo-card);
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+    font-size: 1.25rem;
+    font-weight: 800;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+}
+
+.btn-qty:hover {
+    background: var(--cor-primaria);
+    color: #ffffff;
+}
+
+.qty-display {
+    font-size: 1rem;
+    font-weight: 800;
+    min-width: 28px;
+    text-align: center;
 }
 
 .visitor-note {
@@ -953,7 +1022,7 @@ input:focus, select:focus, textarea:focus {
     flex-wrap: wrap;
 }
 
-/* ─── 13. CESTA ─────────────────────────────────────────────── */
+/* ─── 13. CESTA & CARRINHO LIMPO ────────────────────────────── */
 .cart-items-wrapper {
     background: var(--cor-fundo-card);
     border: 1px solid var(--cor-borda);
@@ -972,6 +1041,38 @@ input:focus, select:focus, textarea:focus {
     font-size: 0.88rem;
 }
 .cart-item-row:last-child { border-bottom: none; }
+
+.cart-item-clean {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: var(--cor-fundo-card);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-md);
+    margin-bottom: 8px;
+    box-shadow: var(--sombra-card);
+}
+
+.btn-lixeira {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--cor-perigo);
+    color: var(--cor-perigo);
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    margin-left: 8px;
+    transition: background 0.15s;
+}
+.btn-lixeira:hover {
+    background: var(--cor-perigo);
+    color: #ffffff;
+}
 
 .cart-summary-card {
     background: var(--cor-fundo-card);
@@ -998,7 +1099,7 @@ input:focus, select:focus, textarea:focus {
     color: #4ade80;
 }
 
-/* ─── 14. LINHA DO TEMPO (STEPPER) ──────────────────────────── */
+/* ─── 14. LINHA DO TEMPO & NOVO STEPPER (3 ETAPAS EM VERDE) ─── */
 .order-stepper {
     display: flex;
     align-items: flex-start;
@@ -1091,7 +1192,54 @@ input:focus, select:focus, textarea:focus {
     gap: 6px;
 }
 
-/* ─── 15. GESTÃO EM LOTE E PIPELINE ─────────────────────────── */
+/* Novo Stepper de 3 Etapas em Verde */
+.order-stepper-clean {
+    display: flex;
+    justify-content: space-between;
+    margin: 16px 0;
+    position: relative;
+}
+
+.step-item {
+    flex: 1;
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--cor-texto-suave);
+}
+
+.step-circulo {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--cor-fundo-elevado);
+    border: 2px solid var(--cor-borda);
+    color: var(--cor-texto-suave);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 6px;
+    font-weight: 800;
+}
+
+.step-item.concluido .step-circulo {
+    background: var(--cor-sucesso) !important;
+    border-color: var(--cor-sucesso) !important;
+    color: #ffffff !important;
+}
+
+.step-item.concluido span {
+    color: var(--cor-sucesso) !important;
+}
+
+.step-item.ativo .step-circulo {
+    background: var(--cor-primaria);
+    border-color: var(--cor-primaria);
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
+}
+
+/* ─── 15. GESTÃO EM LOTE, COMANDAS E ESTEIRA ─────────────────── */
 .batch-toolbar {
     display: flex;
     align-items: center;
@@ -1116,17 +1264,17 @@ input:focus, select:focus, textarea:focus {
 .pipeline-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 10px;
+    gap: 12px;
 }
 .pipeline-col {
     background: var(--cor-fundo-card);
     border: 1px solid var(--cor-borda);
     border-radius: var(--raio-md);
-    padding: 10px;
+    padding: 12px;
     min-height: 140px;
 }
 .pipeline-col h4 {
-    font-size: 0.72rem;
+    font-size: 0.82rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1137,7 +1285,211 @@ input:focus, select:focus, textarea:focus {
     border-bottom: 1px solid var(--cor-borda);
 }
 
-/* ─── 16. BOTÃO FLUTUANTE DE AJUDA ──────────────────────────── */
+.pipeline-header-col {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--cor-borda);
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+}
+.pipeline-header-col h4 {
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+.btn-limpar-coluna {
+    background: transparent;
+    border: none;
+    color: var(--cor-texto-suave);
+    font-size: 0.72rem;
+    cursor: pointer;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.btn-limpar-coluna:hover {
+    color: var(--cor-perigo);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.comanda-card {
+    background: var(--cor-fundo);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--cor-borda);
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.comanda-header {
+    padding: 8px 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.comanda-header:hover {
+    background: var(--cor-fundo-elevado);
+}
+
+.comanda-body {
+    padding: 10px;
+    border-top: 1px dashed var(--cor-borda);
+    font-size: 0.78rem;
+    display: none;
+}
+.comanda-card.expandida .comanda-body {
+    display: block;
+}
+
+.comanda-analise { border-left: 4px solid #f59e0b; }
+.comanda-solicitados { border-left: 4px solid #3b82f6; }
+.comanda-viagem { border-left: 4px solid #8b5cf6; }
+.comanda-concluido { border-left: 4px solid #10b981; }
+
+.pipeline-order-card {
+    background: var(--cor-fundo-card);
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--cor-borda);
+    transition: border-color var(--transicao);
+}
+
+.card-pergunta-ativa {
+    border: 2px solid #f59e0b !important;
+    background: rgba(245, 158, 11, 0.08) !important;
+}
+
+.badge-duvida-pendente {
+    background: #f59e0b;
+    color: #000000;
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    animation: pulseAlerta 1.6s infinite;
+}
+
+.pulse-chat {
+    background-color: #f59e0b !important;
+    color: #000000 !important;
+    font-weight: 800 !important;
+    border: none !important;
+}
+
+@keyframes pulseAlerta {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+/* ─── 16. GAVETAS DO ADM (MEMBROS E BLOQUEADOS COM CORES) ───── */
+.adm-toolbar-flutuante {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.btn-drawer {
+    padding: 9px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    transition: all 0.15s;
+    border: 1px solid var(--cor-borda);
+    background: var(--cor-fundo-card);
+    color: var(--cor-texto);
+}
+.btn-drawer:hover { background: var(--cor-fundo-elevado); }
+.btn-drawer.ativo { border-color: var(--cor-primaria); background: var(--cor-fundo-elevado); }
+
+.btn-drawer-membros {
+    background: rgba(16, 185, 129, 0.1) !important;
+    border: 1.5px solid var(--cor-sucesso) !important;
+    color: var(--cor-sucesso) !important;
+}
+.btn-drawer-membros:hover, .btn-drawer-membros.ativo {
+    background: var(--cor-sucesso) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+.btn-drawer-bloqueados {
+    background: rgba(239, 68, 68, 0.1) !important;
+    border: 1.5px solid var(--cor-perigo) !important;
+    color: var(--cor-perigo) !important;
+}
+.btn-drawer-bloqueados:hover, .btn-drawer-bloqueados.ativo {
+    background: var(--cor-perigo) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+}
+
+.gaveta-suspensa {
+    background: var(--cor-fundo-card);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-md);
+    padding: 14px;
+    margin-bottom: 14px;
+    animation: fadeIn 0.2s ease;
+}
+
+/* ─── 17. MENSAGENS RECEBIDAS (ACORDEÃO RETRÁTIL) ────────────── */
+.msg-grupo-item, .msg-cliente-card {
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: var(--cor-fundo-card);
+    overflow: hidden;
+}
+.msg-grupo-topo, .msg-cliente-header {
+    padding: 10px 12px;
+    background: var(--cor-fundo-elevado);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.msg-grupo-topo:hover, .msg-cliente-header:hover {
+    background: var(--cor-borda);
+}
+.msg-grupo-corpo, .msg-cliente-drawer {
+    display: none;
+    padding: 12px;
+    border-top: 1px solid var(--cor-borda);
+    background: var(--cor-fundo-card);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+.msg-grupo-item.aberto .msg-grupo-corpo,
+.msg-cliente-card.aberto .msg-cliente-drawer {
+    display: block;
+}
+.msg-chat-balao {
+    background: var(--cor-fundo-elevado);
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    margin-bottom: 8px;
+    border-left: 3px solid var(--cor-primaria);
+}
+
+/* ─── 18. BOTÃO FLUTUANTE DE AJUDA ──────────────────────────── */
 .floating-help-btn {
     position: fixed;
     bottom: calc(var(--altura-bottom-nav) + env(safe-area-inset-bottom, 0) + 16px);
@@ -1190,7 +1542,7 @@ input:focus, select:focus, textarea:focus {
     color: var(--cor-primaria);
 }
 
-/* ─── 17. TOASTS ────────────────────────────────────────────── */
+/* ─── 19. TOASTS ────────────────────────────────────────────── */
 .toast-wrapper {
     position: fixed;
     top: calc(var(--altura-header) + 8px);
@@ -1224,7 +1576,7 @@ input:focus, select:focus, textarea:focus {
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ─── 18. MODAIS ────────────────────────────────────────────── */
+/* ─── 20. MODAIS ────────────────────────────────────────────── */
 .modal-overlay {
     display: none;
     position: fixed;
@@ -1331,7 +1683,7 @@ input:focus, select:focus, textarea:focus {
     color: #fca5a5;
 }
 
-/* ─── 19. CHAT ──────────────────────────────────────────────── */
+/* ─── 21. CHAT ──────────────────────────────────────────────── */
 .chat-id {
     color: var(--cor-primaria);
     font-weight: 700;
@@ -1385,7 +1737,7 @@ input:focus, select:focus, textarea:focus {
 }
 .chat-input-row input { flex: 1; }
 
-/* ─── 20. FAQ / AJUDA ───────────────────────────────────────── */
+/* ─── 22. FAQ / AJUDA ───────────────────────────────────────── */
 .faq-container { margin-bottom: 18px; }
 .faq-header-title {
     font-size: 0.9rem;
@@ -1449,7 +1801,7 @@ input:focus, select:focus, textarea:focus {
     border-top: 1px dashed var(--cor-borda-forte);
 }
 
-/* ─── 21. MÉTRICAS ──────────────────────────────────────────── */
+/* ─── 23. MÉTRICAS ──────────────────────────────────────────── */
 .metrics-summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -1495,7 +1847,7 @@ input:focus, select:focus, textarea:focus {
     color: var(--cor-texto-suave);
 }
 
-/* ─── 22. PREVIEWS E LINKS ──────────────────────────────────── */
+/* ─── 24. PREVIEWS E LINKS ──────────────────────────────────── */
 .preview-box {
     margin-top: 10px;
     padding: 10px;
@@ -1545,7 +1897,7 @@ input:focus, select:focus, textarea:focus {
     margin-top: 6px;
 }
 
-/* ─── 23. LOADER ────────────────────────────────────────────── */
+/* ─── 25. LOADER ────────────────────────────────────────────── */
 .loader-overlay {
     position: fixed;
     inset: 0;
@@ -1579,7 +1931,7 @@ input:focus, select:focus, textarea:focus {
     text-align: center;
 }
 
-/* ─── 24. RESPONSIVIDADE ────────────────────────────────────── */
+/* ─── 26. RESPONSIVIDADE ────────────────────────────────────── */
 @media (min-width: 640px) {
     .modal-overlay {
         align-items: center;
@@ -1617,12 +1969,13 @@ input:focus, select:focus, textarea:focus {
     .chip { font-size: 0.75rem; padding: 5px 12px; }
 }
 
-/* ─── 25. IMPRESSÃO ─────────────────────────────────────────── */
+/* ─── 27. IMPRESSÃO (FECHADO COM SEGURANÇA) ──────────────────── */
 @media print {
     body {
         background: #ffffff !important;
         color: #000000 !important;
         padding: 0 !important;
+        display: none !important; /* Blindagem ativa contra impressão */
     }
     .app-header,
     .bottom-nav,
@@ -1655,300 +2008,4 @@ input:focus, select:focus, textarea:focus {
         border: 1px solid #000 !important;
         color: #000 !important;
     }
-
-   /* ─── ALERTA DE PERGUNTA PENDENTE NO CHAT (ESTEIRA) ─── */
-.pipeline-order-card {
-    background: var(--cor-fundo-card);
-    padding: 10px;
-    margin-bottom: 8px;
-    border-radius: 8px;
-    border: 1px solid var(--cor-borda);
-    transition: border-color var(--transicao);
-}
-
-.card-pergunta-ativa {
-    border: 1.5px solid var(--cor-aviso) !important;
-    background: rgba(245, 158, 11, 0.05);
-}
-
-.badge-duvida-pendente {
-    background: var(--cor-aviso);
-    color: #000;
-    font-size: 0.65rem;
-    font-weight: 800;
-    padding: 2px 6px;
-    border-radius: 6px;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    animation: pulseBadge 1.8s infinite;
-}
-
-.pulse-chat {
-    background-color: var(--cor-aviso) !important;
-    color: #000 !important;
-    font-weight: 700;
-    border: none !important;
-}
-
-@keyframes pulseBadge {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.08); }
-}
-   
-/* ─── INÍCIO: NOVOS ESTILOS (COMANDAS, CORES DE ETAPA & PAINÉIS SUSPENSOS) ─── */
-
-/* 1. Alertas da Esteira & Interrogação */
-.badge-duvida-pendente {
-    background: #f59e0b;
-    color: #000;
-    font-size: 0.68rem;
-    font-weight: 800;
-    padding: 2px 7px;
-    border-radius: 6px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    animation: pulseAlerta 1.6s infinite;
-}
-
-.card-pergunta-ativa {
-    border: 2px solid #f59e0b !important;
-    background: rgba(245, 158, 11, 0.08) !important;
-}
-
-.pulse-chat {
-    background: #f59e0b !important;
-    color: #000 !important;
-    font-weight: 800 !important;
-    border: none !important;
-}
-
-@keyframes pulseAlerta {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.08); }
-}
-
-/* 2. Cartões de Comanda Retráteis por Etapa */
-.comanda-card {
-    background: var(--cor-fundo-card);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    border: 1px solid var(--cor-borda);
-    overflow: hidden;
-    transition: all 0.2s ease;
-}
-
-.comanda-header {
-    padding: 8px 10px;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    user-select: none;
-    font-size: 0.8rem;
-}
-
-.comanda-header:hover {
-    background: var(--cor-fundo-elevado);
-}
-
-.comanda-body {
-    padding: 10px;
-    border-top: 1px dashed var(--cor-borda);
-    font-size: 0.78rem;
-    display: none;
-}
-
-.comanda-card.expandida .comanda-body {
-    display: block;
-}
-
-/* Sinalização Específica por Etapa */
-.comanda-analise { border-left: 4px solid #f59e0b; }
-.comanda-solicitados { border-left: 4px solid #3b82f6; }
-.comanda-viagem { border-left: 4px solid #8b5cf6; }
-.comanda-concluido { border-left: 4px solid #10b981; opacity: 0.85; }
-
-.badge-etapa {
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-}
-.badge-etapa-analise { background: rgba(245, 158, 11, 0.2); color: #d97706; }
-.badge-etapa-solicitados { background: rgba(59, 130, 246, 0.2); color: #2563eb; }
-.badge-etapa-viagem { background: rgba(139, 92, 246, 0.2); color: #7c3aed; }
-.badge-etapa-concluido { background: rgba(16, 185, 129, 0.2); color: #059669; }
-
-/* 3. Gavetas / Painéis Suspensos de Membros e Bloqueados */
-.adm-toolbar-flutuante {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 14px;
-    flex-wrap: wrap;
-}
-
-.btn-drawer {
-    padding: 8px 14px;
-    border-radius: 8px;
-    border: 1px solid var(--cor-borda);
-    background: var(--cor-fundo-card);
-    color: var(--cor-texto);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    transition: all 0.18s;
-}
-.btn-drawer:hover { background: var(--cor-fundo-elevado); }
-.btn-drawer.ativo { border-color: var(--cor-primaria); background: var(--cor-fundo-elevado); }
-
-.gaveta-suspensa {
-    background: var(--cor-fundo-card);
-    border: 1px solid var(--cor-borda);
-    border-radius: 10px;
-    padding: 14px;
-    margin-bottom: 14px;
-    animation: fadeIn 0.2s ease;
-}
-
-/* 4. Mensagens Agrupadas (Acordeão) */
-.msg-grupo-item {
-    border: 1px solid var(--cor-borda);
-    border-radius: 6px;
-    margin-bottom: 6px;
-    overflow: hidden;
-}
-.msg-grupo-topo {
-    padding: 8px 12px;
-    background: var(--cor-fundo-elevado);
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-.msg-grupo-corpo {
-    padding: 10px;
-    font-size: 0.78rem;
-    line-height: 1.4;
-    background: var(--cor-fundo-card);
-    display: none;
-}
-.msg-grupo-item.aberto .msg-grupo-corpo {
-    display: block;
-}
-
-/* ─── INÍCIO: BOTÕES DE GAVETA (MEMBROS E BLOQUEADOS COM CORES ELEGANTES) ─── */
-.btn-drawer-membros {
-    background: rgba(16, 185, 129, 0.1) !important;
-    border: 1px solid #10b981 !important;
-    color: #10b981 !important;
-    font-weight: 700;
-}
-.btn-drawer-membros:hover, .btn-drawer-membros.ativo {
-    background: #10b981 !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
-}
-
-.btn-drawer-bloqueados {
-    background: rgba(239, 68, 68, 0.1) !important;
-    border: 1px solid #ef4444 !important;
-    color: #ef4444 !important;
-    font-weight: 700;
-}
-.btn-drawer-bloqueados:hover, .btn-drawer-bloqueados.ativo {
-    background: #ef4444 !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
-}
-
-/* ─── COMANDAS CONCLUÍDAS RETRÁTEIS E BOTÃO DE LIMPEZA ─── */
-.comanda-concluido {
-    border-left: 4px solid #10b981;
-    background: var(--cor-fundo-elevado);
-}
-.comanda-concluido .comanda-header {
-    padding: 6px 10px;
-    font-size: 0.75rem;
-}
-.comanda-concluido .comanda-body {
-    display: none;
-}
-.comanda-concluido.expandida .comanda-body {
-    display: block;
-}
-
-.pipeline-header-col {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--cor-borda);
-    padding-bottom: 6px;
-    margin-bottom: 8px;
-}
-.pipeline-header-col h4 {
-    margin: 0;
-    border: none;
-    padding: 0;
-}
-.btn-limpar-coluna {
-    background: transparent;
-    border: none;
-    color: var(--cor-texto-suave);
-    font-size: 0.7rem;
-    cursor: pointer;
-    font-weight: 600;
-    padding: 2px 6px;
-    border-radius: 4px;
-}
-.btn-limpar-coluna:hover {
-    color: var(--cor-perigo);
-    background: rgba(239, 68, 68, 0.1);
-}
-
-/* ─── MENSAGENS RECEBIDAS: ACORDEÃO COM AVATAR E RESPOSTA DIRETA ─── */
-.msg-cliente-card {
-    border: 1px solid var(--cor-borda);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    background: var(--cor-fundo-card);
-    overflow: hidden;
-}
-.msg-cliente-header {
-    padding: 10px 12px;
-    background: var(--cor-fundo-elevado);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    user-select: none;
-}
-.msg-cliente-header:hover {
-    background: var(--cor-borda);
-}
-.msg-cliente-drawer {
-    display: none;
-    padding: 12px;
-    border-top: 1px solid var(--cor-borda);
-    background: var(--cor-fundo-card);
-}
-.msg-cliente-card.aberto .msg-cliente-drawer {
-    display: block;
-}
-.msg-chat-balao {
-    background: var(--cor-fundo-elevado);
-    padding: 8px 10px;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    margin-bottom: 8px;
-    border-left: 3px solid var(--cor-primaria);
-}
-/* ─── FIM: ESTILOS ─── */
-   
 }
