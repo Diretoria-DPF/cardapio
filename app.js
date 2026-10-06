@@ -958,40 +958,52 @@
      ═══════════════════════════════════════════════════════════ */
 
   /* ─── INÍCIO: tratarLogin ──────────────────────────────────── */
-  async function tratarLogin(evento) {
-    if (evento && evento.preventDefault) evento.preventDefault();
+async function tratarLogin(evento) {
+  if (evento && evento.preventDefault) evento.preventDefault();
 
-    const usuarioEl = document.getElementById('login-usuario');
-    const senhaEl = document.getElementById('login-senha');
-    if (!usuarioEl || !senhaEl) return;
+  const usuarioEl = document.getElementById('login-usuario');
+  const senhaEl = document.getElementById('login-senha');
+  if (!usuarioEl || !senhaEl) return;
 
-    const usuarioDigitos = extrairApenasDigitos(usuarioEl.value);
-    const senha = senhaEl.value;
+  const usuarioRaw = usuarioEl.value.trim();
+  const usuarioDigitos = extrairApenasDigitos(usuarioRaw);
+  const senha = senhaEl.value;
 
-    if (usuarioDigitos.length < 10) {
-      exibirToast('Informe seu WhatsApp completo com DDD.', 'error');
-      usuarioEl.focus();
-      return;
-    }
+  if (usuarioDigitos.length < 10) {
+    exibirToast('Informe seu WhatsApp completo com DDD.', 'error');
+    usuarioEl.focus();
+    return;
+  }
+  if (!senha || senha.length < 4) {
+    exibirToast('Informe sua senha.', 'error');
+    senhaEl.focus();
+    return;
+  }
 
-    if (!senha || senha.length < 4) {
-      exibirToast('Informe sua senha.', 'error');
-      senhaEl.focus();
-      return;
-    }
+  botaoCarregando('btn-entrar', true);
 
-    botaoCarregando('btn-entrar', true);
+  // ⚠️ Envia TAMBÉM o valor cru, para cobrir backend que armazena formatado
+  const payload = {
+    identificador: usuarioRaw,              // ex: "(74) 99999-9999"
+    identificadorDigitos: usuarioDigitos,   // ex: "74999999999"
+    senha,
+  };
 
-    const resp = await executarRequisicaoAPI('login', {
-      identificador: usuarioDigitos,
-      senha,
-    });
+  console.log('[LOGIN] Payload enviado:', {
+    identificador: usuarioRaw,
+    identificadorDigitos: usuarioDigitos,
+    senhaTamanho: senha.length,
+  });
 
-    botaoCarregando('btn-entrar', false);
+  const resp = await executarRequisicaoAPI('login', payload);
 
-    if (!resp.sucesso) {
-      exibirToast(resp.mensagem || 'Credenciais inválidas.', 'error');
-      return;
+  console.log('[LOGIN] Resposta recebida:', resp);
+
+  botaoCarregando('btn-entrar', false);
+
+  if (!resp.sucesso) {
+    exibirToast(resp.mensagem || 'Credenciais inválidas.', 'error');
+    return;
     }
 
     // Sucesso: aplica sessão
