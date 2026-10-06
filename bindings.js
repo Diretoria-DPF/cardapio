@@ -317,6 +317,17 @@
         chamarComSeguranca('alternarModoAcessoSistema', el.dataset.modo);
         break;
 
+
+          case 'solicitar-recuperacao':
+  e.preventDefault();
+  chamarComSeguranca('solicitarRecuperacaoSenhaFront', e);
+  break;
+
+case 'redefinir-senha':
+  e.preventDefault();
+  chamarComSeguranca('redefinirSenhaFront', e);
+  break;
+          
       /* ─── 3.2.9 — Gavetas (Membros / Bloqueados) ──────── */
       case 'alternar-gaveta':
         e.preventDefault();
