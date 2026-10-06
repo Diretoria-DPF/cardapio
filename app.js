@@ -459,6 +459,91 @@
         };
       }
 
+       /* ═════ RECUPERAÇÃO DE SENHA ═════ */
+
+if (acao === 'solicitar_recuperacao_senha') {
+  const idRaw = sanitizarTexto(payload.identificador);
+  const tel = extrairDigitos(idRaw);
+
+  if (tel.length < 10) {
+    return res.json({ sucesso: false, mensagem: 'Informe o WhatsApp completo.' });
+  }
+
+  // Verifica se existe usuário com esse telefone
+  const r = await pool.query(
+    "SELECT id, nome FROM usuarios WHERE telefone = $1 AND status_conta = 'ativo' LIMIT 1",
+    [tel]
+  );
+
+  // Sempre responde sucesso (evita enumeração de contas)
+  if (!r.rows.length) {
+    return res.json({ sucesso: true, mensagem: 'Se o número estiver cadastrado, você receberá o código.' });
+  }
+
+  const u = r.rows[0];
+
+  // Invalida códigos anteriores do mesmo usuário
+  await pool.query(
+    "UPDATE codigos_recuperacao SET usado = TRUE WHERE id_usuario = $1 AND usado = FALSE",
+    [u.id]
+  );
+
+  // Gera código de 6 dígitos
+  const codigo = String(Math.floor(100000 + Math.random() * 900000));
+  const expira = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+
+  await pool.query(
+    `INSERT INTO codigos_recuperacao (id_usuario, codigo, expira_em, usado, criado_em)
+     VALUES ($1, $2, $3, FALSE, NOW())`,
+    [u.id, codigo, expira]
+  );
+
+  // TODO: enviar via WhatsApp (integração futura).
+  // Por enquanto loga no console do servidor pra debug.
+  console.log(`[RECUP] Código para ${tel}: ${codigo}`);
+
+  return res.json({
+    sucesso: true,
+    mensagem: 'Código enviado! Verifique o WhatsApp.',
+    // Remova a linha abaixo em produção real — só para testar:
+    _debug_codigo: codigo
+  });
+}
+
+if (acao === 'redefinir_senha') {
+  const idRaw = sanitizarTexto(payload.identificador);
+  const tel = extrairDigitos(idRaw);
+  const codigo = String(payload.codigo || '').trim();
+  const novaSenha = String(payload.novaSenha || '');
+
+  if (tel.length < 10 || !codigo || novaSenha.length < 6) {
+    return res.json({ sucesso: false, mensagem: 'Dados incompletos.' });
+  }
+
+  const u = await pool.query("SELECT id FROM usuarios WHERE telefone = $1 LIMIT 1", [tel]);
+  if (!u.rows.length) {
+    return res.json({ sucesso: false, mensagem: 'Código inválido.' });
+  }
+
+  const cr = await pool.query(
+    `SELECT id FROM codigos_recuperacao
+     WHERE id_usuario = $1 AND codigo = $2 AND usado = FALSE AND expira_em > NOW()
+     ORDER BY criado_em DESC LIMIT 1`,
+    [u.rows[0].id, codigo]
+  );
+
+  if (!cr.rows.length) {
+    return res.json({ sucesso: false, mensagem: 'Código inválido ou expirado.' });
+  }
+
+  const hash = await bcrypt.hash(novaSenha, 10);
+
+  await pool.query("UPDATE usuarios SET senha_hash = $1, tentativas_erro = 0 WHERE id = $2", [hash, u.rows[0].id]);
+  await pool.query("UPDATE codigos_recuperacao SET usado = TRUE WHERE id = $1", [cr.rows[0].id]);
+
+  return res.json({ sucesso: true, mensagem: 'Senha redefinida com sucesso!' });
+}
+       
       /* ─── Kill switch ──────────────────────────────────────── */
       if (!json.sucesso && json.codigo === 'SISTEMA_BLOQUEADO') {
         if (estadoSessao.papel === 'adm') return json;
