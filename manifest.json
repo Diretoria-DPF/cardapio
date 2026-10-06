@@ -1,0 +1,54 @@
+{
+  "name": "Loja — Catálogo Restrito",
+  "short_name": "Loja",
+  "description": "Plataforma de catálogo e pedidos por convite.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fdfcfb",
+  "theme_color": "#f97316",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["shopping", "food"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Catálogo",
+      "short_name": "Catálogo",
+      "url": "./index.html#vitrine",
+      "description": "Ver produtos disponíveis"
+    },
+    {
+      "name": "Meus Pedidos",
+      "short_name": "Pedidos",
+      "url": "./index.html#pedidos",
+      "description": "Acompanhar pedidos em andamento"
+    }
+  ]
+}
