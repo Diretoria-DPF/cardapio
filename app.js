@@ -12,27 +12,26 @@
    BACKEND: Google Apps Script Web App (text/plain + JSON.stringify)
    ============================================================================ */
 
+ /* ============================================================================
+   app.js — Plataforma Comercial Segura (v32 — Vercel + Neon)
+   ============================================================================
+   BACKEND: Node.js na Vercel conectado ao PostgreSQL (Neon)
+   ============================================================================ */
+
 (function () {
   'use strict';
 
   /* ─── INÍCIO: Constantes ───────────────────────────────────── */
-  /**
-   * ⚠️ COLE AQUI A URL DO SEU WEB APP DO APPS SCRIPT (termina em /exec)
-   *
-   * Como obter:
-   *   1. Editor do Apps Script → Implantar → Gerenciar implantações
-   *   2. Se não existir: Nova implantação → tipo "Aplicativo da Web"
-   *   3. Executar como: "Eu"
-   *   4. Quem tem acesso: "Qualquer pessoa"  ← OBRIGATÓRIO
-   *   5. Implantar → copiar a URL
-   /* ─── INÍCIO: Constantes ───────────────────────────────────── */ 
+
+  // URL do backend na Vercel
   const URL_BACKEND = 'https://lojasegura-backend.vercel.app';
-   
+
   const WHATSAPP_SUPORTE = '5574998048300';
   const SPLASH_MIN_MS = 1500;
-  const TIMEOUT_API = 25000;
-  const TIMEOUT_LINK = 15000;
-  const VERSAO_APP = 'v30.1';/*  
+  const TIMEOUT_API = 30000;
+  const TIMEOUT_LINK = 20000;
+  const VERSAO_APP = 'v32';
+
   /* ─── FIM: Constantes ──────────────────────────────────────── */
   const CHAVES = {
     FINGERPRINT: 'loja_fingerprint',
