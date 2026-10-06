@@ -30,8 +30,8 @@
    *   4. Quem tem acesso: "Qualquer pessoa"  ← OBRIGATÓRIO
    *   5. Implantar → copiar a URL
    /* ─── INÍCIO: Constantes ───────────────────────────────────── */
-   const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbxsNs21pEijzQmxLWd_cruBF4vIsz_lBy3OgfMO-9qAh2pUuxMGu9PAocXbLKsqVfOJ/exec';
-
+   const URL_BACKEND_APPS_SCRIPT = "https://lojasegura-backend.vercel.app";
+   
   const WHATSAPP_SUPORTE = '5574998048300';
   const SPLASH_MIN_MS = 1500;
   const TIMEOUT_API = 30000;   
