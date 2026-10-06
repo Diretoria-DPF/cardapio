@@ -1,5 +1,5 @@
 /* ============================================================================
-   app.js — Plataforma Comercial Segura (v30.1 — Mobile-First · Laranja Energia)
+   app.js — Plataforma Comercial Segura (v31 — Apps Script direto)
    ============================================================================
    ARQUITETURA:
      • Estado global único em `estadoSessao`, `cestaCompras`, `catalogoProdutos`.
@@ -7,41 +7,9 @@
      • Chamadas HTTP centralizadas em `executarRequisicaoAPI()` com retry.
      • Timers com limpeza automática e pausa em visibilitychange.
      • Splash de momento para feedback premium (abertura, cadastro, pedido).
+     • Recuperação de senha via código WhatsApp (backend em security.gs).
 
-   SEÇÕES:
-     01. Configuração & Constantes
-     02. Utilitários Gerais
-     03. Cache Local
-     04. Estado Global
-     05. Splash (inicial + momentos)
-     06. Tema (claro / escuro / auto)
-     07. HTTP / API
-     08. Sessão / Tokens
-     09. Navegação
-     10. Modais & Confirmação
-     11. Toasts / Loader
-     12. Lightbox
-     13. Autenticação (Login & Cadastro)
-     14. Vitrine & Filtros
-     15. Favoritos
-     16. Carrinho
-     17. Agendamento & Horário
-     18. PIX
-     19. Meus Pedidos
-     20. Repetir Pedido
-     21. WhatsApp / Comprovante
-     22. ADM — Painel Central
-     23. ADM — Gavetas (Membros / Bloqueados)
-     24. ADM — Esteira
-     25. ADM — Produtos
-     26. ADM — Link Temporário
-     27. ADM — Relatório PDF
-     28. Central de Ajuda
-     29. Avatar / Dropdown
-     30. Logout
-     31. Auto-Refresh
-     32. Tratamento de Erros Global
-     33. Exports Globais
+   BACKEND: Google Apps Script Web App (text/plain + JSON.stringify)
    ============================================================================ */
 
 (function () {
@@ -50,14 +18,32 @@
   /* ═══════════════════════════════════════════════════════════
      01. CONFIGURAÇÃO & CONSTANTES
      ═══════════════════════════════════════════════════════════ */
-
-  /* ─── INÍCIO: Constantes ───────────────────────────────────── */
-  const URL_BACKEND = 'https://lojasegura-backend.vercel.app';
+/* ─── INÍCIO: Constantes ───────────────────────────────────── */
+ /* const URL_BACKEND = 'https://lojasegura-backend.vercel.app';
   const WHATSAPP_SUPORTE = '5574998048300';
-  const SPLASH_MIN_MS = 800;
+  const SPLASH_MIN_MS = 1500;
   const TIMEOUT_API = 25000;
   const TIMEOUT_LINK = 15000;
-  const VERSAO_APP = 'v30.1';
+  const VERSAO_APP = 'v30.1';/*
+  /* ─── FIM: Constantes ──────────────────────────────────────── */
+  /* ─── INÍCIO: Constantes ───────────────────────────────────── */
+  /**
+   * ⚠️ COLE AQUI A URL DO SEU WEB APP DO APPS SCRIPT (termina em /exec)
+   *
+   * Como obter:
+   *   1. Editor do Apps Script → Implantar → Gerenciar implantações
+   *   2. Se não existir: Nova implantação → tipo "Aplicativo da Web"
+   *   3. Executar como: "Eu"
+   *   4. Quem tem acesso: "Qualquer pessoa"  ← OBRIGATÓRIO
+   *   5. Implantar → copiar a URL
+   */
+  const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbxsNs21pEijzQmxLWd_cruBF4vIsz_lBy3OgfMO-9qAh2pUuxMGu9PAocXbLKsqVfOJ/exec';
+
+  const WHATSAPP_SUPORTE = '5574998048300';
+  const SPLASH_MIN_MS = 1500;
+  const TIMEOUT_API = 30000;
+  const TIMEOUT_LINK = 20000;
+  const VERSAO_APP = 'v31';
 
   const CHAVES = {
     FINGERPRINT: 'loja_fingerprint',
@@ -68,6 +54,7 @@
     BANNER_REPETIR: 'loja_banner_repetir_oculto',
     LINK_TOKEN: 'plataforma_link_token',
     REFRESH_TOKEN: 'plataforma_refresh_token',
+    RECUP_IDENTIFICADOR: 'loja_recup_identificador', // guarda temporariamente o telefone digitado
   };
 
   const CACHE_KEYS = {
@@ -110,12 +97,6 @@
   }
   /* ─── FIM: extrairApenasDigitos ────────────────────────────── */
 
-  /* ─── INÍCIO: gerarId ──────────────────────────────────────── */
-  function gerarId() {
-    return 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  }
-  /* ─── FIM: gerarId ─────────────────────────────────────────── */
-
   /* ─── INÍCIO: gerarFingerprint ─────────────────────────────── */
   function gerarFingerprint() {
     try {
@@ -152,7 +133,7 @@
         await navigator.clipboard.writeText(texto);
         return true;
       }
-    } catch (e) { /* fallback */ }
+    } catch (e) { /* fallback abaixo */ }
 
     try {
       const ta = document.createElement('textarea');
@@ -194,16 +175,6 @@
     } catch (e) { return ''; }
   }
   /* ─── FIM: formatarDataBR ──────────────────────────────────── */
-
-  /* ─── INÍCIO: debounce ─────────────────────────────────────── */
-  function debounce(fn, ms) {
-    let t = null;
-    return function (...args) {
-      clearTimeout(t);
-      t = setTimeout(() => fn.apply(this, args), ms);
-    };
-  }
-  /* ─── FIM: debounce ────────────────────────────────────────── */
 
   /* ═══════════════════════════════════════════════════════════
      03. CACHE LOCAL
@@ -402,10 +373,15 @@
   /* ─── FIM: inicializarTema ─────────────────────────────────── */
 
   /* ═══════════════════════════════════════════════════════════
-     07. HTTP / API
+     07. HTTP / API  (Apps Script direto)
      ═══════════════════════════════════════════════════════════ */
 
   /* ─── INÍCIO: fetchComTimeout ──────────────────────────────── */
+  /**
+   * Wrapper de fetch com timeout via AbortController.
+   * Usa Content-Type: text/plain para evitar preflight CORS contra
+   * o Apps Script (que não responde a requisições OPTIONS).
+   */
   async function fetchComTimeout(url, limiteMs = TIMEOUT_API, opcoes = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), limiteMs);
@@ -415,6 +391,7 @@
         mode: 'cors',
         redirect: 'follow',
         cache: 'no-cache',
+        credentials: 'omit',
         ...opcoes,
         headers: {
           'Content-Type': 'text/plain;charset=utf-8',
@@ -429,6 +406,15 @@
   /* ─── FIM: fetchComTimeout ─────────────────────────────────── */
 
   /* ─── INÍCIO: executarRequisicaoAPI ────────────────────────── */
+  /**
+   * Executa uma ação no backend Apps Script.
+   * Trata:
+   *   • SISTEMA_BLOQUEADO (kill switch)
+   *   • LINK_EXPIRED
+   *   • SESSION_EXPIRED (tenta refresh)
+   *   • Erro de rede com retry automático
+   *   • Resposta HTML (indicando deployment privado/URL errada)
+   */
   async function executarRequisicaoAPI(acao, dadosExtras = {}, tentarRefresh = true, tentativa = 1) {
     try {
       const corpo = {
@@ -452,12 +438,40 @@
 
       const texto = await resposta.text();
       let json;
+
       try {
         json = JSON.parse(texto);
       } catch (errParse) {
-        return { sucesso: false, erroTransitorio: true, mensagem: 'Servidor ocupado. Aguarde um instante…' };
+        /* ─── Diagnóstico inteligente ──────────────────────── */
+        const amostra = (texto || '').substring(0, 300).toLowerCase();
+
+        if (amostra.includes('<!doctype') || amostra.includes('<html')) {
+          console.error('[API] Resposta HTML recebida em vez de JSON. Amostra:', texto.substring(0, 500));
+          return {
+            sucesso: false,
+            erroConfiguracao: true,
+            mensagem: 'Erro de configuração: o Web App está restrito. Reimplante com "Qualquer pessoa".'
+          };
+        }
+
+        if (amostra.includes('unauthorized') || amostra.includes('sign in') || amostra.includes('accounts.google.com')) {
+          console.error('[API] Apps Script pediu autenticação.');
+          return {
+            sucesso: false,
+            erroConfiguracao: true,
+            mensagem: 'Erro de configuração: acesso restrito. Ajuste para "Qualquer pessoa".'
+          };
+        }
+
+        console.warn('[API] JSON inválido. Amostra:', texto.substring(0, 500));
+        return {
+          sucesso: false,
+          erroTransitorio: true,
+          mensagem: 'Servidor ocupado. Aguarde um instante…'
+        };
       }
 
+      /* ─── Kill switch ──────────────────────────────────────── */
       if (!json.sucesso && json.codigo === 'SISTEMA_BLOQUEADO') {
         if (estadoSessao.papel === 'adm') return json;
         if (estadoSessao.papel === 'membro') exibirTelaManutencaoMembro();
@@ -465,6 +479,7 @@
         return json;
       }
 
+      /* ─── Link expirado ────────────────────────────────────── */
       if (!json.sucesso && json.codigo === 'LINK_EXPIRED') {
         if (estadoSessao.papel === 'visitante') {
           exibirToast(json.mensagem || 'O link temporário expirou.', 'error');
@@ -473,6 +488,7 @@
         return json;
       }
 
+      /* ─── Sessão expirada ──────────────────────────────────── */
       if (!json.sucesso && json.codigo === 'SESSION_EXPIRED') {
         if (tentarRefresh) {
           let rt = estadoSessao.refreshToken;
@@ -490,13 +506,18 @@
       }
 
       return json;
+
     } catch (erroRede) {
       if (tentativa === 1) {
         await new Promise((r) => setTimeout(r, 1200));
         return executarRequisicaoAPI(acao, dadosExtras, tentarRefresh, 2);
       }
       console.warn('[API] Oscilação de rede:', erroRede);
-      return { sucesso: false, erroRede: true, mensagem: 'Sem conexão momentânea com o servidor.' };
+      return {
+        sucesso: false,
+        erroRede: true,
+        mensagem: 'Sem conexão momentânea com o servidor.'
+      };
     }
   }
   /* ─── FIM: executarRequisicaoAPI ───────────────────────────── */
@@ -954,59 +975,47 @@
   /* ─── FIM: fecharLightbox ──────────────────────────────────── */
 
   /* ═══════════════════════════════════════════════════════════
-     13. AUTENTICAÇÃO (LOGIN & CADASTRO)
+     13. AUTENTICAÇÃO (LOGIN + CADASTRO + RECUPERAÇÃO DE SENHA)
      ═══════════════════════════════════════════════════════════ */
 
   /* ─── INÍCIO: tratarLogin ──────────────────────────────────── */
-async function tratarLogin(evento) {
-  if (evento && evento.preventDefault) evento.preventDefault();
+  async function tratarLogin(evento) {
+    if (evento && evento.preventDefault) evento.preventDefault();
 
-  const usuarioEl = document.getElementById('login-usuario');
-  const senhaEl = document.getElementById('login-senha');
-  if (!usuarioEl || !senhaEl) return;
+    const usuarioEl = document.getElementById('login-usuario');
+    const senhaEl = document.getElementById('login-senha');
+    if (!usuarioEl || !senhaEl) return;
 
-  const usuarioRaw = usuarioEl.value.trim();
-  const usuarioDigitos = extrairApenasDigitos(usuarioRaw);
-  const senha = senhaEl.value;
+    const usuarioRaw = usuarioEl.value.trim();
+    const usuarioDigitos = extrairApenasDigitos(usuarioRaw);
+    const senha = senhaEl.value;
 
-  if (usuarioDigitos.length < 10) {
-    exibirToast('Informe seu WhatsApp completo com DDD.', 'error');
-    usuarioEl.focus();
-    return;
-  }
-  if (!senha || senha.length < 4) {
-    exibirToast('Informe sua senha.', 'error');
-    senhaEl.focus();
-    return;
-  }
-
-  botaoCarregando('btn-entrar', true);
-
-  // ⚠️ Envia TAMBÉM o valor cru, para cobrir backend que armazena formatado
-  const payload = {
-    identificador: usuarioRaw,              // ex: "(74) 99999-9999"
-    identificadorDigitos: usuarioDigitos,   // ex: "74999999999"
-    senha,
-  };
-
-  console.log('[LOGIN] Payload enviado:', {
-    identificador: usuarioRaw,
-    identificadorDigitos: usuarioDigitos,
-    senhaTamanho: senha.length,
-  });
-
-  const resp = await executarRequisicaoAPI('login', payload);
-
-  console.log('[LOGIN] Resposta recebida:', resp);
-
-  botaoCarregando('btn-entrar', false);
-
-  if (!resp.sucesso) {
-    exibirToast(resp.mensagem || 'Credenciais inválidas.', 'error');
-    return;
+    if (usuarioDigitos.length < 10 && usuarioRaw.length < 4) {
+      exibirToast('Informe seu WhatsApp completo com DDD.', 'error');
+      usuarioEl.focus();
+      return;
+    }
+    if (!senha || senha.length < 4) {
+      exibirToast('Informe sua senha.', 'error');
+      senhaEl.focus();
+      return;
     }
 
-    // Sucesso: aplica sessão
+    botaoCarregando('btn-entrar', true);
+
+    const resp = await executarRequisicaoAPI('login', {
+      identificador: usuarioRaw,
+      senha,
+    });
+
+    botaoCarregando('btn-entrar', false);
+
+    if (!resp.sucesso) {
+      exibirToast(resp.mensagem || 'Credenciais inválidas.', 'error');
+      return;
+    }
+
+    // Sessão
     estadoSessao.papel = resp.papel || 'membro';
     estadoSessao.token = resp.token;
     estadoSessao.refreshToken = resp.refreshToken || null;
@@ -1018,12 +1027,10 @@ async function tratarLogin(evento) {
 
     try { localStorage.setItem(CHAVES.SESSAO, JSON.stringify(estadoSessao)); } catch (e) {}
 
-    // Limpa formulário e fecha modal
     const formLogin = document.getElementById('form-login');
     if (formLogin) formLogin.reset();
     fecharModal('modal-login');
 
-    // Atualiza UI e busca dados
     atualizarInterfaceSessao();
     CacheLoja.limpar(CACHE_KEYS.PRODUTOS('visitante'));
     await sincronizarProdutosServidor();
@@ -1033,15 +1040,12 @@ async function tratarLogin(evento) {
       setTimeout(mostrarBannerRepetirPedido, 400);
     }
 
-    // Momento de boas-vindas
     await mostrarMomento(
       'Bem-vindo(a)! 🎉',
       'Olá, ' + resp.nome + '. Bons pedidos!',
       'success',
       1800
     );
-
-    exibirToast('Login realizado com sucesso.', 'success');
   }
   /* ─── FIM: tratarLogin ─────────────────────────────────────── */
 
@@ -1069,47 +1073,14 @@ async function tratarLogin(evento) {
     const senhaConf = senhaConfEl.value;
     const aceitouTermos = termosEl.checked;
 
-    // Validações sequenciais com foco no campo com erro
-    if (!nome || nome.length < 3) {
-      exibirToast('Informe seu nome completo.', 'error');
-      nomeEl.focus();
-      return;
-    }
-    if (telefone.length < 10) {
-      exibirToast('WhatsApp incompleto (precisa de DDD).', 'error');
-      telEl.focus();
-      return;
-    }
-    if (isNaN(idade) || idade < 18) {
-      exibirToast('Apenas maiores de 18 anos.', 'error');
-      idadeEl.focus();
-      return;
-    }
-    if (!indicadoPorNome) {
-      exibirToast('Informe o nome de quem indicou.', 'error');
-      indNomeEl.focus();
-      return;
-    }
-    if (indicadoPorTelefone.length < 10) {
-      exibirToast('WhatsApp de quem indicou está incompleto.', 'error');
-      indTelEl.focus();
-      return;
-    }
-    if (senha.length < 6) {
-      exibirToast('A senha precisa ter no mínimo 6 caracteres.', 'error');
-      senhaEl.focus();
-      return;
-    }
-    if (senha !== senhaConf) {
-      exibirToast('As senhas digitadas não conferem.', 'error');
-      senhaConfEl.focus();
-      return;
-    }
-    if (!aceitouTermos) {
-      exibirToast('É necessário aceitar os Termos de Uso.', 'error');
-      termosEl.focus();
-      return;
-    }
+    if (!nome || nome.length < 3) { exibirToast('Informe seu nome completo.', 'error'); nomeEl.focus(); return; }
+    if (telefone.length < 10) { exibirToast('WhatsApp incompleto (precisa de DDD).', 'error'); telEl.focus(); return; }
+    if (isNaN(idade) || idade < 18) { exibirToast('Apenas maiores de 18 anos.', 'error'); idadeEl.focus(); return; }
+    if (!indicadoPorNome) { exibirToast('Informe o nome de quem indicou.', 'error'); indNomeEl.focus(); return; }
+    if (indicadoPorTelefone.length < 10) { exibirToast('WhatsApp de quem indicou incompleto.', 'error'); indTelEl.focus(); return; }
+    if (senha.length < 6) { exibirToast('A senha precisa ter no mínimo 6 caracteres.', 'error'); senhaEl.focus(); return; }
+    if (senha !== senhaConf) { exibirToast('As senhas não conferem.', 'error'); senhaConfEl.focus(); return; }
+    if (!aceitouTermos) { exibirToast('É necessário aceitar os Termos de Uso.', 'error'); termosEl.focus(); return; }
 
     botaoCarregando('btn-enviar-cadastro', true);
     mostrarLoader('Enviando solicitação…');
@@ -1131,10 +1102,8 @@ async function tratarLogin(evento) {
       return;
     }
 
-    // Sucesso: limpa formulário, fecha modal e mostra momento
     const formRegistro = document.getElementById('form-registro');
     if (formRegistro) formRegistro.reset();
-
     fecharModal('modal-cadastro');
 
     await mostrarMomento(
@@ -1143,10 +1112,178 @@ async function tratarLogin(evento) {
       'success',
       2800
     );
-
-    exibirToast('Fique atento ao WhatsApp!', 'info');
   }
   /* ─── FIM: tratarSolicitacaoCadastro ───────────────────────── */
+
+  /* ═════════════════════════════════════════════════════════════
+     13.1 RECUPERAÇÃO DE SENHA  [NOVO v31]
+     ═════════════════════════════════════════════════════════════ */
+
+  /* ─── INÍCIO: abrirModalRecuperacao ────────────────────────── */
+  /**
+   * Abre o modal de recuperação e volta ao passo 1 (digitar telefone).
+   */
+  function abrirModalRecuperacao() {
+    // Fecha o modal de login primeiro
+    fecharModal('modal-login');
+
+    // Volta ao passo 1
+    const passo1 = document.getElementById('recup-passo-1');
+    const passo2 = document.getElementById('recup-passo-2');
+    if (passo1) passo1.classList.remove('hidden');
+    if (passo2) passo2.classList.add('hidden');
+
+    // Limpa campos
+    const tel = document.getElementById('recup-telefone');
+    const codigo = document.getElementById('recup-codigo');
+    const novaSenha = document.getElementById('recup-nova-senha');
+    const novaSenhaConf = document.getElementById('recup-nova-senha-conf');
+    if (tel) tel.value = '';
+    if (codigo) codigo.value = '';
+    if (novaSenha) novaSenha.value = '';
+    if (novaSenhaConf) novaSenhaConf.value = '';
+
+    try { sessionStorage.removeItem(CHAVES.RECUP_IDENTIFICADOR); } catch (e) {}
+
+    abrirModal('modal-recuperacao');
+  }
+  /* ─── FIM: abrirModalRecuperacao ───────────────────────────── */
+
+  /* ─── INÍCIO: solicitarRecuperacaoSenhaFront ───────────────── */
+  /**
+   * Passo 1: envia o telefone e pede o código.
+   */
+  async function solicitarRecuperacaoSenhaFront(evento) {
+    if (evento && evento.preventDefault) evento.preventDefault();
+
+    const telEl = document.getElementById('recup-telefone');
+    if (!telEl) return;
+
+    const telBruto = telEl.value.trim();
+    const telDigitos = extrairApenasDigitos(telBruto);
+
+    if (telDigitos.length < 10) {
+      exibirToast('Informe o WhatsApp completo com DDD.', 'error');
+      telEl.focus();
+      return;
+    }
+
+    botaoCarregando('btn-recup-enviar', true);
+    mostrarLoader('Gerando código…');
+
+    const resp = await executarRequisicaoAPI('solicitar_recuperacao_senha', {
+      identificador: telBruto,
+    });
+
+    esconderLoader();
+    botaoCarregando('btn-recup-enviar', false);
+
+    if (!resp.sucesso) {
+      exibirToast(resp.mensagem || 'Não foi possível gerar o código.', 'error');
+      return;
+    }
+
+    // Guarda o telefone para o passo 2
+    try { sessionStorage.setItem(CHAVES.RECUP_IDENTIFICADOR, telBruto); } catch (e) {}
+
+    exibirToast('Código enviado! Verifique o WhatsApp.', 'success');
+
+    // Avança para o passo 2
+    const passo1 = document.getElementById('recup-passo-1');
+    const passo2 = document.getElementById('recup-passo-2');
+    if (passo1) passo1.classList.add('hidden');
+    if (passo2) passo2.classList.remove('hidden');
+
+    // Foca no campo de código
+    const codigoEl = document.getElementById('recup-codigo');
+    if (codigoEl) setTimeout(() => codigoEl.focus(), 150);
+  }
+  /* ─── FIM: solicitarRecuperacaoSenhaFront ──────────────────── */
+
+  /* ─── INÍCIO: redefinirSenhaFront ──────────────────────────── */
+  /**
+   * Passo 2: envia código + nova senha.
+   */
+  async function redefinirSenhaFront(evento) {
+    if (evento && evento.preventDefault) evento.preventDefault();
+
+    const codigoEl = document.getElementById('recup-codigo');
+    const novaSenhaEl = document.getElementById('recup-nova-senha');
+    const novaSenhaConfEl = document.getElementById('recup-nova-senha-conf');
+
+    if (!codigoEl || !novaSenhaEl || !novaSenhaConfEl) return;
+
+    const codigo = codigoEl.value.trim();
+    const novaSenha = novaSenhaEl.value;
+    const novaSenhaConf = novaSenhaConfEl.value;
+
+    if (!codigo || codigo.length < 4) {
+      exibirToast('Informe o código recebido.', 'error');
+      codigoEl.focus();
+      return;
+    }
+    if (novaSenha.length < 6) {
+      exibirToast('A nova senha precisa ter no mínimo 6 caracteres.', 'error');
+      novaSenhaEl.focus();
+      return;
+    }
+    if (novaSenha !== novaSenhaConf) {
+      exibirToast('As senhas não conferem.', 'error');
+      novaSenhaConfEl.focus();
+      return;
+    }
+
+    let identificador = '';
+    try { identificador = sessionStorage.getItem(CHAVES.RECUP_IDENTIFICADOR) || ''; } catch (e) {}
+    if (!identificador) {
+      exibirToast('Sessão de recuperação expirou. Recomece.', 'error');
+      abrirModalRecuperacao();
+      return;
+    }
+
+    botaoCarregando('btn-recup-redefinir', true);
+    mostrarLoader('Redefinindo senha…');
+
+    const resp = await executarRequisicaoAPI('redefinir_senha', {
+      identificador,
+      codigo,
+      novaSenha,
+    });
+
+    esconderLoader();
+    botaoCarregando('btn-recup-redefinir', false);
+
+    if (!resp.sucesso) {
+      exibirToast(resp.mensagem || 'Não foi possível redefinir.', 'error');
+      return;
+    }
+
+    try { sessionStorage.removeItem(CHAVES.RECUP_IDENTIFICADOR); } catch (e) {}
+
+    fecharModal('modal-recuperacao');
+
+    await mostrarMomento(
+      'Senha redefinida! 🔐',
+      'Você já pode fazer login com a nova senha.',
+      'success',
+      2200
+    );
+
+    // Abre o modal de login de novo
+    setTimeout(() => abrirModal('modal-login'), 400);
+  }
+  /* ─── FIM: redefinirSenhaFront ─────────────────────────────── */
+
+  /* ─── INÍCIO: voltarPasso1Recuperacao ──────────────────────── */
+  function voltarPasso1Recuperacao(evento) {
+    if (evento && evento.preventDefault) evento.preventDefault();
+
+    const passo1 = document.getElementById('recup-passo-1');
+    const passo2 = document.getElementById('recup-passo-2');
+    if (passo1) passo1.classList.remove('hidden');
+    if (passo2) passo2.classList.add('hidden');
+  }
+  /* ─── FIM: voltarPasso1Recuperacao ─────────────────────────── */
 
   /* ═══════════════════════════════════════════════════════════
      14. VITRINE & FILTROS
@@ -1191,8 +1328,10 @@ async function tratarLogin(evento) {
   /* ─── INÍCIO: aplicarFiltrosVitrine ────────────────────────── */
   function aplicarFiltrosVitrine(semRenderizarChips) {
     catalogoFiltrado = catalogoProdutos.filter((p) => {
-      const matchCat = categoriaAtiva === 'todos' || (p.categoria || '').toLowerCase() === categoriaAtiva.toLowerCase();
-      const matchTermo = !termoBuscaVitrine || (p.nome || '').toLowerCase().includes(termoBuscaVitrine);
+      const matchCat = categoriaAtiva === 'todos' ||
+                       (p.categoria || '').toLowerCase() === categoriaAtiva.toLowerCase();
+      const matchTermo = !termoBuscaVitrine ||
+                         (p.nome || '').toLowerCase().includes(termoBuscaVitrine);
       return matchCat && matchTermo;
     });
 
@@ -1265,7 +1404,6 @@ async function tratarLogin(evento) {
     const semEstoque = !isNaN(estoque) && estoque <= 0;
     const comportamento = p.estoque_comportamento || 'esgotado';
 
-    // Se esgotado E ADM escolheu ocultar → não renderiza
     if (semEstoque && comportamento === 'ocultar') return null;
 
     const card = document.createElement('div');
@@ -1824,37 +1962,48 @@ async function tratarLogin(evento) {
       return;
     }
 
-    const cobranca = resp.cobranca;
+    const cobranca = resp.cobranca || {};
     const caixa = document.createElement('div');
     caixa.style.cssText = 'text-align:center;padding:6px;';
 
-    const imgQr = document.createElement('img');
-    imgQr.src = cobranca.qrCodeUrl;
-    imgQr.alt = 'QR Code PIX';
-    imgQr.style.cssText = 'width:200px;height:200px;margin:0 auto 12px;display:block;border-radius:12px;background:#fff;padding:8px;';
-    caixa.appendChild(imgQr);
+    if (cobranca.qrCodeUrl) {
+      const imgQr = document.createElement('img');
+      imgQr.src = cobranca.qrCodeUrl;
+      imgQr.alt = 'QR Code PIX';
+      imgQr.style.cssText = 'width:200px;height:200px;margin:0 auto 12px;display:block;border-radius:12px;background:#fff;padding:8px;';
+      caixa.appendChild(imgQr);
+    }
 
-    const label = document.createElement('p');
-    label.style.cssText = 'font-size:0.78rem;color:var(--cor-texto-suave);margin-bottom:6px;font-weight:700;';
-    label.textContent = 'Código PIX copia e cola:';
-    caixa.appendChild(label);
+    if (cobranca.pixCopiaECola) {
+      const label = document.createElement('p');
+      label.style.cssText = 'font-size:0.78rem;color:var(--cor-texto-suave);margin-bottom:6px;font-weight:700;';
+      label.textContent = 'Código PIX copia e cola:';
+      caixa.appendChild(label);
 
-    const inputPix = document.createElement('input');
-    inputPix.type = 'text';
-    inputPix.id = 'pix-copia-cola';
-    inputPix.value = cobranca.pixCopiaECola;
-    inputPix.readOnly = true;
-    inputPix.style.cssText = 'font-size:0.72rem;margin-bottom:10px;text-align:center;width:100%;font-family:monospace;';
-    caixa.appendChild(inputPix);
+      const inputPix = document.createElement('input');
+      inputPix.type = 'text';
+      inputPix.id = 'pix-copia-cola';
+      inputPix.value = cobranca.pixCopiaECola;
+      inputPix.readOnly = true;
+      inputPix.style.cssText = 'font-size:0.72rem;margin-bottom:10px;text-align:center;width:100%;font-family:monospace;';
+      caixa.appendChild(inputPix);
 
-    const btnCopiar = document.createElement('button');
-    btnCopiar.type = 'button';
-    btnCopiar.className = 'btn btn-primary btn-block';
-    btnCopiar.dataset.action = 'copiar-pix';
-    btnCopiar.textContent = '📋 Copiar Código PIX';
-    caixa.appendChild(btnCopiar);
+      const btnCopiar = document.createElement('button');
+      btnCopiar.type = 'button';
+      btnCopiar.className = 'btn btn-primary btn-block';
+      btnCopiar.dataset.action = 'copiar-pix';
+      btnCopiar.textContent = '📋 Copiar Código PIX';
+      caixa.appendChild(btnCopiar);
+    }
 
-    abrirConfirmacaoElemento('💳 Pagamento PIX', caixa, () => {
+    if (cobranca.instrucoes) {
+      const p = document.createElement('p');
+      p.style.cssText = 'font-size:0.75rem;color:var(--cor-texto-suave);margin-top:8px;line-height:1.4;';
+      p.textContent = cobranca.instrucoes;
+      caixa.appendChild(p);
+    }
+
+    abrirConfirmacaoElemento('💳 Pagamento', caixa, () => {
       carregarMeusPedidos();
     });
   }
@@ -2567,6 +2716,8 @@ async function tratarLogin(evento) {
         if (resp.sucesso) {
           exibirToast(resp.mensagem || 'Comandas limpas.', 'success');
           await carregarPedidosAdm(true);
+        } else {
+          exibirToast(resp.mensagem || 'Erro ao limpar.', 'error');
         }
       }
     );
@@ -2834,7 +2985,7 @@ async function tratarLogin(evento) {
       : '<tr><td colspan="5" style="text-align:center;padding:16px;color:#666;">Nenhum pedido registrado.</td></tr>';
 
     const html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">' +
-      '<title>Relatorio_' + rel.data.replace(/\//g, '-') + '</title>' +
+      '<title>Relatorio_' + String(rel.data || '').replace(/\//g, '-') + '</title>' +
       '<style>' +
         '@page { size: A4; margin: 15mm; }' +
         '* { box-sizing: border-box; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }' +
@@ -2857,11 +3008,11 @@ async function tratarLogin(evento) {
       '</style></head><body>' +
         '<div class="cabecalho">' +
           '<div><div class="titulo">Fechamento Diário</div><div class="sub">Relatório de Vendas</div></div>' +
-          '<div class="meta"><strong>Data:</strong> ' + rel.data + '<br><strong>Emitido:</strong> ' + hora + '</div>' +
+          '<div class="meta"><strong>Data:</strong> ' + (rel.data || '') + '<br><strong>Emitido:</strong> ' + hora + '</div>' +
         '</div>' +
         '<div class="kpi-grid">' +
           '<div class="kpi"><div class="kpi-rotulo">Faturamento</div><div class="kpi-valor destaque">' + fmtPreco(rel.faturamento) + '</div></div>' +
-          '<div class="kpi"><div class="kpi-rotulo">Pedidos</div><div class="kpi-valor">' + rel.totalPedidos + '</div></div>' +
+          '<div class="kpi"><div class="kpi-rotulo">Pedidos</div><div class="kpi-valor">' + (rel.totalPedidos || 0) + '</div></div>' +
           '<div class="kpi"><div class="kpi-rotulo">Ticket Médio</div><div class="kpi-valor">' + fmtPreco(rel.ticketMedio) + '</div></div>' +
         '</div>' +
         '<div class="secao">1. Produtos Vendidos</div>' +
@@ -2892,24 +3043,15 @@ async function tratarLogin(evento) {
      28. CENTRAL DE AJUDA
      ═══════════════════════════════════════════════════════════ */
 
-  const DUVIDAS_PADRAO = {
-    'como-pagar': 'Aceitamos PIX (instantâneo), Cartão de Crédito e Cripto (USDT/BTC). Após finalizar o pedido, você recebe a chave PIX para copiar e colar no app do seu banco.',
-    'prazo-entrega': 'O prazo médio é de 15 a 30 minutos após a confirmação do pagamento. Você recebe uma notificação no WhatsApp quando estiver pronto.',
-    'nao-recebi': 'Se passou mais de 40 minutos do pagamento, envie uma mensagem no WhatsApp com o número do pedido. Vamos verificar imediatamente.',
-    'trocar-senha': 'Entre em contato pelo WhatsApp com o número cadastrado. A administração pode redefinir sua senha em minutos.',
-  };
-
   /* ─── INÍCIO: carregarDuvidasServidor ──────────────────────── */
   async function carregarDuvidasServidor() {
     try {
       const resp = await executarRequisicaoAPI('obter_duvidas_rapidas');
       if (resp.sucesso && resp.duvidas && typeof resp.duvidas === 'object') {
-        duvidasRapidas = { ...DUVIDAS_PADRAO, ...resp.duvidas };
-      } else {
-        duvidasRapidas = { ...DUVIDAS_PADRAO };
+        duvidasRapidas = resp.duvidas;
       }
     } catch (e) {
-      duvidasRapidas = { ...DUVIDAS_PADRAO };
+      duvidasRapidas = {};
     }
   }
   /* ─── FIM: carregarDuvidasServidor ─────────────────────────── */
@@ -2930,7 +3072,10 @@ async function tratarLogin(evento) {
   async function tratarEnvioSugestao(evento) {
     if (evento && evento.preventDefault) evento.preventDefault();
 
-    const texto = document.getElementById('sugestao-texto').value.trim();
+    const textoEl = document.getElementById('sugestao-texto');
+    if (!textoEl) return;
+
+    const texto = textoEl.value.trim();
     if (texto.length < 5) {
       exibirToast('Escreva um pouco mais sobre sua sugestão.', 'error');
       return;
@@ -2940,6 +3085,8 @@ async function tratarLogin(evento) {
     const resp = await executarRequisicaoAPI('enviar_sugestao', {
       texto,
       nomeUsuario: estadoSessao.nomeUsuario,
+      origemId: estadoSessao.token ? 'logado' : '',
+      origemPapel: estadoSessao.papel,
     });
     botaoCarregando('btn-enviar-sugestao', false);
 
@@ -3129,21 +3276,14 @@ async function tratarLogin(evento) {
 
   /* ─── INÍCIO: inicializarAplicacao ─────────────────────────── */
   async function inicializarAplicacao() {
-    // 1. Tema antes de qualquer render (evita flash)
     inicializarTema();
-
-    // 2. Restaurar estado local
     restaurarSessaoLocal();
     carregarFavoritos();
     carregarCarrinhoLocal();
 
-    // 3. Validar token da URL (se existir)
     await verificarTokenUrl();
-
-    // 4. Interface inicial
     atualizarInterfaceSessao();
 
-    // 5. Carrega produtos se autorizado
     if (_linkAutorizadoValido || estadoSessao.papel !== 'visitante') {
       const cache = CacheLoja.obter(CACHE_KEYS.PRODUTOS(estadoSessao.papel));
       if (cache && Array.isArray(cache) && cache.length > 0) {
@@ -3153,11 +3293,9 @@ async function tratarLogin(evento) {
       await sincronizarProdutosServidor();
     }
 
-    // 6. Config de horário e dúvidas (assíncronos)
     carregarHorarioServidor();
     carregarDuvidasServidor();
 
-    // 7. Dropdown de usuário
     const avatarBtn = document.getElementById('user-avatar-btn');
     if (avatarBtn) {
       avatarBtn.addEventListener('click', (e) => {
@@ -3170,12 +3308,10 @@ async function tratarLogin(evento) {
       if (!e.target.closest('.user-menu')) fecharUserDropdown();
     });
 
-    // 8. Banner de repetir pedido
     if (estadoSessao.papel === 'membro') {
       setTimeout(mostrarBannerRepetirPedido, 800);
     }
 
-    // 9. Splash de abertura concluído
     finalizarSplashInicial('success', 'Tudo pronto!');
   }
   /* ─── FIM: inicializarAplicacao ────────────────────────────── */
@@ -3234,6 +3370,12 @@ async function tratarLogin(evento) {
   window.confirmarLogout = confirmarLogout;
   window.executarLogout = executarLogout;
   window.fecharUserDropdown = fecharUserDropdown;
+
+  // Recuperação de senha [NOVO v31]
+  window.abrirModalRecuperacao = abrirModalRecuperacao;
+  window.solicitarRecuperacaoSenhaFront = solicitarRecuperacaoSenhaFront;
+  window.redefinirSenhaFront = redefinirSenhaFront;
+  window.voltarPasso1Recuperacao = voltarPasso1Recuperacao;
 
   // ADM — Painel
   window.carregarPainelCentralAdm = carregarPainelCentralAdm;
