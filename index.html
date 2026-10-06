@@ -16,13 +16,24 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
 
-    <!-- CSP sem unsafe-eval -->
+    <!--
+      Política de Segurança de Conteúdo (CSP)
+      ─────────────────────────────────────────────────────
+      Backend: Google Apps Script (script.google.com)
+      • script.google.com          → recebe a requisição inicial (POST)
+      • script.googleusercontent.com → destino do redirect (302)
+      • *.googleusercontent.com    → cobre subdomínios regionais
+    -->
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'self';
                    img-src 'self' data: https: blob:;
                    style-src 'self' 'unsafe-inline';
                    script-src 'self' 'unsafe-inline';
-                   connect-src 'self' https://lojasegura-backend.vercel.app https://*.vercel.app https://api.qrserver.com;
+                   connect-src 'self'
+                               https://script.google.com
+                               https://script.googleusercontent.com
+                               https://*.googleusercontent.com
+                               https://api.qrserver.com;
                    form-action 'self';
                    base-uri 'self';">
 
@@ -583,7 +594,7 @@
      MODAIS
      ═══════════════════════════════════════════════════════════ -->
 
-<!-- Login -->
+<!-- ─── LOGIN ─── -->
 <div id="modal-login" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="login-titulo">
     <div class="modal-dialog modal-sm">
         <div class="sheet-handle" aria-hidden="true"></div>
@@ -603,12 +614,103 @@
                 <button type="submit" class="btn btn-primary btn-block" id="btn-entrar">
                     Entrar
                 </button>
+
+                <!-- Link para recuperação de senha -->
+                <button type="button"
+                        class="btn btn-ghost btn-block"
+                        style="margin-top:8px;font-size:0.82rem;"
+                        onclick="if(window.abrirModalRecuperacao)window.abrirModalRecuperacao();"
+                        aria-label="Esqueci minha senha">
+                    🔑 Esqueci minha senha
+                </button>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Cadastro -->
+<!-- ─── RECUPERAÇÃO DE SENHA ─── -->
+<div id="modal-recuperacao" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="recup-titulo">
+    <div class="modal-dialog modal-sm">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <button type="button" class="btn-close" data-action="fechar-modal" data-modal="modal-recuperacao" aria-label="Fechar">&times;</button>
+        <div class="modal-body">
+            <h3 id="recup-titulo">🔑 Recuperar Senha</h3>
+            <p class="modal-subtitle" id="recup-subtitulo">
+                Enviaremos um código de verificação para o seu WhatsApp.
+            </p>
+
+            <!-- PASSO 1: telefone -->
+            <div id="recup-passo-1">
+                <form id="form-recup-passo-1" data-action="solicitar-recuperacao" novalidate>
+                    <div class="form-group">
+                        <label for="recup-telefone">Seu WhatsApp cadastrado</label>
+                        <input type="tel"
+                               id="recup-telefone"
+                               required
+                               placeholder="(00) 00000-0000"
+                               maxlength="15"
+                               inputmode="tel"
+                               autocomplete="tel">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block" id="btn-recup-enviar">
+                        📲 Enviar código
+                    </button>
+                </form>
+            </div>
+
+            <!-- PASSO 2: código + nova senha -->
+            <div id="recup-passo-2" class="hidden">
+                <form id="form-recup-passo-2" data-action="redefinir-senha" novalidate>
+                    <div class="form-group">
+                        <label for="recup-codigo">Código recebido (6 dígitos)</label>
+                        <input type="text"
+                               id="recup-codigo"
+                               required
+                               placeholder="000000"
+                               maxlength="8"
+                               inputmode="numeric"
+                               autocomplete="one-time-code">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="recup-nova-senha">Nova senha</label>
+                        <input type="password"
+                               id="recup-nova-senha"
+                               required
+                               minlength="6"
+                               placeholder="Mínimo 6 caracteres"
+                               autocomplete="new-password">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="recup-nova-senha-conf">Confirme a nova senha</label>
+                        <input type="password"
+                               id="recup-nova-senha-conf"
+                               required
+                               minlength="6"
+                               placeholder="Repita a nova senha"
+                               autocomplete="new-password">
+                    </div>
+
+                    <button type="submit" class="btn btn-success btn-block" id="btn-recup-redefinir">
+                        ✓ Redefinir senha
+                    </button>
+
+                    <button type="button"
+                            class="btn btn-ghost btn-block btn-sm"
+                            style="margin-top:8px;"
+                            onclick="if(window.voltarPasso1Recuperacao)window.voltarPasso1Recuperacao();"
+                            aria-label="Voltar ao passo anterior">
+                        ← Voltar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── CADASTRO ─── -->
 <div id="modal-cadastro" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="cadastro-titulo">
     <div class="modal-dialog">
         <div class="sheet-handle" aria-hidden="true"></div>
@@ -680,7 +782,7 @@
     </div>
 </div>
 
-<!-- Confirmação genérica -->
+<!-- ─── CONFIRMAÇÃO GENÉRICA ─── -->
 <div id="modal-confirmar" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirmar-titulo">
     <div class="modal-dialog modal-sm">
         <div class="sheet-handle" aria-hidden="true"></div>
@@ -699,13 +801,13 @@
     </div>
 </div>
 
-<!-- Lightbox -->
+<!-- ─── LIGHTBOX ─── -->
 <div id="modal-lightbox" class="lightbox-modal" role="dialog" aria-modal="true" aria-label="Visualizador de imagem">
     <button type="button" class="lightbox-modal__close" id="lightbox-fechar" aria-label="Fechar imagem">&times;</button>
     <img class="lightbox-modal__img" id="lightbox-img" src="" alt="Imagem ampliada do produto">
 </div>
 
-<!-- Central de ajuda (só logados) -->
+<!-- ─── CENTRAL DE AJUDA (só logados) ─── -->
 <div id="modal-ajuda" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ajuda-titulo">
     <div class="modal-dialog">
         <div class="sheet-handle" aria-hidden="true"></div>
@@ -757,7 +859,7 @@
     <span id="loader-text">Carregando…</span>
 </div>
 
-<!-- Toasts -->
+<!-- ─── TOASTS ─── -->
 <div id="toast-container" class="toast-wrapper" aria-live="polite" aria-atomic="false"></div>
 
 <!-- ═══════════════════════════════════════════════════════════
