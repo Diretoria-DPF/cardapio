@@ -382,7 +382,7 @@
         credentials: 'omit',
         ...opcoes,
         headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
+          'Content-Type': 'application/json',
           ...(opcoes.headers || {}),
         },
         signal: controller.signal,
